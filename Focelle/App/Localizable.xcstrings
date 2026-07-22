@@ -25,6 +25,16 @@
         "vi" : { "stringUnit" : { "state" : "translated", "value" : "Trợ lý chụp ảnh AI của bạn" } }
       }
     },
+    "camera.error.capture" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Could not take the photo." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không thể chụp ảnh." } } } },
+    "camera.error.photosPermission" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Allow Photos access to save." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hãy cho phép truy cập Ảnh để lưu." } } } },
+    "camera.error.save" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Could not save the photo." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không thể lưu ảnh." } } } },
+    "camera.error.switch" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "That camera is unavailable." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Camera này không khả dụng." } } } },
+    "camera.openSettings" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Settings" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mở Cài đặt" } } } },
+    "camera.permissionDenied" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Camera access is off." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Quyền camera đang tắt." } } } },
+    "camera.saved" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Saved to Photos" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã lưu vào Ảnh" } } } },
+    "camera.starting" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Starting camera…" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đang mở camera…" } } } },
+    "camera.switch" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Switch camera" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đổi camera" } } } },
+    "camera.unavailable" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Camera needs a real iPhone." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Cần iPhone thật để dùng camera." } } } },
     "camera.shutter" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Shutter" } },

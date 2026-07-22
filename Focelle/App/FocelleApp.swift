@@ -4,7 +4,7 @@ import SwiftUI
 struct FocelleApp: App {
     var body: some Scene {
         WindowGroup {
-            CameraPlaceholderView()
+            CameraView()
         }
     }
 }
