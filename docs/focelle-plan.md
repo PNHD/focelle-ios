@@ -35,17 +35,19 @@ macOS CI project
 
 ### Task 1: Create the native project and macOS CI
 
+**Status:** Complete (GitHub Actions run `29902436686`).
+
 **Description:** Create the minimal SwiftUI app/test targets, deterministic project settings, localization placeholders, and a GitHub Actions workflow that builds and tests without signing.
 
 **Acceptance criteria:**
-- [ ] The app launches to a placeholder camera screen on an iOS simulator.
-- [ ] Debug build and one smoke test pass on a pinned macOS/Xcode runner.
-- [ ] CI archives logs and a simulator screenshot artifact.
+- [x] The app launches to a placeholder camera screen on an iOS simulator.
+- [x] Debug build and one smoke test pass on a pinned macOS/Xcode runner.
+- [x] CI archives logs and a simulator screenshot artifact.
 
 **Verification:**
-- [ ] Run the spec's unsigned `xcodebuild ... build` command in CI.
-- [ ] Run the spec's simulator `xcodebuild ... test` command in CI.
-- [ ] Inspect the uploaded screenshot and build logs.
+- [x] Run the spec's unsigned `xcodebuild ... build` command in CI.
+- [x] Run the spec's simulator `xcodebuild ... test` command in CI.
+- [x] Inspect the uploaded screenshot and build logs.
 
 **Dependencies:** None.
 
