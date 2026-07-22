@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft for user review. Based on the approved `docs/focelle-spec.md`. No implementation begins until this plan is approved.
+Approved on 2026-07-22. Based on the approved `docs/focelle-spec.md`.
 
 ## Delivery Strategy
 

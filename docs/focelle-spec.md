@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft for user review. No implementation begins until this document is approved.
+Approved on 2026-07-22.
 
 ## Objective
 

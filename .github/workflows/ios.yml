@@ -35,18 +35,19 @@ jobs:
             -project Focelle.xcodeproj \
             -scheme Focelle \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 17e,OS=26.4' \
+            -destination 'platform=iOS Simulator,name=iPhone 17e,OS=26.4.1' \
             -derivedDataPath DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             test | tee logs/test.log
 
       - name: Capture placeholder screen
         run: |
-          xcrun simctl boot 'iPhone 17e' 2>/dev/null || true
-          xcrun simctl bootstatus 'iPhone 17e' -b
-          xcrun simctl install booted DerivedData/Build/Products/Debug-iphonesimulator/Focelle.app
-          xcrun simctl launch booted com.pnhd.focelle
-          xcrun simctl io booted screenshot artifacts/focelle-placeholder.png
+          DEVICE_ID=$(xcrun simctl list devices available -j | jq -r '.devices["com.apple.CoreSimulator.SimRuntime.iOS-26-4"][] | select(.name == "iPhone 17e") | .udid')
+          xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcrun simctl install "$DEVICE_ID" DerivedData/Build/Products/Debug-iphonesimulator/Focelle.app
+          xcrun simctl launch "$DEVICE_ID" com.pnhd.focelle
+          xcrun simctl io "$DEVICE_ID" screenshot artifacts/focelle-placeholder.png
 
       - name: Upload logs and screenshot
         if: always()
