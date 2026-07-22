@@ -15,6 +15,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Boot iPhone 17e simulator
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available -j | jq -r '.devices["com.apple.CoreSimulator.SimRuntime.iOS-26-4"][] | select(.name == "iPhone 17e") | .udid')
+          echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+          xcrun simctl shutdown all 2>/dev/null || true
+          xcrun simctl boot "$DEVICE_ID"
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+
       - name: Build without signing
         run: |
           set -o pipefail
@@ -35,18 +43,19 @@ jobs:
             -project Focelle.xcodeproj \
             -scheme Focelle \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 17e,OS=26.4.1' \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
             -derivedDataPath DerivedData \
+            -resultBundlePath artifacts/FocelleTests.xcresult \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 30 \
             CODE_SIGNING_ALLOWED=NO \
             test | tee logs/test.log
 
       - name: Capture placeholder screen
         run: |
-          DEVICE_ID=$(xcrun simctl list devices available -j | jq -r '.devices["com.apple.CoreSimulator.SimRuntime.iOS-26-4"][] | select(.name == "iPhone 17e") | .udid')
-          xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
-          xcrun simctl bootstatus "$DEVICE_ID" -b
           xcrun simctl install "$DEVICE_ID" DerivedData/Build/Products/Debug-iphonesimulator/Focelle.app
           xcrun simctl launch "$DEVICE_ID" com.pnhd.focelle
+          sleep 2
           xcrun simctl io "$DEVICE_ID" screenshot artifacts/focelle-placeholder.png
 
       - name: Upload logs and screenshot
