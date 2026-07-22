@@ -1,0 +1,36 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "app.name" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Focelle" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Focelle" } }
+      }
+    },
+    "beta.badge" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "BETA PRO" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "BETA PRO" } }
+      }
+    },
+    "camera.placeholder.subtitle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Camera setup is the next milestone." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Camera sẽ được kết nối ở bước tiếp theo." } }
+      }
+    },
+    "camera.placeholder.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Your AI photo coach" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Trợ lý chụp ảnh AI của bạn" } }
+      }
+    },
+    "camera.shutter" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shutter" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chụp ảnh" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}
