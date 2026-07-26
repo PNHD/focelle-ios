@@ -196,6 +196,31 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(engine.update(right).direction, .right)
     }
 
+    func testGroupBoundsAndSelectedSubject() {
+        let left = CGRect(x: 0.05, y: 0.2, width: 0.25, height: 0.6)
+        let right = CGRect(x: 0.6, y: 0.2, width: 0.25, height: 0.6)
+        let group = left.union(right)
+
+        XCTAssertEqual(OnDeviceAnalyzer.combinedRect([left, right]), group)
+
+        let measurement = SceneMeasurement(
+            subjectRect: group,
+            humanRects: [left, right],
+            faceRects: [],
+            salientRect: nil,
+            horizonAngle: 0,
+            exposure: 0.5,
+            timestamp: 1
+        )
+        XCTAssertEqual(
+            CameraSession.selectedSubject(
+                in: measurement,
+                near: CGPoint(x: 0.75, y: 0.5)
+            ),
+            right
+        )
+    }
+
     func testAimRingOnlyRepresentsTwoDimensionalMovement() {
         XCTAssertTrue(GuidanceDirection.up.usesAimRing)
         XCTAssertTrue(GuidanceDirection.none.usesAimRing)
