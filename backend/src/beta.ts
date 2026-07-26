@@ -9,12 +9,34 @@ const EVENTS = new Set([
   "ai_success",
   "ai_failure",
   "guidance_aligned",
+  "ai_alternative_selected",
   "capture_after_guidance",
+  "filter_selected",
+  "preset_selected",
   "filter_save",
   "preset_save",
+  "activation",
   "day_1_return",
   "day_7_return",
+  "reward_completion",
+  "purchase",
+  "restore",
+  "referral_outcome",
 ]);
+const EVENT_CATEGORIES = new Set([
+  "success",
+  "failed",
+  "subscription",
+  "credit",
+  "unavailable",
+  "offline",
+  "timed_out",
+  "rate_limited",
+  "invalid_response",
+  "quota_exhausted",
+  "server",
+]);
+const LATENCY_BUCKETS = new Set(["under_3s", "3_to_8s", "over_8s"]);
 
 export async function handleConfig(request: Request, env: Env): Promise<Response> {
   if (request.method !== "GET") return error("METHOD_NOT_ALLOWED", 405);
@@ -41,17 +63,35 @@ export async function handleEvent(request: Request, env: Env): Promise<Response>
   } catch {
     return error("BAD_REQUEST", 400);
   }
-  if (!isExactObject(value, ["deviceId", "name"])
+  if (!isEvent(value)
     || typeof value.deviceId !== "string"
     || !deviceIDPattern.test(value.deviceId)
     || typeof value.name !== "string"
-    || !EVENTS.has(value.name)) {
+    || !EVENTS.has(value.name)
+    || (value.category !== undefined
+      && (typeof value.category !== "string" || !EVENT_CATEGORIES.has(value.category)))
+    || (value.latencyBucket !== undefined
+      && (typeof value.latencyBucket !== "string"
+        || !LATENCY_BUCKETS.has(value.latencyBucket)))
+    || (value.schemaVersion !== undefined
+      && (typeof value.schemaVersion !== "number"
+        || !Number.isInteger(value.schemaVersion)
+        || value.schemaVersion < 1
+        || value.schemaVersion > 100))) {
     return error("BAD_REQUEST", 400);
   }
 
-  await env.DB.prepare(
-    "INSERT INTO events (device_hash, name) VALUES (?, ?)",
-  ).bind(await hashDevice(value.deviceId), value.name).run();
+  await env.DB.prepare(`
+    INSERT INTO events (
+      device_hash, name, category, latency_bucket, schema_version
+    ) VALUES (?, ?, ?, ?, ?)
+  `).bind(
+    await hashDevice(value.deviceId),
+    value.name,
+    value.category ?? null,
+    value.latencyBucket ?? null,
+    value.schemaVersion ?? null,
+  ).run();
   return json({ ok: true }, 202);
 }
 
@@ -133,4 +173,24 @@ function isExactObject(
     && !Array.isArray(value)
     && Object.keys(value).length === keys.length
     && keys.every((key) => Object.hasOwn(value, key));
+}
+
+function isEvent(value: unknown): value is {
+  deviceId: unknown;
+  name: unknown;
+  category?: unknown;
+  latencyBucket?: unknown;
+  schemaVersion?: unknown;
+} {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const allowed = new Set([
+    "deviceId",
+    "name",
+    "category",
+    "latencyBucket",
+    "schemaVersion",
+  ]);
+  return Object.hasOwn(value, "deviceId")
+    && Object.hasOwn(value, "name")
+    && Object.keys(value).every((key) => allowed.has(key));
 }
