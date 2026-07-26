@@ -130,6 +130,11 @@ final class SmokeTests: XCTestCase {
         XCTAssertLessThanOrEqual(decoded.name.count, 40)
     }
 
+    func testPresetSyncRequiresCloudKitEntitlement() {
+        XCTAssertTrue(PresetSync.supportsCloudKit(["CloudKit"]))
+        XCTAssertFalse(PresetSync.supportsCloudKit(nil))
+    }
+
     @MainActor
     func testPhotoEditorKeepsOriginalWhilePreviewChanges() throws {
         let input = CIImage(color: .init(red: 0.3, green: 0.4, blue: 0.5))
