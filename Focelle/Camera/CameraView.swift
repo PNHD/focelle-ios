@@ -109,7 +109,7 @@ struct CameraView: View {
             }
         )
 
-        captureView.sheet(isPresented: $showsFilterEditor) {
+        let editorView = captureView.sheet(isPresented: $showsFilterEditor) {
             if let recipe = camera.activeFilter {
                 PresetEditorView(
                     recipe: recipe,
@@ -136,7 +136,7 @@ struct CameraView: View {
                 photoSelection = nil
             }
         }
-        .onChange(of: camera.guidance?.aligned) { oldValue, newValue in
+        let guidanceView = editorView.onChange(of: camera.guidance?.aligned) { oldValue, newValue in
             if oldValue != true, newValue == true {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
                 Analytics.record("guidance_aligned", enabled: settings.analyticsEnabled)
@@ -210,7 +210,7 @@ struct CameraView: View {
                 if case .idle = state { aiStartedAt = nil }
             }
         }
-        .onChange(of: settings.voiceGuidance) { _, enabled in
+        guidanceView.onChange(of: settings.voiceGuidance) { _, enabled in
             if !enabled { voice.stop() }
         }
         .onChange(of: settings.onDeviceOnly) { _, enabled in
