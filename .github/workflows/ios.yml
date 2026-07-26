@@ -73,8 +73,21 @@ jobs:
       - name: Capture onboarding screen
         run: |
           xcrun simctl install "$DEVICE_ID" DerivedData/Build/Products/Debug-iphonesimulator/Focelle.app
-          xcrun simctl launch "$DEVICE_ID" com.pnhd.focelle
+          LAUNCH_OUTPUT=$(xcrun simctl launch --terminate-running-process "$DEVICE_ID" com.pnhd.focelle)
+          echo "$LAUNCH_OUTPUT"
+          APP_PID=${LAUNCH_OUTPUT##*: }
           sleep 2
+          if ! kill -0 "$APP_PID" 2>/dev/null; then
+            xcrun simctl spawn "$DEVICE_ID" log show \
+              --last 3m \
+              --style compact \
+              --predicate 'process == "Focelle"' | tee logs/app-launch.log || true
+            find "$HOME/Library/Logs/DiagnosticReports" \
+              -maxdepth 1 \
+              -name 'Focelle*' \
+              -exec cp {} logs/ \;
+            exit 1
+          fi
           xcrun simctl io "$DEVICE_ID" screenshot artifacts/focelle-onboarding.png
 
       - name: Upload logs and screenshot
