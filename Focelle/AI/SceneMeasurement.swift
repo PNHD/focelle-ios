@@ -3,6 +3,7 @@ import Foundation
 
 struct SceneMeasurement: Equatable, Sendable {
     var subjectRect: CGRect?
+    var humanRects: [CGRect] = []
     var faceRects: [CGRect]
     var bodyPoseCount: Int = 0
     var salientRect: CGRect?
