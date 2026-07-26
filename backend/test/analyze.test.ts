@@ -91,6 +91,19 @@ describe("analyze", () => {
     expect((await response.json() as { result: typeof validResult }).result).toEqual(validResult);
   });
 
+  it("accepts bounded on-device face and pose counts", async () => {
+    const response = await handleAnalyze(
+      request(jpeg(), true, {
+        faces: 1,
+        poses: 1,
+        exposure: 0.5,
+      }),
+      environment(),
+      provider(validResult),
+    );
+    expect(response.status).toBe(200);
+  });
+
   it("maps app rate limits without KV", async () => {
     const response = await handleAnalyze(
       request(jpeg(), true),
@@ -117,7 +130,11 @@ describe("JPEG privacy", () => {
   });
 });
 
-function request(image = jpeg(), authenticated = false): Request {
+function request(
+  image = jpeg(),
+  authenticated = false,
+  measurements?: { faces: number; poses: number; exposure: number },
+): Request {
   return new Request("https://example.test/v1/analyze", {
     method: "POST",
     headers: {
@@ -130,6 +147,7 @@ function request(image = jpeg(), authenticated = false): Request {
       timezoneOffsetMinutes: 420,
       locale: "vi",
       image: { mimeType: "image/jpeg", data: image },
+      ...(measurements ? { measurements } : {}),
     }),
   });
 }

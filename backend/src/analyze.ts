@@ -26,6 +26,7 @@ type AnalyzeRequest = {
   measurements?: {
     subject?: { x: number; y: number; width: number; height: number };
     faces: number;
+    poses: number;
     horizonAngle?: number;
     exposure: number;
   };
@@ -210,10 +211,11 @@ async function release(
 
 function validateMeasurements(value: unknown): AnalyzeRequest["measurements"] {
   if (value === undefined) return undefined;
-  if (!isExactObject(value, ["faces", "exposure"], ["subject", "horizonAngle"])) {
+  if (!isExactObject(value, ["faces", "poses", "exposure"], ["subject", "horizonAngle"])) {
     throw new Error("invalid");
   }
   if (!Number.isInteger(value.faces) || !numberIn(value.faces, 0, 20)) throw new Error("invalid");
+  if (!Number.isInteger(value.poses) || !numberIn(value.poses, 0, 20)) throw new Error("invalid");
   if (!numberIn(value.exposure, 0, 1)) throw new Error("invalid");
   if (value.horizonAngle !== undefined && !numberIn(value.horizonAngle, -Math.PI, Math.PI)) {
     throw new Error("invalid");
@@ -221,6 +223,7 @@ function validateMeasurements(value: unknown): AnalyzeRequest["measurements"] {
   const subject = value.subject === undefined ? undefined : validateRect(value.subject);
   return {
     faces: value.faces,
+    poses: value.poses,
     exposure: value.exposure,
     ...(subject ? { subject } : {}),
     ...(typeof value.horizonAngle === "number" ? { horizonAngle: value.horizonAngle } : {}),

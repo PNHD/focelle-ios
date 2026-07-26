@@ -16,6 +16,7 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
             let faces = VNDetectFaceCaptureQualityRequest()
             let humans = VNDetectHumanRectanglesRequest()
             humans.upperBodyOnly = false
+            let bodyPoses = VNDetectHumanBodyPoseRequest()
             let horizon = VNDetectHorizonRequest()
             let saliency = VNGenerateAttentionBasedSaliencyImageRequest()
             let handler = VNImageRequestHandler(
@@ -24,13 +25,14 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
             )
 
             do {
-                try handler.perform([faces, humans, horizon, saliency])
+                try handler.perform([faces, humans, bodyPoses, horizon, saliency])
                 completion(
                     SceneMeasurement(
                         subjectRect: humans.results?
                             .max { Self.area($0.boundingBox) < Self.area($1.boundingBox) }?
                             .boundingBox,
                         faceRects: faces.results?.map(\.boundingBox) ?? [],
+                        bodyPoseCount: bodyPoses.results?.count ?? 0,
                         salientRect: saliency.results?
                             .first?
                             .salientObjects?

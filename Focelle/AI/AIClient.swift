@@ -154,12 +154,14 @@ private struct AnalyzeRequest: Encodable {
     struct Measurements: Encodable {
         let subject: NormalizedRect?
         let faces: Int
+        let poses: Int
         let horizonAngle: Double?
         let exposure: Double
 
         init(_ measurement: SceneMeasurement) {
             subject = measurement.primaryRect.map(NormalizedRect.init)
             faces = measurement.faceRects.count
+            poses = measurement.bodyPoseCount
             horizonAngle = measurement.horizonAngle
             exposure = measurement.exposure
         }
