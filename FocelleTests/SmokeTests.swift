@@ -191,6 +191,63 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(makeAIResponse().isValid)
     }
 
+    func testAutoCaptureRequiresStableReadySubjectAndCancels() {
+        var auto = AutoCapture()
+        let subject = CGRect(x: 0.3, y: 0.2, width: 0.3, height: 0.5)
+
+        XCTAssertFalse(auto.update(
+            aligned: true,
+            subject: subject,
+            faceReady: true,
+            timestamp: 1
+        ))
+        XCTAssertFalse(auto.update(
+            aligned: true,
+            subject: subject.offsetBy(dx: 0.04, dy: 0),
+            faceReady: true,
+            timestamp: 2
+        ))
+        XCTAssertTrue(auto.update(
+            aligned: true,
+            subject: subject.offsetBy(dx: 0.04, dy: 0),
+            faceReady: true,
+            timestamp: 3.3
+        ))
+
+        auto.cancel(now: 4)
+        XCTAssertFalse(auto.update(
+            aligned: true,
+            subject: subject,
+            faceReady: true,
+            timestamp: 5
+        ))
+    }
+
+    func testCloudPlanRemainsAlignedAgainstLiveMeasurements() {
+        let guidance = CameraSession.cloudGuidance(
+            makeAIPlan(id: "primary"),
+            measurement: SceneMeasurement(
+                subjectRect: CGRect(x: 0.2, y: 0.3, width: 0.3, height: 0.5),
+                faceRects: [],
+                salientRect: nil,
+                horizonAngle: 0,
+                exposure: 0.5,
+                timestamp: 1
+            )
+        )
+
+        XCTAssertTrue(guidance.aligned)
+        XCTAssertEqual(guidance.target.x, 0.35, accuracy: 0.001)
+    }
+
+    @MainActor
+    func testVoiceGuidanceThrottlesRepeatedAdvice() {
+        let voice = VoiceGuidance()
+        XCTAssertTrue(voice.shouldSpeak("Move left", now: 1))
+        XCTAssertFalse(voice.shouldSpeak("Move left", now: 2))
+        XCTAssertTrue(voice.shouldSpeak("Move left", now: 5))
+    }
+
     private func makeAIResponse() -> AICompositionResponse {
         AICompositionResponse(
             schemaVersion: 1,

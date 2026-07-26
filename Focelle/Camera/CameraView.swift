@@ -8,6 +8,7 @@ struct CameraView: View {
     @EnvironmentObject private var presets: PresetStore
     @StateObject private var camera = CameraSession()
     @StateObject private var ai = AIAnalysisModel()
+    @StateObject private var voice = VoiceGuidance()
     @State private var countdown: Int?
     @State private var countdownTask: Task<Void, Never>?
     @State private var focusMarker: CGPoint?
@@ -18,6 +19,9 @@ struct CameraView: View {
     @State private var photoSelection: PhotosPickerItem?
     @State private var photoEditorData: Data?
     @State private var guidanceEnabled = true
+    @State private var voiceEnabled = false
+    @State private var autoCaptureEnabled = false
+    @State private var autoCapture = AutoCapture()
 
     var body: some View {
         GeometryReader { geometry in
@@ -107,9 +111,36 @@ struct CameraView: View {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             }
         }
+        .onChange(of: camera.guidance) { _, guidance in
+            guard let guidance else { return }
+            if voiceEnabled {
+                voice.speak(
+                    guidance.instruction
+                        ?? NSLocalizedString(guidance.instructionKey, comment: "")
+                )
+            }
+            guard autoCaptureEnabled, let measurement = camera.measurement else { return }
+            if autoCapture.update(
+                aligned: guidance.aligned,
+                subject: measurement.primaryRect,
+                faceReady: measurement.faceReady,
+                timestamp: measurement.timestamp
+            ) {
+                camera.capture()
+            }
+        }
         .onChange(of: ai.state) { _, state in
-            guard case let .ready(result, selected) = state else { return }
-            camera.applyAIPlan(result.plans[selected])
+            if case let .ready(result, selected) = state {
+                camera.applyAIPlan(result.plans[selected])
+            } else {
+                camera.clearAIPlan()
+            }
+        }
+        .onChange(of: voiceEnabled) { _, enabled in
+            if !enabled { voice.stop() }
+        }
+        .onChange(of: autoCaptureEnabled) { _, _ in
+            autoCapture.cancel()
         }
         .sheet(isPresented: photoEditorPresented) {
             if let photoEditorData {
@@ -133,6 +164,14 @@ struct CameraView: View {
                     Image(systemName: guidanceEnabled ? "sparkles" : "sparkles.slash")
                 }
                 .accessibilityLabel(Text("guidance.toggle"))
+
+                Menu {
+                    Toggle("voice.toggle", isOn: $voiceEnabled)
+                    Toggle("autoCapture.toggle", isOn: $autoCaptureEnabled)
+                } label: {
+                    Image(systemName: "ear.badge.waveform")
+                }
+                .accessibilityLabel(Text("camera.assist"))
 
                 Button { camera.showsGrid.toggle() } label: {
                     Image(systemName: camera.showsGrid ? "grid" : "square")
@@ -320,7 +359,16 @@ struct CameraView: View {
         case let .ready(result, selected):
             let plan = result.plans[selected]
             VStack(alignment: .leading, spacing: 8) {
-                Text(plan.instruction).font(.subheadline.weight(.semibold))
+                HStack {
+                    Text(plan.instruction).font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Button {
+                        ai.cancel()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel(Text("common.close"))
+                }
                 Text(plan.pose).font(.caption).foregroundStyle(.white.opacity(0.8))
                 HStack {
                     ForEach(result.plans.indices, id: \.self) { index in
@@ -538,6 +586,7 @@ struct CameraView: View {
 
     private func triggerCapture() {
         guard countdown == nil, !camera.isCapturing else { return }
+        autoCapture.cancel()
         guard camera.timer.rawValue > 0 else {
             camera.capture()
             return

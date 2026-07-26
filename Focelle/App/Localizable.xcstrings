@@ -13,6 +13,10 @@
     "ai.plan.creative" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Creative" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "S\u00e1ng t\u1ea1o" } } } },
     "ai.plan.primary" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Best" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "\u0110\u1eb9p nh\u1ea5t" } } } },
     "ai.plan.safe" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Safe" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "An to\u00e0n" } } } },
+    "autoCapture.toggle" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Auto Capture" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "T\u1ef1 \u0111\u1ed9ng ch\u1ee5p" } } } },
+    "camera.assist" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Voice and Auto Capture" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Gi\u1ecdng n\u00f3i v\u00e0 t\u1ef1 ch\u1ee5p" } } } },
+    "common.close" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Close" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "\u0110\u00f3ng" } } } },
+    "voice.toggle" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Spoken guidance" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "H\u01b0\u1edbng d\u1eabn b\u1eb1ng gi\u1ecdng n\u00f3i" } } } },
     "app.name" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Focelle" } },

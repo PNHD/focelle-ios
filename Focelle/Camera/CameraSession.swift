@@ -137,6 +137,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var stabilizer = MeasurementStabilizer()
     private var guidanceEngine = GuidanceEngine()
     private var pendingAIPreview: (@Sendable (Data?) -> Void)?
+    private var cloudPlan: AICompositionPlan?
 
     func start() {
 #if targetEnvironment(simulator)
@@ -327,17 +328,20 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     func applyAIPlan(_ plan: AICompositionPlan) {
         setZoom(CGFloat(plan.zoom))
         setExposure(Float(plan.exposureBias))
-        let direction = GuidanceDirection(rawValue: plan.movement.rawValue) ?? .none
-        let currentSubject = measurement?.primaryRect
-        DispatchQueue.main.async {
-            self.guidance = Guidance(
-                subjectRect: currentSubject,
-                target: CGPoint(x: plan.target.cgRect.midX, y: plan.target.cgRect.midY),
-                direction: direction,
-                instructionKey: "",
-                instruction: plan.instruction,
-                aligned: direction == .none
-            )
+        queue.async {
+            self.cloudPlan = plan
+            guard let measurement = self.measurement else { return }
+            let guidance = Self.cloudGuidance(plan, measurement: measurement)
+            DispatchQueue.main.async { self.guidance = guidance }
+        }
+    }
+
+    func clearAIPlan() {
+        queue.async {
+            self.cloudPlan = nil
+            guard let measurement = self.measurement else { return }
+            let guidance = self.guidanceEngine.update(measurement)
+            DispatchQueue.main.async { self.guidance = guidance }
         }
     }
 
@@ -353,7 +357,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             }) else { return }
             measurement.subjectRect = selected
             self.stabilizer = MeasurementStabilizer()
-            let guidance = self.guidanceEngine.update(measurement)
+            let guidance = self.cloudPlan.map {
+                Self.cloudGuidance($0, measurement: measurement)
+            } ?? self.guidanceEngine.update(measurement)
             DispatchQueue.main.async {
                 self.measurement = measurement
                 self.guidance = guidance
@@ -484,6 +490,67 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
     private static func distance(from point: CGPoint, to rect: CGRect) -> CGFloat {
         hypot(point.x - rect.midX, point.y - rect.midY)
     }
+
+    static func cloudGuidance(
+        _ plan: AICompositionPlan,
+        measurement: SceneMeasurement
+    ) -> Guidance {
+        let target = CGPoint(x: plan.target.cgRect.midX, y: plan.target.cgRect.midY)
+        guard let visionRect = measurement.primaryRect else {
+            return Guidance(
+                target: target,
+                direction: .none,
+                instructionKey: "guidance.findSubject",
+                aligned: false
+            )
+        }
+        let subject = CGRect(
+            x: visionRect.minX,
+            y: 1 - visionRect.maxY,
+            width: visionRect.width,
+            height: visionRect.height
+        )
+        let x = subject.midX - target.x
+        let y = subject.midY - target.y
+        let areaRatio = subject.width * subject.height
+            / max(plan.target.cgRect.width * plan.target.cgRect.height, 0.01)
+
+        let direction: GuidanceDirection
+        let key: String
+        if let horizon = measurement.horizonAngle, abs(horizon) > 0.05 {
+            direction = .level
+            key = "guidance.level"
+        } else if areaRatio < 0.65 {
+            direction = .closer
+            key = "guidance.closer"
+        } else if areaRatio > 1.45 {
+            direction = .farther
+            key = "guidance.farther"
+        } else if x < -0.06 {
+            direction = .left
+            key = "guidance.left"
+        } else if x > 0.06 {
+            direction = .right
+            key = "guidance.right"
+        } else if y < -0.07 {
+            direction = .up
+            key = "guidance.up"
+        } else if y > 0.07 {
+            direction = .down
+            key = "guidance.down"
+        } else {
+            direction = .none
+            key = "guidance.ready"
+        }
+        return Guidance(
+            subjectRect: subject,
+            target: target,
+            direction: direction,
+            instructionKey: key,
+            instruction: direction == .none ? nil : plan.instruction,
+            aligned: direction == .none
+        )
+    }
 }
 
 extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
@@ -513,7 +580,9 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
                     self.analysisInFlight = false
                     guard let measurement else { return }
                     let stable = self.stabilizer.update(measurement)
-                    let guidance = self.guidanceEngine.update(stable)
+                    let guidance = self.cloudPlan.map {
+                        Self.cloudGuidance($0, measurement: stable)
+                    } ?? self.guidanceEngine.update(stable)
                     DispatchQueue.main.async {
                         self.measurement = stable
                         self.guidance = guidance

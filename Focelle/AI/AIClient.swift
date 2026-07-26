@@ -115,10 +115,13 @@ enum AIClient {
             throw AIClientError.unavailable
         }
 
-        let requestBody = AnalyzeRequest(
-            deviceId: UIDevice.current.identifierForVendor?
+        let deviceId = await MainActor.run {
+            UIDevice.current.identifierForVendor?
                 .uuidString.replacingOccurrences(of: "-", with: "")
-                ?? UUID().uuidString.replacingOccurrences(of: "-", with: ""),
+                ?? UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        }
+        let requestBody = AnalyzeRequest(
+            deviceId: deviceId,
             locale: Locale.current.language.languageCode?.identifier == "vi" ? "vi" : "en",
             image: .init(mimeType: "image/jpeg", data: preview.base64EncodedString()),
             measurements: measurement.map(AnalyzeRequest.Measurements.init)

@@ -33,12 +33,14 @@ struct GuidanceOverlay: View {
                 VStack(spacing: 8) {
                     Image(systemName: icon)
                         .font(.title2.bold())
-                    if let instruction = guidance.instruction {
-                        Text(instruction)
-                    } else {
-                        Text(LocalizedStringKey(guidance.instructionKey))
+                    Group {
+                        if let instruction = guidance.instruction {
+                            Text(instruction)
+                        } else {
+                            Text(LocalizedStringKey(guidance.instructionKey))
+                        }
                     }
-                        .font(.subheadline.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)

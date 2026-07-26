@@ -13,7 +13,7 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
         completion: @escaping @Sendable (SceneMeasurement?) -> Void
     ) {
         queue.async {
-            let faces = VNDetectFaceRectanglesRequest()
+            let faces = VNDetectFaceCaptureQualityRequest()
             let humans = VNDetectHumanRectanglesRequest()
             humans.upperBodyOnly = false
             let horizon = VNDetectHorizonRequest()
@@ -38,6 +38,9 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
                             .boundingBox,
                         horizonAngle: horizon.results?.first.map { Double($0.angle) },
                         exposure: Self.averageLuma(buffer),
+                        faceReady: faces.results?.allSatisfy {
+                            ($0.faceCaptureQuality?.doubleValue ?? 0) >= 0.35
+                        } ?? true,
                         timestamp: ProcessInfo.processInfo.systemUptime
                     )
                 )

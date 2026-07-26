@@ -7,6 +7,7 @@ struct SceneMeasurement: Equatable, Sendable {
     var salientRect: CGRect?
     var horizonAngle: Double?
     var exposure: Double
+    var faceReady: Bool = true
     var timestamp: TimeInterval
 
     var primaryRect: CGRect? {
