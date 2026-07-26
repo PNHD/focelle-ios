@@ -19,9 +19,9 @@ jobs:
         working-directory: backend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
@@ -38,7 +38,7 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Validate app configuration
         run: /usr/libexec/PlistBuddy -c 'Print :GADApplicationIdentifier' Focelle/Info.plist
@@ -76,7 +76,7 @@ jobs:
 
       - name: Upload logs and screenshot
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: focelle-ios-ci
           path: |

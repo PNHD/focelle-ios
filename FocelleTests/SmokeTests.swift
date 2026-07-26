@@ -32,7 +32,7 @@ final class SmokeTests: XCTestCase {
 
     func testCameraRestartsOnlyAfterMediaServicesReset() {
         XCTAssertTrue(CameraSession.canRestart(after: AVError(.mediaServicesWereReset)))
-        XCTAssertFalse(CameraSession.canRestart(after: AVError(.deviceIsNotAvailableInBackground)))
+        XCTAssertFalse(CameraSession.canRestart(after: AVError(.unknown)))
     }
 
     func testOriginalFiltersAreOwnedUniqueRecipes() {
