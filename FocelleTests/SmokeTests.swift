@@ -107,6 +107,29 @@ final class SmokeTests: XCTestCase {
         XCTAssertFalse(migrated.isDeleted)
     }
 
+    func testPresetDecodeClampsUntrustedCloudValues() throws {
+        var recipe = FocelleOriginals.all[0]
+        recipe.exposure = 99
+        recipe.fade = -4
+        let preset = UserPreset(
+            id: UUID(),
+            name: " ".padding(toLength: 80, withPad: "A", startingAt: 0),
+            recipe: recipe,
+            intensity: 4,
+            updatedAt: .now
+        )
+
+        let decoded = try JSONDecoder().decode(
+            UserPreset.self,
+            from: JSONEncoder().encode(preset)
+        )
+
+        XCTAssertEqual(decoded.recipe.exposure, 1)
+        XCTAssertEqual(decoded.recipe.fade, 0)
+        XCTAssertEqual(decoded.intensity, 1)
+        XCTAssertLessThanOrEqual(decoded.name.count, 40)
+    }
+
     @MainActor
     func testPhotoEditorKeepsOriginalWhilePreviewChanges() throws {
         let input = CIImage(color: .init(red: 0.3, green: 0.4, blue: 0.5))

@@ -34,8 +34,8 @@ final class PresetStore: ObservableObject {
         customRecipe.id = "user-\(id.uuidString)"
         let preset = UserPreset(
             id: id,
-            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-            recipe: customRecipe,
+            name: UserPreset.sanitizedName(name),
+            recipe: customRecipe.clamped(),
             intensity: min(max(intensity, 0), 1),
             updatedAt: now
         )
@@ -46,7 +46,7 @@ final class PresetStore: ObservableObject {
 
     func rename(_ id: UUID, to name: String, now: Date = .now) {
         update(id, now: now) {
-            $0.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            $0.name = UserPreset.sanitizedName(name)
         }
     }
 
@@ -61,7 +61,7 @@ final class PresetStore: ObservableObject {
         now: Date = .now
     ) {
         update(id, now: now) {
-            $0.recipe = recipe
+            $0.recipe = recipe.clamped()
             $0.intensity = min(max(intensity, 0), 1)
         }
     }

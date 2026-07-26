@@ -14,6 +14,21 @@ struct FilterRecipe: Codable, Equatable, Identifiable, Sendable {
     var grain: Double = 0
     var vignette: Double = 0
     var monochrome = false
+
+    func clamped() -> FilterRecipe {
+        var value = self
+        value.exposure = min(max(exposure, -1), 1)
+        value.highlights = min(max(highlights, -1), 1)
+        value.shadows = min(max(shadows, -1), 1)
+        value.contrast = min(max(contrast, -1), 1)
+        value.saturation = min(max(saturation, -1), 1)
+        value.warmth = min(max(warmth, -1), 1)
+        value.tint = min(max(tint, -1), 1)
+        value.fade = min(max(fade, 0), 1)
+        value.grain = min(max(grain, 0), 1)
+        value.vignette = min(max(vignette, 0), 1)
+        return value
+    }
 }
 
 enum FocelleOriginals {

@@ -36,10 +36,11 @@ struct UserPreset: Codable, Equatable, Identifiable, Sendable {
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
-        schemaVersion = try values.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        schemaVersion = 1
         id = try values.decode(UUID.self, forKey: .id)
-        name = try values.decode(String.self, forKey: .name)
-        recipe = try values.decode(FilterRecipe.self, forKey: .recipe)
+        name = Self.sanitizedName(try values.decode(String.self, forKey: .name))
+        recipe = try values.decode(FilterRecipe.self, forKey: .recipe).clamped()
+        recipe.id = "user-\(id.uuidString)"
         intensity = min(max(try values.decode(Double.self, forKey: .intensity), 0), 1)
         isFavorite = try values.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
         updatedAt = try values.decode(Date.self, forKey: .updatedAt)
@@ -50,5 +51,10 @@ struct UserPreset: Codable, Equatable, Identifiable, Sendable {
         Dictionary(grouping: local + remote, by: \.id)
             .compactMap { $0.value.max { $0.updatedAt < $1.updatedAt } }
             .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    static func sanitizedName(_ value: String) -> String {
+        let name = String(value.trimmingCharacters(in: .whitespacesAndNewlines).prefix(40))
+        return name.isEmpty ? String(localized: "filter.untitled") : name
     }
 }

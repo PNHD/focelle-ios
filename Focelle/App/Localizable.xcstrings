@@ -108,6 +108,7 @@
     "filter.intensity" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Filter intensity" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "C\u01b0\u1eddng \u0111\u1ed9 filter" } } } },
     "filter.favorite" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Favorite" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Y\u00eau th\u00edch" } } } },
     "filter.myPresetFormat" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "My Preset %d" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Preset c\u1ee7a t\u00f4i %d" } } } },
+    "filter.untitled" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Untitled Preset" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Preset ch\u01b0a \u0111\u1eb7t t\u00ean" } } } },
     "filter.none" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "None" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Kh\u00f4ng" } } } },
     "filter.presetName" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Preset name" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "T\u00ean preset" } } } },
     "filter.rename" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Rename" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "\u0110\u1ed5i t\u00ean" } } } },
