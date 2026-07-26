@@ -126,6 +126,8 @@ function request(image = jpeg(), authenticated = false): Request {
     },
     body: JSON.stringify({
       deviceId: "device_1234567890",
+      requestId: "request_1234567890123456",
+      timezoneOffsetMinutes: 420,
       locale: "vi",
       image: { mimeType: "image/jpeg", data: image },
     }),

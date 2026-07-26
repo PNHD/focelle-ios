@@ -18,11 +18,13 @@ struct SettingsView: View {
                         .foregroundStyle(.orange)
                 }
 
-                Section("settings.ai") {
+                Section {
                     Toggle("settings.onDeviceOnly", isOn: $settings.onDeviceOnly)
                     Toggle("guidance.toggle", isOn: $settings.guidanceEnabled)
                     Toggle("voice.toggle", isOn: $settings.voiceGuidance)
                     Toggle("autoCapture.toggle", isOn: $settings.autoCapture)
+                } header: {
+                    Text("settings.ai")
                 } footer: {
                     Text("settings.aiFooter")
                 }

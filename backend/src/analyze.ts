@@ -5,6 +5,13 @@ import {
 } from "./schema";
 import { recordSuccessfulAnalysis } from "./beta";
 import { authorized, error, json, PayloadTooLarge, readJSON } from "./http";
+import {
+  commitCredit,
+  refundCredit,
+  requestKeyPattern,
+  reserveCredit,
+  validTimezone,
+} from "./quota";
 
 const MAX_REQUEST_BYTES = 1_500_000;
 const MAX_IMAGE_BYTES = 900_000;
@@ -12,6 +19,8 @@ const MAX_PROVIDER_BYTES = 256_000;
 
 type AnalyzeRequest = {
   deviceId: string;
+  requestId: string;
+  timezoneOffsetMinutes: number;
   locale: "vi" | "en";
   image: { mimeType: "image/jpeg"; data: string };
   measurements?: {
@@ -54,6 +63,19 @@ export async function handleAnalyze(
   } catch {
     return error("BAD_REQUEST", 400);
   }
+  let reservation: { allowed: boolean; reserved: boolean };
+  try {
+    reservation = await reserveCredit(
+      env.DB,
+      input.deviceId,
+      input.timezoneOffsetMinutes,
+      "ai",
+      input.requestId,
+    );
+  } catch {
+    return error("QUOTA_ERROR", 503);
+  }
+  if (!reservation.allowed) return error("QUOTA_EXHAUSTED", 402);
   const providerRequest = {
     contents: [{
       role: "user",
@@ -99,34 +121,61 @@ export async function handleAnalyze(
       },
     );
   } catch (cause) {
+    await release(env.DB, input.requestId, reservation.reserved);
     return cause instanceof DOMException && cause.name === "TimeoutError"
       ? error("PROVIDER_TIMEOUT", 504)
       : error("PROVIDER_ERROR", 502);
   }
 
-  if (provider.status === 429) return error("PROVIDER_RATE_LIMITED", 503);
-  if (!provider.ok) return error("PROVIDER_ERROR", 502);
+  if (provider.status === 429) {
+    await release(env.DB, input.requestId, reservation.reserved);
+    return error("PROVIDER_RATE_LIMITED", 503);
+  }
+  if (!provider.ok) {
+    await release(env.DB, input.requestId, reservation.reserved);
+    return error("PROVIDER_ERROR", 502);
+  }
 
   try {
     const body = await readJSON(provider, MAX_PROVIDER_BYTES);
     const text = providerText(body);
     const result: unknown = JSON.parse(text);
-    if (!isCompositionResponse(result)) return error("INVALID_AI_RESPONSE", 502);
+    if (!isCompositionResponse(result)) {
+      await release(env.DB, input.requestId, reservation.reserved);
+      return error("INVALID_AI_RESPONSE", 502);
+    }
+    if (reservation.reserved) {
+      try {
+        await commitCredit(env.DB, input.requestId);
+      } catch {
+        await release(env.DB, input.requestId, true);
+        return error("QUOTA_ERROR", 503);
+      }
+    }
     context?.waitUntil(recordSuccessfulAnalysis(env.DB, input.deviceId));
     return json({ ok: true, result });
   } catch {
+    await release(env.DB, input.requestId, reservation.reserved);
     return error("INVALID_AI_RESPONSE", 502);
   }
 }
 
 function validateRequest(value: unknown): AnalyzeRequest {
-  if (!isExactObject(value, ["deviceId", "locale", "image"], ["measurements"])) {
+  if (!isExactObject(
+    value,
+    ["deviceId", "requestId", "timezoneOffsetMinutes", "locale", "image"],
+    ["measurements"],
+  )) {
     throw new Error("invalid");
   }
   if (!isExactObject(value.image, ["mimeType", "data"])) throw new Error("invalid");
   if (typeof value.deviceId !== "string" || !/^[A-Za-z0-9_-]{16,64}$/.test(value.deviceId)) {
     throw new Error("invalid");
   }
+  if (typeof value.requestId !== "string" || !requestKeyPattern.test(value.requestId)) {
+    throw new Error("invalid");
+  }
+  if (!validTimezone(value.timezoneOffsetMinutes)) throw new Error("invalid");
   if (value.locale !== "vi" && value.locale !== "en") throw new Error("invalid");
   if (value.image.mimeType !== "image/jpeg" || typeof value.image.data !== "string") {
     throw new Error("invalid");
@@ -138,10 +187,25 @@ function validateRequest(value: unknown): AnalyzeRequest {
   const measurements = validateMeasurements(value.measurements);
   return {
     deviceId: value.deviceId,
+    requestId: value.requestId,
+    timezoneOffsetMinutes: value.timezoneOffsetMinutes,
     locale: value.locale,
     image: { mimeType: "image/jpeg", data: value.image.data },
     ...(measurements ? { measurements } : {}),
   };
+}
+
+async function release(
+  db: D1Database,
+  requestId: string,
+  reserved: boolean,
+): Promise<void> {
+  if (!reserved) return;
+  try {
+    await refundCredit(db, requestId);
+  } catch {
+    // A stale reservation expires from the daily key on the next local day.
+  }
 }
 
 function validateMeasurements(value: unknown): AnalyzeRequest["measurements"] {

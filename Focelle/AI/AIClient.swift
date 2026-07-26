@@ -93,6 +93,7 @@ enum AIClientError: String, Error, Equatable, Sendable {
     case timedOut
     case rateLimited
     case invalidResponse
+    case quotaExhausted
     case server
 }
 
@@ -103,6 +104,8 @@ enum AIClient {
         let deviceId = await FocelleAPI.deviceID()
         let requestBody = AnalyzeRequest(
             deviceId: deviceId,
+            requestId: UUID().uuidString.replacingOccurrences(of: "-", with: ""),
+            timezoneOffsetMinutes: TimeZone.current.secondsFromGMT() / 60,
             locale: Locale.current.language.languageCode?.identifier == "vi" ? "vi" : "en",
             image: .init(mimeType: "image/jpeg", data: preview.base64EncodedString()),
             measurements: measurement.map(AnalyzeRequest.Measurements.init)
@@ -119,6 +122,9 @@ enum AIClient {
             }
             if http.statusCode == 429 || http.statusCode == 503 {
                 throw AIClientError.rateLimited
+            }
+            if http.statusCode == 402 {
+                throw AIClientError.quotaExhausted
             }
             guard http.statusCode == 200,
                   let envelope = try? JSONDecoder().decode(AnalyzeResponse.self, from: data),
@@ -160,6 +166,8 @@ private struct AnalyzeRequest: Encodable {
     }
 
     let deviceId: String
+    let requestId: String
+    let timezoneOffsetMinutes: Int
     let locale: String
     let image: Image
     let measurements: Measurements?

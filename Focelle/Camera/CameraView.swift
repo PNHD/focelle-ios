@@ -9,6 +9,7 @@ struct CameraView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var location: LocationProvider
     @EnvironmentObject private var beta: BetaAccess
+    @EnvironmentObject private var quota: Quota
     @StateObject private var camera = CameraSession()
     @StateObject private var ai = AIAnalysisModel()
     @StateObject private var voice = VoiceGuidance()
@@ -23,6 +24,7 @@ struct CameraView: View {
     @State private var photoEditorData: Data?
     @State private var autoCapture = AutoCapture()
     @State private var showsSettings = false
+    @State private var showsLimit = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -134,7 +136,7 @@ struct CameraView: View {
                 faceReady: measurement.faceReady,
                 timestamp: measurement.timestamp
             ) {
-                camera.capture()
+                triggerCapture()
             }
         }
         .onChange(of: ai.state) { oldState, state in
@@ -145,12 +147,14 @@ struct CameraView: View {
                     Task {
                         try? await Task.sleep(for: .milliseconds(500))
                         await beta.refresh()
+                        await quota.refresh()
                     }
                 }
             } else {
                 camera.clearAIPlan()
-                if case .loading = oldState, case .failed = state {
+                if case .loading = oldState, case let .failed(error) = state {
                     Analytics.record("ai_failure", enabled: settings.analyticsEnabled)
+                    if error == .quotaExhausted { showsLimit = true }
                 }
             }
         }
@@ -173,6 +177,18 @@ struct CameraView: View {
         .onChange(of: settings.maximumResolution) { _, enabled in
             camera.resolution = enabled ? .maximum : .standard
         }
+        .onChange(of: camera.filterSaveSequence) { oldValue, newValue in
+            guard newValue > oldValue else { return }
+            Task {
+                do {
+                    try await quota.consumeFilter()
+                } catch Quota.QuotaError.exhausted {
+                    showsLimit = true
+                } catch {
+                    await quota.refresh()
+                }
+            }
+        }
         .sheet(isPresented: photoEditorPresented) {
             if let photoEditorData {
                 PhotoEditorView(data: photoEditorData)
@@ -184,6 +200,12 @@ struct CameraView: View {
                 .environmentObject(settings)
                 .environmentObject(location)
                 .environmentObject(beta)
+        }
+        .sheet(isPresented: $showsLimit) {
+            LimitSheet {
+                camera.notice = "purchase.notReady"
+            }
+            .environmentObject(quota)
         }
     }
 
@@ -631,6 +653,12 @@ struct CameraView: View {
 
     private func triggerCapture() {
         guard countdown == nil, !camera.isCapturing else { return }
+        if camera.activeFilter != nil,
+           !quota.snapshot.unlimited,
+           quota.snapshot.filterRemaining < 1 {
+            showsLimit = true
+            return
+        }
         autoCapture.cancel()
         if case .ready = ai.state {
             Analytics.record("capture_after_guidance", enabled: settings.analyticsEnabled)
@@ -655,6 +683,10 @@ struct CameraView: View {
             ai.cancel()
             return
         }
+        if !quota.snapshot.unlimited, quota.snapshot.aiRemaining < 1 {
+            showsLimit = true
+            return
+        }
         Analytics.record("ai_tap", enabled: settings.analyticsEnabled)
         let measurement = camera.measurement
         camera.requestAIPreview { data in
@@ -674,6 +706,7 @@ struct CameraView: View {
         case .offline: "ai.error.offline"
         case .timedOut: "ai.error.timeout"
         case .rateLimited: "ai.error.rate"
+        case .quotaExhausted: "limit.aiExhausted"
         case .invalidResponse, .server: "ai.error.server"
         }
     }

@@ -282,6 +282,23 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(BetaAccess(defaults: defaults).snapshot, cached)
     }
 
+    @MainActor
+    func testQuotaUsesOfflineCache() throws {
+        let suite = "FocelleTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let cached = Quota.Snapshot(
+            unlimited: false,
+            aiRemaining: 2,
+            filterRemaining: 4,
+            adsRemaining: 3,
+            localDay: "2026-07-26"
+        )
+        defaults.set(try JSONEncoder().encode(cached), forKey: "quota")
+
+        XCTAssertEqual(Quota(defaults: defaults).snapshot, cached)
+    }
+
     func testEveryLocalizationHasVietnameseAndEnglish() throws {
         let source = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

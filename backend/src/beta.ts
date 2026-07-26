@@ -1,6 +1,6 @@
 import { authorized, error, json, readJSON } from "./http";
 
-const DEVICE_ID = /^[A-Za-z0-9_-]{16,64}$/;
+export const deviceIDPattern = /^[A-Za-z0-9_-]{16,64}$/;
 const EVENTS = new Set([
   "onboarding_complete",
   "camera_permission_allowed",
@@ -20,7 +20,7 @@ export async function handleConfig(request: Request, env: Env): Promise<Response
   if (request.method !== "GET") return error("METHOD_NOT_ALLOWED", 405);
   if (!await authorized(request, env.APP_SHARED_TOKEN)) return error("AUTH_REQUIRED", 401);
   const deviceId = new URL(request.url).searchParams.get("deviceId") ?? "";
-  if (!DEVICE_ID.test(deviceId)) return error("BAD_REQUEST", 400);
+  if (!deviceIDPattern.test(deviceId)) return error("BAD_REQUEST", 400);
   if (!(await env.EVENT_RATE_LIMITER.limit({ key: deviceId })).success) {
     return error("RATE_LIMITED", 429);
   }
@@ -43,7 +43,7 @@ export async function handleEvent(request: Request, env: Env): Promise<Response>
   }
   if (!isExactObject(value, ["deviceId", "name"])
     || typeof value.deviceId !== "string"
-    || !DEVICE_ID.test(value.deviceId)
+    || !deviceIDPattern.test(value.deviceId)
     || typeof value.name !== "string"
     || !EVENTS.has(value.name)) {
     return error("BAD_REQUEST", 400);
@@ -51,7 +51,7 @@ export async function handleEvent(request: Request, env: Env): Promise<Response>
 
   await env.DB.prepare(
     "INSERT INTO events (device_hash, name) VALUES (?, ?)",
-  ).bind(await hash(value.deviceId), value.name).run();
+  ).bind(await hashDevice(value.deviceId), value.name).run();
   return json({ ok: true }, 202);
 }
 
@@ -59,7 +59,7 @@ export async function recordSuccessfulAnalysis(
   db: D1Database,
   deviceId: string,
 ): Promise<void> {
-  const deviceHash = await hash(deviceId);
+  const deviceHash = await hashDevice(deviceId);
   await db.prepare(`
     INSERT INTO beta_devices (device_hash, ai_successes)
     VALUES (?, 1)
@@ -98,7 +98,7 @@ export async function betaStatus(
   ).first<{ count: number }>();
   const device = await db.prepare(
     "SELECT ai_successes, activated_at FROM beta_devices WHERE device_hash = ?",
-  ).bind(await hash(deviceId)).first<{ ai_successes: number; activated_at: string | null }>();
+  ).bind(await hashDevice(deviceId)).first<{ ai_successes: number; activated_at: string | null }>();
   const force = config.beta_force ?? "auto";
   const enabled = force === "on"
     || (force !== "off" && now < endsAt && (count?.count ?? 0) < maximum);
@@ -112,7 +112,7 @@ export async function betaStatus(
   };
 }
 
-async function hash(value: string): Promise<string> {
+export async function hashDevice(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return [...new Uint8Array(digest)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
