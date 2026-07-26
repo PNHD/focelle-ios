@@ -70,6 +70,18 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             test | tee logs/test.log
 
+      - name: Build unsigned Release
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Focelle.xcodeproj \
+            -scheme Focelle \
+            -configuration Release \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath DerivedDataRelease \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee logs/release.log
+
       - name: Capture onboarding screen
         run: |
           xcrun simctl install "$DEVICE_ID" DerivedData/Build/Products/Debug-iphonesimulator/Focelle.app
