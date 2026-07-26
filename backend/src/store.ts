@@ -10,6 +10,7 @@ import {
   grantCreditPurchase,
   revokeCreditPurchase,
 } from "./account";
+import { qualifyReferral, reverseReferral } from "./referral";
 
 const SUBSCRIPTION_IDS = new Set([
   "com.pnhd.focelle.pro.monthly",
@@ -47,9 +48,9 @@ export async function handleStoreTransaction(request: Request, env: Env): Promis
 
   try {
     const transaction = await verifyTransaction(value.signedTransaction, env);
+    const accountId = await authenticatedAccount(request, env.DB);
     const credits = transaction.productId ? CREDIT_PACKS.get(transaction.productId) : undefined;
     if (credits != null) {
-      const accountId = await authenticatedAccount(request, env.DB);
       if (accountId == null) return error("SESSION_REQUIRED", 401);
       if (!transaction.transactionId) return error("INVALID_TRANSACTION", 400);
       if (transaction.revocationDate == null) {
@@ -59,6 +60,13 @@ export async function handleStoreTransaction(request: Request, env: Env): Promis
       }
     } else {
       await applyStoreTransaction(env.DB, transaction, await hashDevice(value.deviceId));
+    }
+    if (transaction.transactionId) {
+      if (transaction.revocationDate != null) {
+        await reverseReferral(env.DB, transaction.transactionId);
+      } else if (accountId != null) {
+        await qualifyReferral(env.DB, accountId, transaction.transactionId);
+      }
     }
     return json({ ok: true }, 202);
   } catch {
@@ -105,6 +113,9 @@ export async function handleStoreNotification(request: Request, env: Env): Promi
       }
     } else {
       await applyStoreTransaction(env.DB, transaction);
+    }
+    if (transaction.transactionId && transaction.revocationDate != null) {
+      await reverseReferral(env.DB, transaction.transactionId);
     }
     await env.DB.prepare(
       "INSERT OR IGNORE INTO store_notifications (notification_uuid) VALUES (?)",

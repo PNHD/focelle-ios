@@ -6,6 +6,7 @@ import {
 import { authorized, error, json, readJSON } from "./http";
 import { hasActivePro } from "./store";
 import { accountForDevice, creditBalance } from "./account";
+import { hasActiveReferral } from "./referral";
 
 export const requestKeyPattern = /^[A-Za-z0-9_-]{16,80}$/;
 
@@ -34,7 +35,8 @@ export async function quotaStatus(
   }
 
   const deviceHash = await hashDevice(deviceId);
-  if (await hasActivePro(db, deviceHash, now)) {
+  if (await hasActivePro(db, deviceHash, now)
+    || await hasActiveReferral(db, deviceHash, now)) {
     return {
       unlimited: true,
       aiRemaining: 5,

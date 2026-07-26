@@ -3,6 +3,7 @@ import { handleConfig, handleEvent } from "./beta";
 import { handleQuota, handleTestReward } from "./quota";
 import { handleStoreNotification, handleStoreTransaction } from "./store";
 import { handleAccount, handleAppleLogin } from "./account";
+import { handleReferral } from "./referral";
 
 export default {
   async fetch(request, env, context): Promise<Response> {
@@ -21,6 +22,7 @@ export default {
     if (url.pathname === "/v1/store/notifications") return handleStoreNotification(request, env);
     if (url.pathname === "/v1/account/apple") return handleAppleLogin(request, env);
     if (url.pathname === "/v1/account") return handleAccount(request, env);
+    if (url.pathname === "/v1/referral") return handleReferral(request, env);
     return Response.json(
       { ok: false, error: { code: "NOT_FOUND" } },
       { status: 404, headers: { "cache-control": "no-store" } },

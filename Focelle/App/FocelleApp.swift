@@ -9,6 +9,7 @@ struct FocelleApp: App {
     @StateObject private var quota = Quota()
     @StateObject private var store = Store()
     @StateObject private var account = Account()
+    @StateObject private var referral = Referral()
 
     var body: some Scene {
         WindowGroup {
@@ -20,11 +21,13 @@ struct FocelleApp: App {
                 .environmentObject(quota)
                 .environmentObject(store)
                 .environmentObject(account)
+                .environmentObject(referral)
                 .task { await presets.sync() }
                 .task { await beta.refresh() }
                 .task { await quota.refresh() }
                 .task { await store.refresh() }
                 .task { await account.refresh() }
+                .task { await referral.refresh() }
         }
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct AccountView: View {
     @EnvironmentObject private var account: Account
+    @EnvironmentObject private var referral: Referral
     @State private var confirmsDeletion = false
 
     var body: some View {
@@ -11,6 +12,11 @@ struct AccountView: View {
                 Section("account.credits") {
                     LabeledContent("account.aiCredits", value: "\(account.credits)")
                     Button("account.sync") { Task { await account.refresh() } }
+                    if referral.enabled {
+                        NavigationLink("referral.title") {
+                            ReferralView().environmentObject(referral)
+                        }
+                    }
                 }
                 Section {
                     Button("account.signOut", action: account.signOut)
@@ -37,7 +43,10 @@ struct AccountView: View {
             }
         }
         .navigationTitle("account.title")
-        .task { await account.refresh() }
+        .task {
+            await account.refresh()
+            await referral.refresh()
+        }
         .confirmationDialog(
             "account.deleteConfirm",
             isPresented: $confirmsDeletion,
