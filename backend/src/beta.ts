@@ -82,7 +82,7 @@ export async function handleEvent(request: Request, env: Env): Promise<Response>
   }
 
   await env.DB.prepare(`
-    INSERT INTO events (
+    INSERT OR IGNORE INTO events (
       device_hash, name, category, latency_bucket, schema_version
     ) VALUES (?, ?, ?, ?, ?)
   `).bind(
@@ -100,17 +100,24 @@ export async function recordSuccessfulAnalysis(
   deviceId: string,
 ): Promise<void> {
   const deviceHash = await hashDevice(deviceId);
-  await db.prepare(`
-    INSERT INTO beta_devices (device_hash, ai_successes)
-    VALUES (?, 1)
-    ON CONFLICT(device_hash) DO UPDATE SET
-      ai_successes = MIN(3, ai_successes + 1),
-      last_seen_at = CURRENT_TIMESTAMP,
-      activated_at = CASE
-        WHEN activated_at IS NULL AND ai_successes + 1 >= 3 THEN CURRENT_TIMESTAMP
-        ELSE activated_at
-      END
-  `).bind(deviceHash).run();
+  await db.batch([
+    db.prepare(`
+      INSERT INTO beta_devices (device_hash, ai_successes)
+      VALUES (?, 1)
+      ON CONFLICT(device_hash) DO UPDATE SET
+        ai_successes = MIN(3, ai_successes + 1),
+        last_seen_at = CURRENT_TIMESTAMP,
+        activated_at = CASE
+          WHEN activated_at IS NULL AND ai_successes + 1 >= 3 THEN CURRENT_TIMESTAMP
+          ELSE activated_at
+        END
+    `).bind(deviceHash),
+    db.prepare(`
+      INSERT OR IGNORE INTO events (device_hash, name)
+      SELECT device_hash, 'activation' FROM beta_devices
+      WHERE device_hash = ? AND activated_at IS NOT NULL
+    `).bind(deviceHash),
+  ]);
 }
 
 export async function betaStatus(

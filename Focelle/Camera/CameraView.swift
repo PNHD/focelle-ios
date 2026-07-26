@@ -30,6 +30,7 @@ struct CameraView: View {
     @State private var showsLimit = false
     @State private var showsPaywall = false
     @State private var recordedCameraPermission = false
+    @State private var aiStartedAt: TimeInterval?
 
     var body: some View {
         GeometryReader { geometry in
@@ -172,7 +173,16 @@ struct CameraView: View {
             if case let .ready(result, selected) = state {
                 camera.applyAIPlan(result.plans[selected])
                 if case .loading = oldState {
-                    Analytics.record("ai_success", enabled: settings.analyticsEnabled)
+                    let latency = aiStartedAt.map {
+                        ProcessInfo.processInfo.systemUptime - $0
+                    } ?? 0
+                    Analytics.record(
+                        "ai_success",
+                        enabled: settings.analyticsEnabled,
+                        latencyBucket: Analytics.latencyBucket(latency),
+                        schemaVersion: result.schemaVersion
+                    )
+                    aiStartedAt = nil
                     Task {
                         try? await Task.sleep(for: .milliseconds(500))
                         await beta.refresh()
@@ -181,10 +191,20 @@ struct CameraView: View {
                 }
             } else {
                 camera.clearAIPlan()
-                if case .loading = oldState, case let .failed(error) = state {
-                    Analytics.record("ai_failure", enabled: settings.analyticsEnabled)
+                if case let .failed(error) = state, aiStartedAt != nil {
+                    let latency = aiStartedAt.map {
+                        ProcessInfo.processInfo.systemUptime - $0
+                    } ?? 0
+                    Analytics.record(
+                        "ai_failure",
+                        enabled: settings.analyticsEnabled,
+                        category: aiFailureCategory(error),
+                        latencyBucket: Analytics.latencyBucket(latency)
+                    )
+                    aiStartedAt = nil
                     if error == .quotaExhausted { showsLimit = true }
                 }
+                if case .idle = state { aiStartedAt = nil }
             }
         }
         .onChange(of: settings.voiceGuidance) { _, enabled in
@@ -486,6 +506,12 @@ struct CameraView: View {
                     ForEach(result.plans.indices, id: \.self) { index in
                         Button(aiPlanTitle(index)) {
                             _ = ai.select(index)
+                            if index > 0 {
+                                Analytics.record(
+                                    "ai_alternative_selected",
+                                    enabled: settings.analyticsEnabled
+                                )
+                            }
                         }
                         .buttonStyle(.bordered)
                         .tint(index == selected ? .orange : .white)
@@ -533,6 +559,9 @@ struct CameraView: View {
         return Button {
             selectedPresetID = nil
             camera.applyFilter(recipe)
+            if recipe != nil {
+                Analytics.record("filter_selected", enabled: settings.analyticsEnabled)
+            }
         } label: {
             Text(title)
                 .font(.caption.weight(.medium))
@@ -548,6 +577,7 @@ struct CameraView: View {
         Button {
             selectedPresetID = preset.id
             camera.applyFilter(preset.recipe, intensity: preset.intensity)
+            Analytics.record("preset_selected", enabled: settings.analyticsEnabled)
         } label: {
             HStack(spacing: 4) {
                 if preset.isFavorite { Image(systemName: "star.fill") }
@@ -736,6 +766,7 @@ struct CameraView: View {
             return
         }
         Analytics.record("ai_tap", enabled: settings.analyticsEnabled)
+        aiStartedAt = ProcessInfo.processInfo.systemUptime
         let measurement = camera.measurement
         camera.requestAIPreview { data in
             Task { @MainActor in
@@ -756,6 +787,18 @@ struct CameraView: View {
         case .rateLimited: "ai.error.rate"
         case .quotaExhausted: "limit.aiExhausted"
         case .invalidResponse, .server: "ai.error.server"
+        }
+    }
+
+    private func aiFailureCategory(_ error: AIClientError) -> String {
+        switch error {
+        case .unavailable: "unavailable"
+        case .offline: "offline"
+        case .timedOut: "timed_out"
+        case .rateLimited: "rate_limited"
+        case .invalidResponse: "invalid_response"
+        case .quotaExhausted: "quota_exhausted"
+        case .server: "server"
         }
     }
 

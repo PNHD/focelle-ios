@@ -198,6 +198,12 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(makeAIResponse().isValid)
     }
 
+    func testAnalyticsUsesOnlyCoarseLatencyBuckets() {
+        XCTAssertEqual(Analytics.latencyBucket(2.99), "under_3s")
+        XCTAssertEqual(Analytics.latencyBucket(3), "3_to_8s")
+        XCTAssertEqual(Analytics.latencyBucket(8), "over_8s")
+    }
+
     func testAutoCaptureRequiresStableReadySubjectAndCancels() {
         var auto = AutoCapture()
         let subject = CGRect(x: 0.3, y: 0.2, width: 0.3, height: 0.5)

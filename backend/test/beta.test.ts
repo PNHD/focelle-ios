@@ -28,6 +28,9 @@ describe("beta access", () => {
     expect(status.activated).toBe(true);
     expect(status.successfulAnalyses).toBe(3);
     expect(status.activatedUsers).toBe(1);
+    expect((await env.DB.prepare(`
+      SELECT COUNT(*) AS count FROM events WHERE name = 'activation'
+    `).first<{ count: number }>())?.count).toBe(1);
   });
 
   it("obeys the remote off switch", async () => {
@@ -72,6 +75,14 @@ describe("anonymous events", () => {
       },
       body: JSON.stringify({ deviceId, name: "ai_success", photo: "data" }),
     }), env)).status).toBe(400);
+  });
+
+  it("stores return and activation milestones only once", async () => {
+    expect((await handleEvent(eventRequest("activation"), env)).status).toBe(202);
+    expect((await handleEvent(eventRequest("activation"), env)).status).toBe(202);
+    expect((await env.DB.prepare(`
+      SELECT COUNT(*) AS count FROM events WHERE name = 'activation'
+    `).first<{ count: number }>())?.count).toBe(1);
   });
 });
 

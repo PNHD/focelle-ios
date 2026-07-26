@@ -41,6 +41,9 @@ struct FocelleApp: App {
                 .task { await store.refresh() }
                 .task { await account.refresh() }
                 .task { await referral.refresh() }
+                .onAppear {
+                    Analytics.recordReturnMilestones(enabled: settings.analyticsEnabled)
+                }
         }
     }
 }
