@@ -33,7 +33,10 @@ struct LimitSheet: View {
                     .disabled(ad.isLoading)
                 }
 
-                Button("limit.buy", action: onPurchase)
+                Button("limit.buy") {
+                    dismiss()
+                    onPurchase()
+                }
                     .buttonStyle(.bordered)
 
                 if let messageKey {

@@ -14,7 +14,7 @@ final class RewardedAdController: NSObject, ObservableObject, @MainActor FullScr
         isLoading = true
         MobileAds.shared.requestConfiguration.publisherPrivacyPersonalizationState = .disabled
         MobileAds.shared.requestConfiguration.setPublisherFirstPartyIDEnabled(false)
-        MobileAds.shared.start()
+        await MobileAds.shared.start()
 
         do {
             let loaded = try await RewardedAd.load(

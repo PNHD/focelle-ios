@@ -1,0 +1,156 @@
+import Combine
+import Foundation
+import StoreKit
+
+@MainActor
+final class Store: ObservableObject {
+    static let productIDs = [
+        "com.pnhd.focelle.pro.monthly",
+        "com.pnhd.focelle.pro.yearly",
+    ]
+
+    struct Entitlement: Codable, Equatable {
+        let productID: String
+        let expirationDate: Date
+
+        func isActive(at date: Date = .now) -> Bool {
+            expirationDate > date
+        }
+    }
+
+    @Published private(set) var products: [Product] = []
+    @Published private(set) var entitlement: Entitlement?
+    @Published private(set) var isLoading = false
+    @Published var messageKey: String?
+
+    private let defaults: UserDefaults
+    private static let cacheKey = "storeEntitlement"
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        entitlement = defaults.data(forKey: Self.cacheKey)
+            .flatMap { try? JSONDecoder().decode(Entitlement.self, from: $0) }
+        if entitlement?.isActive() != true { entitlement = nil }
+
+        Task { [weak self] in
+            for await result in Transaction.updates {
+                await self?.handle(result)
+            }
+        }
+    }
+
+    var isPro: Bool { entitlement?.isActive() == true }
+
+    func refresh() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            products = try await Product.products(for: Self.productIDs)
+                .sorted { Self.productIDs.firstIndex(of: $0.id)! < Self.productIDs.firstIndex(of: $1.id)! }
+            await refreshEntitlement()
+        } catch {
+            messageKey = "purchase.error.load"
+        }
+    }
+
+    func purchase(_ product: Product) async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            switch try await product.purchase() {
+            case let .success(result):
+                await handle(result)
+                messageKey = isPro ? "purchase.success" : "purchase.error.verify"
+            case .pending:
+                messageKey = "purchase.pending"
+            case .userCancelled:
+                break
+            @unknown default:
+                messageKey = "purchase.error.purchase"
+            }
+        } catch {
+            messageKey = "purchase.error.purchase"
+        }
+    }
+
+    func restore() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            try await AppStore.sync()
+            await refreshEntitlement()
+            messageKey = isPro ? "purchase.restored" : "purchase.noneToRestore"
+        } catch {
+            messageKey = "purchase.error.restore"
+        }
+    }
+
+    private func refreshEntitlement() async {
+        var current: Entitlement?
+        for await result in Transaction.currentEntitlements {
+            guard case let .verified(transaction) = result,
+                  Self.productIDs.contains(transaction.productID),
+                  transaction.revocationDate == nil,
+                  let expiration = transaction.expirationDate,
+                  expiration > .now
+            else { continue }
+            if current == nil || expiration > current!.expirationDate {
+                current = Entitlement(productID: transaction.productID, expirationDate: expiration)
+            }
+            await submit(result.jwsRepresentation)
+        }
+        entitlement = current
+        cache()
+    }
+
+    private func handle(_ result: VerificationResult<Transaction>) async {
+        guard case let .verified(transaction) = result,
+              Self.productIDs.contains(transaction.productID)
+        else {
+            messageKey = "purchase.error.verify"
+            return
+        }
+        if transaction.revocationDate == nil,
+           let expiration = transaction.expirationDate,
+           expiration > .now {
+            entitlement = Entitlement(productID: transaction.productID, expirationDate: expiration)
+            cache()
+        } else {
+            await refreshEntitlement()
+        }
+        if transaction.environment != .xcode {
+            guard await submit(result.jwsRepresentation) else { return }
+        }
+        await transaction.finish()
+    }
+
+    private func submit(_ signedTransaction: String) async -> Bool {
+        do {
+            var request = try await FocelleAPI.request(path: "v1/store/transaction", method: "POST")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(
+                StoreTransactionRequest(
+                    deviceId: await FocelleAPI.deviceID(),
+                    signedTransaction: signedTransaction
+                )
+            )
+            let (_, response) = try await URLSession.shared.data(for: request)
+            return (response as? HTTPURLResponse)?.statusCode == 202
+        } catch {
+            return false
+        }
+    }
+
+    private func cache() {
+        if let entitlement, let data = try? JSONEncoder().encode(entitlement) {
+            defaults.set(data, forKey: Self.cacheKey)
+        } else {
+            defaults.removeObject(forKey: Self.cacheKey)
+        }
+    }
+}
+
+private struct StoreTransactionRequest: Encodable {
+    let deviceId: String
+    let signedTransaction: String
+}

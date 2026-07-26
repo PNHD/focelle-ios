@@ -4,6 +4,7 @@ import {
   hashDevice,
 } from "./beta";
 import { authorized, error, json, readJSON } from "./http";
+import { hasActivePro } from "./store";
 
 export const requestKeyPattern = /^[A-Za-z0-9_-]{16,80}$/;
 
@@ -32,6 +33,15 @@ export async function quotaStatus(
   }
 
   const deviceHash = await hashDevice(deviceId);
+  if (await hasActivePro(db, deviceHash, now)) {
+    return {
+      unlimited: true,
+      aiRemaining: 5,
+      filterRemaining: 5,
+      adsRemaining: 5,
+      localDay,
+    };
+  }
   const rewards = await db.prepare(`
     SELECT COUNT(*) AS count FROM reward_operations
     WHERE device_hash = ? AND local_day = ?

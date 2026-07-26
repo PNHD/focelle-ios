@@ -10,6 +10,7 @@ struct CameraView: View {
     @EnvironmentObject private var location: LocationProvider
     @EnvironmentObject private var beta: BetaAccess
     @EnvironmentObject private var quota: Quota
+    @EnvironmentObject private var store: Store
     @StateObject private var camera = CameraSession()
     @StateObject private var ai = AIAnalysisModel()
     @StateObject private var voice = VoiceGuidance()
@@ -25,6 +26,7 @@ struct CameraView: View {
     @State private var autoCapture = AutoCapture()
     @State private var showsSettings = false
     @State private var showsLimit = false
+    @State private var showsPaywall = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -203,9 +205,15 @@ struct CameraView: View {
         }
         .sheet(isPresented: $showsLimit) {
             LimitSheet {
-                camera.notice = "purchase.notReady"
+                Task { @MainActor in
+                    await Task.yield()
+                    showsPaywall = true
+                }
             }
             .environmentObject(quota)
+        }
+        .sheet(isPresented: $showsPaywall) {
+            PaywallView().environmentObject(store)
         }
     }
 
@@ -655,6 +663,7 @@ struct CameraView: View {
         guard countdown == nil, !camera.isCapturing else { return }
         if camera.activeFilter != nil,
            !quota.snapshot.unlimited,
+           !store.isPro,
            quota.snapshot.filterRemaining < 1 {
             showsLimit = true
             return
@@ -683,7 +692,7 @@ struct CameraView: View {
             ai.cancel()
             return
         }
-        if !quota.snapshot.unlimited, quota.snapshot.aiRemaining < 1 {
+        if !quota.snapshot.unlimited, !store.isPro, quota.snapshot.aiRemaining < 1 {
             showsLimit = true
             return
         }

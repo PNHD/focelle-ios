@@ -8,7 +8,8 @@
     "required": ["APP_SHARED_TOKEN", "GEMINI_API_KEY"]
   },
   "vars": {
-    "GEMINI_MODEL": "gemini-3.5-flash-lite"
+    "GEMINI_MODEL": "gemini-3.5-flash-lite",
+    "APP_APPLE_ID": ""
   },
   "d1_databases": [
     {
