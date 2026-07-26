@@ -70,17 +70,24 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             test | tee logs/test.log
 
-      - name: Build unsigned Release
+      - name: Build unsigned device IPA
         run: |
           set -o pipefail
           xcodebuild \
             -project Focelle.xcodeproj \
             -scheme Focelle \
             -configuration Release \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath DerivedDataRelease \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath DerivedDataDevice \
             CODE_SIGNING_ALLOWED=NO \
-            build | tee logs/release.log
+            build | tee logs/release-device.log
+          mkdir -p artifacts/Payload
+          cp -R DerivedDataDevice/Build/Products/Release-iphoneos/Focelle.app artifacts/Payload/
+          (
+            cd artifacts
+            ditto -c -k --sequesterRsrc --keepParent Payload Focelle-unsigned.ipa
+            rm -rf Payload
+          )
 
       - name: Capture onboarding screen
         run: |
