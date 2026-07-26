@@ -136,6 +136,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var analysisInFlight = false
     private var stabilizer = MeasurementStabilizer()
     private var guidanceEngine = GuidanceEngine()
+    private var pendingAIPreview: (@Sendable (Data?) -> Void)?
 
     func start() {
 #if targetEnvironment(simulator)
@@ -317,6 +318,47 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         return true
     }
 
+    func requestAIPreview(_ completion: @escaping @Sendable (Data?) -> Void) {
+        queue.async { [weak self] in
+            self?.pendingAIPreview = completion
+        }
+    }
+
+    func applyAIPlan(_ plan: AICompositionPlan) {
+        setZoom(CGFloat(plan.zoom))
+        setExposure(Float(plan.exposureBias))
+        let direction = GuidanceDirection(rawValue: plan.movement.rawValue) ?? .none
+        let currentSubject = measurement?.primaryRect
+        DispatchQueue.main.async {
+            self.guidance = Guidance(
+                subjectRect: currentSubject,
+                target: CGPoint(x: plan.target.cgRect.midX, y: plan.target.cgRect.midY),
+                direction: direction,
+                instructionKey: "",
+                instruction: plan.instruction,
+                aligned: direction == .none
+            )
+        }
+    }
+
+    func selectSubject(at point: CGPoint) {
+        queue.async { [weak self] in
+            guard let self, var measurement = self.measurement else { return }
+            let candidates = measurement.faceRects
+                + [measurement.subjectRect, measurement.salientRect].compactMap { $0 }
+            guard let selected = candidates.min(by: {
+                Self.distance(from: point, to: $0) < Self.distance(from: point, to: $1)
+            }) else { return }
+            measurement.subjectRect = selected
+            self.stabilizer = MeasurementStabilizer()
+            let guidance = self.guidanceEngine.update(measurement)
+            DispatchQueue.main.async {
+                self.measurement = measurement
+                self.guidance = guidance
+            }
+        }
+    }
+
     private func updateVideoConnection(for device: AVCaptureDevice) {
         guard let connection = videoOutput.connection(with: .video) else { return }
         if connection.isVideoRotationAngleSupported(rotationAngle) {
@@ -436,6 +478,10 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         ) ?? data
         save(outputData)
     }
+
+    private static func distance(from point: CGPoint, to rect: CGRect) -> CGFloat {
+        hypot(point.x - rect.midX, point.y - rect.midY)
+    }
 }
 
 extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
@@ -445,6 +491,12 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
         from connection: AVCaptureConnection
     ) {
         guard let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        let image = CIImage(cvPixelBuffer: buffer)
+
+        if let completion = pendingAIPreview {
+            pendingAIPreview = nil
+            completion(filterRenderer.aiPreviewData(image))
+        }
 
         let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         let analysisInterval = ProcessInfo.processInfo.thermalState == .nominal ? 0.35 : 0.8
@@ -472,7 +524,6 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
         guard CMTimeGetSeconds(timestamp - lastPreviewTime) >= 1.0 / 15.0 else { return }
         lastPreviewTime = timestamp
 
-        let image = CIImage(cvPixelBuffer: buffer)
         guard let rendered = filterRenderer.previewImage(
             image,
             recipe: recipe,

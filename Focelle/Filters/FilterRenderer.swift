@@ -124,6 +124,13 @@ struct FilterRenderer {
         return context.createCGImage(output, from: output.extent)
     }
 
+    func aiPreviewData(_ input: CIImage, maxDimension: CGFloat = 1_024) -> Data? {
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        let scale = min(1, maxDimension / max(input.extent.width, input.extent.height))
+        let image = input.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        return context.jpegRepresentation(of: image, colorSpace: colorSpace)
+    }
+
     private func crop(_ image: CIImage, to ratio: CGFloat) -> CIImage {
         let extent = image.extent
         let current = extent.width / extent.height

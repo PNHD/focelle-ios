@@ -33,7 +33,11 @@ struct GuidanceOverlay: View {
                 VStack(spacing: 8) {
                     Image(systemName: icon)
                         .font(.title2.bold())
-                    Text(LocalizedStringKey(guidance.instructionKey))
+                    if let instruction = guidance.instruction {
+                        Text(instruction)
+                    } else {
+                        Text(LocalizedStringKey(guidance.instructionKey))
+                    }
                         .font(.subheadline.weight(.semibold))
                 }
                 .padding(.horizontal, 16)
@@ -45,7 +49,7 @@ struct GuidanceOverlay: View {
         }
         .allowsHitTesting(false)
         .accessibilityElement()
-        .accessibilityLabel(Text(LocalizedStringKey(guidance.instructionKey)))
+        .accessibilityLabel(accessibilityLabel)
     }
 
     private var icon: String {
@@ -60,6 +64,14 @@ struct GuidanceOverlay: View {
         case .brighten: "sun.max"
         case .darken: "sun.min"
         case .none: guidance.aligned ? "checkmark" : "viewfinder"
+        }
+    }
+
+    private var accessibilityLabel: Text {
+        if let instruction = guidance.instruction {
+            Text(verbatim: instruction)
+        } else {
+            Text(LocalizedStringKey(guidance.instructionKey))
         }
     }
 }

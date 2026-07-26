@@ -1,6 +1,18 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "ai.analyze" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Analyze composition" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Ph\u00e2n t\u00edch b\u1ed1 c\u1ee5c" } } } },
+    "ai.applyFilter" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Apply filter" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "D\u00f9ng filter" } } } },
+    "ai.applyFlash" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Apply flash" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "B\u1eadt flash" } } } },
+    "ai.error.offline" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "AI is offline. Camera remains available." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "AI \u0111ang m\u1ea5t m\u1ea1ng. Camera v\u1eabn d\u00f9ng \u0111\u01b0\u1ee3c." } } } },
+    "ai.error.rate" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "AI is busy. Try again shortly." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "AI \u0111ang b\u1eadn. H\u00e3y th\u1eed l\u1ea1i sau." } } } },
+    "ai.error.server" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Could not read AI advice. Camera remains available." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Kh\u00f4ng \u0111\u1ecdc \u0111\u01b0\u1ee3c g\u1ee3i \u00fd AI. Camera v\u1eabn d\u00f9ng \u0111\u01b0\u1ee3c." } } } },
+    "ai.error.timeout" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "AI took too long. Try again." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "AI ph\u1ea3n h\u1ed3i qu\u00e1 l\u00e2u. H\u00e3y th\u1eed l\u1ea1i." } } } },
+    "ai.error.unavailable" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Cloud AI is not configured yet." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "AI \u0111\u00e1m m\u00e2y ch\u01b0a \u0111\u01b0\u1ee3c c\u1ea5u h\u00ecnh." } } } },
+    "ai.loading" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Finding a better angle\u2026" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "\u0110ang t\u00ecm g\u00f3c \u0111\u1eb9p h\u01a1n\u2026" } } } },
+    "ai.plan.creative" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Creative" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "S\u00e1ng t\u1ea1o" } } } },
+    "ai.plan.primary" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Best" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "\u0110\u1eb9p nh\u1ea5t" } } } },
+    "ai.plan.safe" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Safe" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "An to\u00e0n" } } } },
     "app.name" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Focelle" } },

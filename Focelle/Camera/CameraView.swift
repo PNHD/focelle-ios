@@ -7,6 +7,7 @@ import UIKit
 struct CameraView: View {
     @EnvironmentObject private var presets: PresetStore
     @StateObject private var camera = CameraSession()
+    @StateObject private var ai = AIAnalysisModel()
     @State private var countdown: Int?
     @State private var countdownTask: Task<Void, Never>?
     @State private var focusMarker: CGPoint?
@@ -30,6 +31,7 @@ struct CameraView: View {
                             focusMarker = viewPoint
                             camera.focus(at: devicePoint)
                         },
+                        onSubject: camera.selectSubject,
                         onRotation: camera.setRotationAngle
                     )
 
@@ -104,6 +106,10 @@ struct CameraView: View {
             if oldValue != true, newValue == true {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             }
+        }
+        .onChange(of: ai.state) { _, state in
+            guard case let .ready(result, selected) = state else { return }
+            camera.applyAIPlan(result.plans[selected])
         }
         .sheet(isPresented: photoEditorPresented) {
             if let photoEditorData {
@@ -196,6 +202,7 @@ struct CameraView: View {
             }
 
             VStack(spacing: 8) {
+                aiResult
                 filterPicker
 
                 if camera.activeFilter != nil {
@@ -270,11 +277,78 @@ struct CameraView: View {
 
                 Spacer()
 
-                Color.clear.frame(width: 52, height: 52)
+                Button(action: analyzeScene) {
+                    Group {
+                        if case .loading = ai.state {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "wand.and.sparkles")
+                        }
+                    }
+                    .frame(width: 52, height: 52)
+                    .background(.orange.opacity(0.85), in: Circle())
+                }
+                .accessibilityLabel(Text("ai.analyze"))
+                .disabled(camera.state != .running)
             }
         }
         .foregroundStyle(.white)
         .padding(24)
+    }
+
+    @ViewBuilder
+    private var aiResult: some View {
+        switch ai.state {
+        case .idle:
+            EmptyView()
+        case .loading:
+            HStack {
+                ProgressView()
+                Text("ai.loading")
+                Spacer()
+                Button("common.cancel", action: ai.cancel)
+            }
+            .font(.caption.weight(.medium))
+            .padding(10)
+            .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+        case let .failed(error):
+            Text(LocalizedStringKey(aiErrorKey(error)))
+                .font(.caption.weight(.medium))
+                .padding(10)
+                .frame(maxWidth: .infinity)
+                .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+        case let .ready(result, selected):
+            let plan = result.plans[selected]
+            VStack(alignment: .leading, spacing: 8) {
+                Text(plan.instruction).font(.subheadline.weight(.semibold))
+                Text(plan.pose).font(.caption).foregroundStyle(.white.opacity(0.8))
+                HStack {
+                    ForEach(result.plans.indices, id: \.self) { index in
+                        Button(aiPlanTitle(index)) {
+                            _ = ai.select(index)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(index == selected ? .orange : .white)
+                    }
+                }
+                HStack {
+                    if plan.flash != .off {
+                        Button("ai.applyFlash") { camera.flash = plan.flash }
+                    }
+                    if let recipe = FocelleOriginals.all.first(
+                        where: { plan.presetIDs.contains($0.id) }
+                    ) {
+                        Button("ai.applyFilter") {
+                            selectedPresetID = nil
+                            camera.applyFilter(recipe)
+                        }
+                    }
+                }
+                .font(.caption.weight(.semibold))
+            }
+            .padding(12)
+            .background(.black.opacity(0.76), in: RoundedRectangle(cornerRadius: 14))
+        }
     }
 
     private var filterPicker: some View {
@@ -478,11 +552,47 @@ struct CameraView: View {
             camera.capture()
         }
     }
+
+    private func analyzeScene() {
+        if case .loading = ai.state {
+            ai.cancel()
+            return
+        }
+        let measurement = camera.measurement
+        camera.requestAIPreview { data in
+            Task { @MainActor in
+                guard let data else {
+                    ai.fail(.unavailable)
+                    return
+                }
+                ai.analyze(data, measurement: measurement)
+            }
+        }
+    }
+
+    private func aiErrorKey(_ error: AIClientError) -> String {
+        switch error {
+        case .unavailable: "ai.error.unavailable"
+        case .offline: "ai.error.offline"
+        case .timedOut: "ai.error.timeout"
+        case .rateLimited: "ai.error.rate"
+        case .invalidResponse, .server: "ai.error.server"
+        }
+    }
+
+    private func aiPlanTitle(_ index: Int) -> LocalizedStringKey {
+        switch index {
+        case 0: "ai.plan.primary"
+        case 1: "ai.plan.safe"
+        default: "ai.plan.creative"
+        }
+    }
 }
 
 private struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
     let onFocus: (CGPoint, CGPoint) -> Void
+    let onSubject: (CGPoint) -> Void
     let onRotation: (CGFloat) -> Void
 
     func makeUIView(context: Context) -> PreviewView {
@@ -490,12 +600,14 @@ private struct CameraPreview: UIViewRepresentable {
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
         view.onFocus = onFocus
+        view.onSubject = onSubject
         view.onRotation = onRotation
         return view
     }
 
     func updateUIView(_ uiView: PreviewView, context: Context) {
         uiView.onFocus = onFocus
+        uiView.onSubject = onSubject
         uiView.onRotation = onRotation
     }
 }
@@ -504,16 +616,19 @@ private final class PreviewView: UIView {
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
     var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
     var onFocus: ((CGPoint, CGPoint) -> Void)?
+    var onSubject: ((CGPoint) -> Void)?
     var onRotation: ((CGFloat) -> Void)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(didTap)))
+        addGestureRecognizer(UILongPressGestureRecognizer(target: self, action: #selector(didPress)))
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(didTap)))
+        addGestureRecognizer(UILongPressGestureRecognizer(target: self, action: #selector(didPress)))
     }
 
     override func layoutSubviews() {
@@ -535,6 +650,12 @@ private final class PreviewView: UIView {
             previewLayer.captureDevicePointConverted(fromLayerPoint: point),
             CGPoint(x: point.x / bounds.width, y: point.y / bounds.height)
         )
+    }
+
+    @objc private func didPress(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began, bounds.width > 0, bounds.height > 0 else { return }
+        let point = gesture.location(in: self)
+        onSubject?(CGPoint(x: point.x / bounds.width, y: point.y / bounds.height))
     }
 }
 

@@ -9,5 +9,6 @@ struct Guidance: Equatable, Sendable {
     var target: CGPoint
     var direction: GuidanceDirection
     var instructionKey: String
+    var instruction: String? = nil
     var aligned: Bool
 }

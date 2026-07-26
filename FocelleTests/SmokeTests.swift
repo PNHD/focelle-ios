@@ -164,4 +164,58 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(engine.update(right).direction, .left)
         XCTAssertEqual(engine.update(right).direction, .right)
     }
+
+    @MainActor
+    func testAIAnalysisKeepsThreePlansFromOneRequest() async {
+        let response = makeAIResponse()
+        let model = AIAnalysisModel { _, _ in response }
+
+        model.analyze(Data([1]), measurement: nil)
+        await Task.yield()
+        await Task.yield()
+
+        XCTAssertEqual(model.state, .ready(response, selected: 0))
+        XCTAssertEqual(model.select(2)?.id, "creative")
+        XCTAssertEqual(model.state, .ready(response, selected: 2))
+    }
+
+    func testAIResponseRejectsOutOfRangeCameraChanges() {
+        var response = makeAIResponse()
+        response = AICompositionResponse(
+            schemaVersion: response.schemaVersion,
+            primary: makeAIPlan(id: "primary", zoom: 20),
+            alternatives: response.alternatives
+        )
+
+        XCTAssertFalse(response.isValid)
+        XCTAssertTrue(makeAIResponse().isValid)
+    }
+
+    private func makeAIResponse() -> AICompositionResponse {
+        AICompositionResponse(
+            schemaVersion: 1,
+            primary: makeAIPlan(id: "primary"),
+            alternatives: [
+                makeAIPlan(id: "safe"),
+                makeAIPlan(id: "creative"),
+            ]
+        )
+    }
+
+    private func makeAIPlan(id: String, zoom: Double = 1.4) -> AICompositionPlan {
+        AICompositionPlan(
+            id: id,
+            instructionVi: "D\u1ecbch m\u00e1y sang tr\u00e1i",
+            instructionEn: "Move left",
+            target: NormalizedRect(CGRect(x: 0.2, y: 0.2, width: 0.3, height: 0.5)),
+            movement: .left,
+            angle: .eyeLevel,
+            zoom: zoom,
+            exposureBias: 0.2,
+            flash: .off,
+            presetIDs: ["neutral-skin"],
+            poseVi: "Th\u1ea3 l\u1ecfng vai",
+            poseEn: "Relax shoulders"
+        )
+    }
 }
