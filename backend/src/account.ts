@@ -74,7 +74,14 @@ export async function handleAccount(request: Request, env: Env): Promise<Respons
     return json({ ok: true, credits: await creditBalance(env.DB, accountId) });
   }
   if (request.method !== "DELETE") return error("METHOD_NOT_ALLOWED", 405);
-  await env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(accountId).run();
+  await env.DB.batch([
+    env.DB.prepare(`
+      INSERT OR IGNORE INTO retained_credit_transactions (transaction_id)
+      SELECT transaction_id FROM account_credit_operations
+      WHERE account_id = ? AND reason = 'purchase' AND transaction_id IS NOT NULL
+    `).bind(accountId),
+    env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(accountId),
+  ]);
   return json({ ok: true, credits: 0 });
 }
 
@@ -116,6 +123,10 @@ export async function grantCreditPurchase(
   transactionId: string,
   amount: number,
 ): Promise<void> {
+  const retained = await db.prepare(
+    "SELECT 1 FROM retained_credit_transactions WHERE transaction_id = ?",
+  ).bind(transactionId).first();
+  if (retained) return;
   await db.prepare(`
     INSERT OR IGNORE INTO account_credit_operations (
       idempotency_key, account_id, amount, reason, status, transaction_id
@@ -132,7 +143,13 @@ export async function revokeCreditPurchase(
     SELECT account_id FROM account_credit_operations
     WHERE transaction_id = ? AND reason = 'purchase'
   `).bind(transactionId).first<{ account_id: number }>();
-  if (!purchase) return;
+  if (!purchase) {
+    await db.prepare(`
+      UPDATE retained_credit_transactions SET revoked_at = CURRENT_TIMESTAMP
+      WHERE transaction_id = ?
+    `).bind(transactionId).run();
+    return;
+  }
   await db.prepare(`
     INSERT OR IGNORE INTO account_credit_operations (
       idempotency_key, account_id, amount, reason, status

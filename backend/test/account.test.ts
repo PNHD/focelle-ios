@@ -10,6 +10,7 @@ import {
 } from "../src/account";
 
 beforeEach(async () => {
+  await env.DB.prepare("DELETE FROM retained_credit_transactions").run();
   await env.DB.prepare("DELETE FROM account_credit_operations").run();
   await env.DB.prepare("DELETE FROM account_devices").run();
   await env.DB.prepare("DELETE FROM account_sessions").run();
@@ -51,10 +52,11 @@ describe("minimal account and credit ledger", () => {
     expect((await handleAppleLogin(loginRequest("short"), env)).status).toBe(400);
   });
 
-  it("deletes account state through an authenticated session", async () => {
+  it("deletes account state but retains purchase IDs against duplicate grants", async () => {
     const account = await env.DB.prepare(
       "INSERT INTO accounts (apple_subject_hash) VALUES ('subject') RETURNING id",
     ).first<{ id: number }>();
+    await grantCreditPurchase(env.DB, account!.id, "tx-delete", 30);
     const token = "s".repeat(43);
     await env.DB.prepare(`
       INSERT INTO account_sessions (token_hash, account_id, expires_at_ms)
@@ -70,6 +72,16 @@ describe("minimal account and credit ledger", () => {
     expect(response.status).toBe(200);
     expect((await env.DB.prepare("SELECT COUNT(*) AS count FROM accounts")
       .first<{ count: number }>())?.count).toBe(0);
+    expect((await env.DB.prepare(`
+      SELECT COUNT(*) AS count FROM retained_credit_transactions
+      WHERE transaction_id = 'tx-delete'
+    `).first<{ count: number }>())?.count).toBe(1);
+
+    const replacement = await env.DB.prepare(
+      "INSERT INTO accounts (apple_subject_hash) VALUES ('replacement') RETURNING id",
+    ).first<{ id: number }>();
+    await grantCreditPurchase(env.DB, replacement!.id, "tx-delete", 30);
+    expect(await creditBalance(env.DB, replacement!.id)).toBe(0);
   });
 });
 
