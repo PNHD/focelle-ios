@@ -1,73 +1,223 @@
 @preconcurrency import AVFoundation
+import AVKit
 import SwiftUI
 import UIKit
 
 struct CameraView: View {
     @StateObject private var camera = CameraSession()
+    @State private var countdown: Int?
+    @State private var countdownTask: Task<Void, Never>?
+    @State private var focusMarker: CGPoint?
 
     var body: some View {
-        ZStack {
-            CameraPreview(session: camera.session)
-                .ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.ignoresSafeArea()
 
-            if camera.state != .running {
-                statusView
+                CameraPreview(
+                    session: camera.session,
+                    onFocus: { devicePoint, viewPoint in
+                        focusMarker = viewPoint
+                        camera.focus(at: devicePoint)
+                    },
+                    onRotation: camera.setRotationAngle
+                )
+                .aspectRatio(previewRatio(for: geometry.size), contentMode: .fit)
+                .clipShape(Rectangle())
+                .overlay { if camera.showsGrid { grid } }
+                .overlay { focusIndicator }
+
+                if camera.state != .running { statusView }
+
+                controls
+
+                if let countdown {
+                    Text("\(countdown)")
+                        .font(.system(size: 88, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .shadow(radius: 8)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .onAppear(perform: camera.start)
+        .onDisappear {
+            countdownTask?.cancel()
+            camera.stop()
+        }
+        .onCameraCaptureEvent(
+            isEnabled: camera.state == .running && !camera.isCapturing && countdown == nil,
+            action: { event in
+                if event.phase == .ended { triggerCapture() }
+            }
+        )
+    }
+
+    private var controls: some View {
+        VStack(spacing: 14) {
+            HStack {
+                Text("app.name").font(.headline)
+                Spacer()
+                Button { camera.showsGrid.toggle() } label: {
+                    Image(systemName: camera.showsGrid ? "grid" : "square")
+                }
+                .accessibilityLabel(Text("camera.grid"))
+
+                Menu {
+                    ForEach(CameraTimer.allCases, id: \.self) { timer in
+                        Button(timer.rawValue == 0 ? "camera.timer.off" : "\(timer.rawValue)s") {
+                            camera.timer = timer
+                        }
+                    }
+                } label: {
+                    Image(systemName: "timer")
+                }
+                .accessibilityLabel(Text("camera.timer"))
+
+                Text("beta.badge")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.orange.opacity(0.2), in: Capsule())
+                    .foregroundStyle(.orange)
             }
 
-            VStack {
-                HStack {
-                    Text("app.name").font(.headline)
-                    Spacer()
-                    Text("beta.badge")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(.orange.opacity(0.2), in: Capsule())
-                        .foregroundStyle(.orange)
+            HStack {
+                Menu {
+                    ForEach(CameraFlash.allCases, id: \.self) { mode in
+                        Button(mode.label) { camera.flash = mode }
+                    }
+                } label: {
+                    Image(systemName: flashIcon)
+                }
+                .accessibilityLabel(Text("camera.flash"))
+
+                Menu {
+                    ForEach(CameraRatio.allCases, id: \.self) { ratio in
+                        Button(ratio.rawValue) { camera.ratio = ratio }
+                    }
+                } label: {
+                    Text(camera.ratio.rawValue).font(.caption.weight(.semibold))
+                }
+                .accessibilityLabel(Text("camera.ratio"))
+
+                if camera.supportsMaximumResolution {
+                    Menu {
+                        Button("24 MP") { camera.resolution = .standard }
+                        Button("48 MP") { camera.resolution = .maximum }
+                    } label: {
+                        Text(camera.resolution == .maximum ? "48" : "24")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .accessibilityLabel(Text("camera.resolution"))
                 }
 
                 Spacer()
+            }
 
-                if let notice = camera.notice {
-                    Text(LocalizedStringKey(notice))
-                        .font(.subheadline.weight(.medium))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .background(.black.opacity(0.7), in: Capsule())
+            Spacer()
+
+            if let notice = camera.notice {
+                Text(LocalizedStringKey(notice))
+                    .font(.subheadline.weight(.medium))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(.black.opacity(0.7), in: Capsule())
+            }
+
+            VStack(spacing: 8) {
+                HStack {
+                    Image(systemName: "sun.min")
+                    Slider(
+                        value: Binding(
+                            get: { Double(camera.exposure) },
+                            set: { camera.setExposure(Float($0)) }
+                        ),
+                        in: -2...2,
+                        step: 0.1
+                    )
+                    Image(systemName: "sun.max")
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(Text("camera.exposure"))
 
                 HStack {
-                    Button(action: camera.switchCamera) {
-                        Image(systemName: "arrow.triangle.2.circlepath.camera")
-                            .frame(width: 52, height: 52)
-                            .background(.black.opacity(0.5), in: Circle())
-                    }
-                    .accessibilityLabel(Text("camera.switch"))
-                    .disabled(camera.state != .running)
+                    Text("1×").font(.caption.monospacedDigit())
+                    Slider(
+                        value: Binding(
+                            get: { Double(camera.zoom) },
+                            set: { camera.setZoom(CGFloat($0)) }
+                        ),
+                        in: 1...Double(max(camera.maxZoom, 1))
+                    )
+                    Text("\(camera.zoom, specifier: "%.1f")×")
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 38)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(Text("camera.zoom"))
+            }
+            .padding(.horizontal, 4)
 
-                    Spacer()
+            HStack {
+                Button(action: camera.switchCamera) {
+                    Image(systemName: "arrow.triangle.2.circlepath.camera")
+                        .frame(width: 52, height: 52)
+                        .background(.black.opacity(0.5), in: Circle())
+                }
+                .accessibilityLabel(Text("camera.switch"))
+                .disabled(camera.state != .running)
 
-                    Button(action: camera.capture) {
-                        Circle()
-                            .fill(Color(red: 0.96, green: 0.94, blue: 0.88))
-                            .frame(width: 72, height: 72)
-                            .overlay(Circle().stroke(.white.opacity(0.4), lineWidth: 5).padding(-7))
-                    }
-                    .accessibilityLabel(Text("camera.shutter"))
-                    .disabled(camera.state != .running)
+                Spacer()
 
-                    Spacer()
+                Button(action: triggerCapture) {
+                    Circle()
+                        .fill(Color(red: 0.96, green: 0.94, blue: 0.88))
+                        .frame(width: 72, height: 72)
+                        .overlay(Circle().stroke(.white.opacity(0.4), lineWidth: 5).padding(-7))
+                }
+                .accessibilityLabel(Text("camera.shutter"))
+                .disabled(camera.state != .running || camera.isCapturing || countdown != nil)
 
-                    Color.clear.frame(width: 52, height: 52)
+                Spacer()
+
+                Color.clear.frame(width: 52, height: 52)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(24)
+    }
+
+    private var grid: some View {
+        GeometryReader { geometry in
+            Path { path in
+                for part in [CGFloat(1) / 3, CGFloat(2) / 3] {
+                    path.move(to: CGPoint(x: geometry.size.width * part, y: 0))
+                    path.addLine(to: CGPoint(x: geometry.size.width * part, y: geometry.size.height))
+                    path.move(to: CGPoint(x: 0, y: geometry.size.height * part))
+                    path.addLine(to: CGPoint(x: geometry.size.width, y: geometry.size.height * part))
                 }
             }
-            .foregroundStyle(.white)
-            .padding(24)
+            .stroke(.white.opacity(0.35), lineWidth: 0.7)
         }
-        .background(.black)
-        .preferredColorScheme(.dark)
-        .onAppear(perform: camera.start)
-        .onDisappear(perform: camera.stop)
+        .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private var focusIndicator: some View {
+        GeometryReader { geometry in
+            if let focusMarker {
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(.orange, lineWidth: 1.5)
+                    .frame(width: 64, height: 64)
+                    .position(
+                        x: focusMarker.x * geometry.size.width,
+                        y: focusMarker.y * geometry.size.height
+                    )
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 
     @ViewBuilder
@@ -100,24 +250,93 @@ struct CameraView: View {
         case .running: ""
         }
     }
+
+    private var flashIcon: String {
+        switch camera.flash {
+        case .off: "bolt.slash"
+        case .auto: "bolt.badge.a"
+        case .on: "bolt.fill"
+        }
+    }
+
+    private func previewRatio(for size: CGSize) -> CGFloat {
+        size.width > size.height ? camera.ratio.value : 1 / camera.ratio.value
+    }
+
+    private func triggerCapture() {
+        guard countdown == nil, !camera.isCapturing else { return }
+        guard camera.timer.rawValue > 0 else {
+            camera.capture()
+            return
+        }
+        countdownTask = Task { @MainActor in
+            for value in stride(from: camera.timer.rawValue, through: 1, by: -1) {
+                countdown = value
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+            }
+            countdown = nil
+            camera.capture()
+        }
+    }
 }
 
 private struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
+    let onFocus: (CGPoint, CGPoint) -> Void
+    let onRotation: (CGFloat) -> Void
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
+        view.onFocus = onFocus
+        view.onRotation = onRotation
         return view
     }
 
-    func updateUIView(_ uiView: PreviewView, context: Context) {}
+    func updateUIView(_ uiView: PreviewView, context: Context) {
+        uiView.onFocus = onFocus
+        uiView.onRotation = onRotation
+    }
 }
 
 private final class PreviewView: UIView {
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
     var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+    var onFocus: ((CGPoint, CGPoint) -> Void)?
+    var onRotation: ((CGFloat) -> Void)?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(didTap)))
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(didTap)))
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard let orientation = window?.windowScene?.interfaceOrientation else { return }
+        let angle = CameraRotation.angle(for: orientation)
+        if let connection = previewLayer.connection,
+           connection.isVideoRotationAngleSupported(angle)
+        {
+            connection.videoRotationAngle = angle
+        }
+        onRotation?(angle)
+    }
+
+    @objc private func didTap(_ gesture: UITapGestureRecognizer) {
+        let point = gesture.location(in: self)
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        onFocus?(
+            previewLayer.captureDevicePointConverted(fromLayerPoint: point),
+            CGPoint(x: point.x / bounds.width, y: point.y / bounds.height)
+        )
+    }
 }
 
 #Preview {
