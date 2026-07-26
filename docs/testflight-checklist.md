@@ -5,6 +5,7 @@
 - [ ] Active Apple Developer Program membership and App Store Connect app record.
 - [ ] Seller/legal name, public support email, Support URL, and Privacy Policy URL supplied.
 - [ ] Distribution certificate, App Store provisioning profile for `com.pnhd.focelle`, Team ID, and App Store Connect API key stored only as CI secrets.
+- [ ] App ID and provisioning profile enable Sign in with Apple and CloudKit container `iCloud.com.pnhd.focelle`.
 - [ ] Gemini API key and a generated app shared token stored as Cloudflare secrets.
 - [ ] Worker deployed; production iOS build receives its HTTPS endpoint and shared token from CI secrets.
 - [ ] App Store product IDs match the four product IDs in `StoreKit.storekit`; sandbox flag remains off until sandbox verification is ready.
@@ -46,4 +47,3 @@
 - [ ] Ten-minute device log with model, OS, 24/48 MP file dimensions, thermal/memory observations, and latency table.
 - [ ] Short screen recording of onboarding, camera, AI, filter editor, existing-photo editor, and failure recovery.
 - [ ] Tester feedback and all release-blocking issues resolved or explicitly accepted.
-

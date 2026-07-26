@@ -24,6 +24,8 @@
 	<string>$(FOCELLE_AI_ENDPOINT)</string>
 	<key>FocelleAISharedToken</key>
 	<string>$(FOCELLE_AI_SHARED_TOKEN)</string>
+	<key>FocelleCloudKitContainer</key>
+	<string>iCloud.com.pnhd.focelle</string>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-3940256099942544~1458002511</string>
 	<key>LSApplicationCategoryType</key>
