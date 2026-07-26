@@ -4,9 +4,10 @@ import Foundation
 enum PresetSync {
     private static let recordType = "UserPreset"
     private static let payloadKey = "payload"
+    private static let containerInfoKey = "FocelleCloudKitContainer"
 
     static func fetch() async throws -> [UserPreset] {
-        let database = CKContainer.default().privateCloudDatabase
+        let database = try database()
         let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
         var page = try await database.records(
             matching: query,
@@ -37,12 +38,21 @@ enum PresetSync {
             record[payloadKey] = try encoder.encode(preset) as CKRecordValue
             return record
         }
-        _ = try await CKContainer.default().privateCloudDatabase.modifyRecords(
+        _ = try await database().modifyRecords(
             saving: records,
             deleting: [],
             savePolicy: .allKeys,
             atomically: false
         )
+    }
+
+    private static func database() throws -> CKDatabase {
+        guard let identifier = Bundle.main.object(
+            forInfoDictionaryKey: containerInfoKey
+        ) as? String, !identifier.isEmpty else {
+            throw PresetSyncError.iCloudNotConfigured
+        }
+        return CKContainer(identifier: identifier).privateCloudDatabase
     }
 
     private static func decode(
@@ -56,4 +66,8 @@ enum PresetSync {
             return try? decoder.decode(UserPreset.self, from: data)
         }
     }
+}
+
+private enum PresetSyncError: Error {
+    case iCloudNotConfigured
 }
