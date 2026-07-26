@@ -3,8 +3,13 @@ import SwiftUI
 struct PhotoEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var presets: PresetStore
+    @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var quota: Quota
+    @EnvironmentObject private var store: Store
     @StateObject private var model: PhotoEditorModel
     @State private var showsEditor = false
+    @State private var showsLimit = false
+    @State private var showsPaywall = false
 
     init(data: Data) {
         _model = StateObject(wrappedValue: PhotoEditorModel(data: data))
@@ -60,11 +65,7 @@ struct PhotoEditorView: View {
                     Button("common.cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("common.save") {
-                        Task {
-                            if await model.saveCopy() { dismiss() }
-                        }
-                    }
+                    Button("common.save", action: save)
                     .disabled(model.isSaving || model.preview == nil)
                 }
             }
@@ -102,6 +103,42 @@ struct PhotoEditorView: View {
                     Text(LocalizedStringKey(errorKey))
                 }
             }
+            .sheet(isPresented: $showsLimit) {
+                LimitSheet {
+                    Task { @MainActor in
+                        await Task.yield()
+                        showsPaywall = true
+                    }
+                }
+            }
+            .sheet(isPresented: $showsPaywall) {
+                PaywallView()
+            }
+        }
+    }
+
+    private func save() {
+        if model.recipe != nil,
+           !quota.snapshot.unlimited,
+           !store.isPro,
+           quota.snapshot.filterRemaining < 1 {
+            showsLimit = true
+            return
+        }
+        Task {
+            guard await model.saveCopy() else { return }
+            if model.recipe != nil {
+                Analytics.record("filter_save", enabled: settings.analyticsEnabled)
+                do {
+                    try await quota.consumeFilter()
+                } catch Quota.QuotaError.exhausted {
+                    showsLimit = true
+                    return
+                } catch {
+                    await quota.refresh()
+                }
+            }
+            dismiss()
         }
     }
 
