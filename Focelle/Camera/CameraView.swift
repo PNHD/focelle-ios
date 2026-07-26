@@ -16,6 +16,7 @@ struct CameraView: View {
     @State private var presetToRename: UserPreset?
     @State private var photoSelection: PhotosPickerItem?
     @State private var photoEditorData: Data?
+    @State private var guidanceEnabled = true
 
     var body: some View {
         GeometryReader { geometry in
@@ -40,6 +41,9 @@ struct CameraView: View {
                     }
 
                     if camera.showsGrid { grid }
+                    if guidanceEnabled, let guidance = camera.guidance {
+                        GuidanceOverlay(guidance: guidance)
+                    }
                     focusIndicator
                 }
                 .aspectRatio(previewRatio(for: geometry.size), contentMode: .fit)
@@ -96,6 +100,11 @@ struct CameraView: View {
                 photoSelection = nil
             }
         }
+        .onChange(of: camera.guidance?.aligned) { oldValue, newValue in
+            if oldValue != true, newValue == true {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            }
+        }
         .sheet(isPresented: photoEditorPresented) {
             if let photoEditorData {
                 PhotoEditorView(data: photoEditorData)
@@ -113,6 +122,11 @@ struct CameraView: View {
                     Image(systemName: "photo.on.rectangle")
                 }
                 .accessibilityLabel(Text("photoEditor.pick"))
+
+                Button { guidanceEnabled.toggle() } label: {
+                    Image(systemName: guidanceEnabled ? "sparkles" : "sparkles.slash")
+                }
+                .accessibilityLabel(Text("guidance.toggle"))
 
                 Button { camera.showsGrid.toggle() } label: {
                     Image(systemName: camera.showsGrid ? "grid" : "square")

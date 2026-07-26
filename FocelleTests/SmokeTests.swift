@@ -145,4 +145,23 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(result.horizonAngle, 0.35)
         XCTAssertEqual(result.exposure, 0.48, accuracy: 0.001)
     }
+
+    func testGuidanceTargetsRuleOfThirdsAndDebouncesChanges() {
+        let left = SceneMeasurement(
+            subjectRect: CGRect(x: 0.05, y: 0.3, width: 0.2, height: 0.4),
+            faceRects: [],
+            salientRect: nil,
+            horizonAngle: 0,
+            exposure: 0.5,
+            timestamp: 1
+        )
+        XCTAssertEqual(GuidanceEngine.propose(left).direction, .left)
+
+        var engine = GuidanceEngine()
+        _ = engine.update(left)
+        var right = left
+        right.subjectRect = CGRect(x: 0.75, y: 0.3, width: 0.2, height: 0.4)
+        XCTAssertEqual(engine.update(right).direction, .left)
+        XCTAssertEqual(engine.update(right).direction, .right)
+    }
 }

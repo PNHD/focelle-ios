@@ -111,6 +111,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     @Published private(set) var filterIntensity = 1.0
     @Published private(set) var filteredPreview: CGImage?
     @Published private(set) var measurement: SceneMeasurement?
+    @Published private(set) var guidance: Guidance?
     @Published var notice: String?
 
     let session = AVCaptureSession()
@@ -134,6 +135,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var lastAnalysisTime = CMTime.zero
     private var analysisInFlight = false
     private var stabilizer = MeasurementStabilizer()
+    private var guidanceEngine = GuidanceEngine()
 
     func start() {
 #if targetEnvironment(simulator)
@@ -457,7 +459,11 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
                     self.analysisInFlight = false
                     guard let measurement else { return }
                     let stable = self.stabilizer.update(measurement)
-                    DispatchQueue.main.async { self.measurement = stable }
+                    let guidance = self.guidanceEngine.update(stable)
+                    DispatchQueue.main.async {
+                        self.measurement = stable
+                        self.guidance = guidance
+                    }
                 }
             }
         }
