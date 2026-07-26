@@ -3,6 +3,7 @@ import SwiftUI
 struct LimitSheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var quota: Quota
+    @EnvironmentObject private var settings: AppSettings
     @StateObject private var ad = RewardedAdController()
     @State private var messageKey: LocalizedStringKey?
     let onPurchase: () -> Void
@@ -59,15 +60,30 @@ struct LimitSheet: View {
         Task {
             guard let rewardId = await ad.showTestAd() else {
                 messageKey = "limit.adFailed"
+                Analytics.record(
+                    "reward_completion",
+                    enabled: settings.analyticsEnabled,
+                    category: "failed"
+                )
                 return
             }
             do {
                 try await quota.grantTestReward(rewardId)
                 messageKey = "limit.rewardGranted"
+                Analytics.record(
+                    "reward_completion",
+                    enabled: settings.analyticsEnabled,
+                    category: "success"
+                )
             } catch Quota.QuotaError.featureDisabled {
                 messageKey = "limit.testDisabled"
             } catch {
                 messageKey = "limit.rewardFailed"
+                Analytics.record(
+                    "reward_completion",
+                    enabled: settings.analyticsEnabled,
+                    category: "failed"
+                )
             }
         }
     }

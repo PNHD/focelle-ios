@@ -6,6 +6,7 @@ struct PaywallView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: Store
     @EnvironmentObject private var account: Account
+    @EnvironmentObject private var settings: AppSettings
 
     var body: some View {
         NavigationStack {
@@ -53,7 +54,14 @@ struct PaywallView: View {
                 }
 
                 Button("purchase.restore") {
-                    Task { await store.restore() }
+                    Task {
+                        let restored = await store.restore()
+                        Analytics.record(
+                            "restore",
+                            enabled: settings.analyticsEnabled,
+                            category: restored ? "success" : "failed"
+                        )
+                    }
                 }
                 .disabled(store.isLoading)
 
@@ -79,7 +87,13 @@ struct PaywallView: View {
     private func productButton(_ product: Product) -> some View {
         Button {
             Task {
-                if await store.purchase(product) {
+                let purchased = await store.purchase(product)
+                Analytics.record(
+                    "purchase",
+                    enabled: settings.analyticsEnabled,
+                    category: purchased ? "success" : "failed"
+                )
+                if purchased {
                     await account.refresh()
                 }
             }

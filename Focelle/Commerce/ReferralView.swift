@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ReferralView: View {
     @EnvironmentObject private var referral: Referral
+    @EnvironmentObject private var settings: AppSettings
     @State private var code = ""
 
     var body: some View {
@@ -25,7 +26,16 @@ struct ReferralView: View {
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
                         Button("referral.apply") {
-                            Task { await referral.redeem(code) }
+                            Task {
+                                await referral.redeem(code)
+                                Analytics.record(
+                                    "referral_outcome",
+                                    enabled: settings.analyticsEnabled,
+                                    category: referral.messageKey == "referral.claimed"
+                                        ? "success"
+                                        : "failed"
+                                )
+                            }
                         }
                         .disabled(code.count != 8)
                     }

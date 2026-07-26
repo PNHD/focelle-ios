@@ -87,15 +87,17 @@ final class Store: ObservableObject {
         return false
     }
 
-    func restore() async {
+    func restore() async -> Bool {
         isLoading = true
         defer { isLoading = false }
         do {
             try await AppStore.sync()
             await refreshEntitlement()
             messageKey = isPro ? "purchase.restored" : "purchase.noneToRestore"
+            return isPro
         } catch {
             messageKey = "purchase.error.restore"
+            return false
         }
     }
 
