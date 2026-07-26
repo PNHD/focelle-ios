@@ -5,6 +5,7 @@ import SwiftUI
 import UIKit
 
 struct CameraView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var presets: PresetStore
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var location: LocationProvider
@@ -85,6 +86,17 @@ struct CameraView: View {
             countdownTask?.cancel()
             voice.stop()
             camera.stop()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                camera.start()
+            } else {
+                countdownTask?.cancel()
+                countdown = nil
+                autoCapture.cancel()
+                voice.stop()
+                camera.stop()
+            }
         }
         .onCameraCaptureEvent(
             isEnabled: camera.state == .running && !camera.isCapturing && countdown == nil,
@@ -644,6 +656,7 @@ struct CameraView: View {
     private var statusKey: LocalizedStringKey {
         switch camera.state {
         case .starting: "camera.starting"
+        case .interrupted: "camera.interrupted"
         case .permissionDenied: "camera.permissionDenied"
         case .unavailable: "camera.unavailable"
         case .running: ""

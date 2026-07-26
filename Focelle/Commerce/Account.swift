@@ -110,8 +110,9 @@ final class Account: ObservableObject {
 
     private static func randomNonce() -> String {
         var bytes = [UInt8](repeating: 0, count: 24)
+        let count = bytes.count
         let status = bytes.withUnsafeMutableBytes {
-            SecRandomCopyBytes(kSecRandomDefault, bytes.count, $0.baseAddress!)
+            SecRandomCopyBytes(kSecRandomDefault, count, $0.baseAddress!)
         }
         guard status == errSecSuccess else {
             return UUID().uuidString.replacingOccurrences(of: "-", with: "")

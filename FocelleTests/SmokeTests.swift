@@ -28,6 +28,11 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(CameraRotation.angle(for: .landscapeRight), 180)
     }
 
+    func testCameraRestartsOnlyAfterMediaServicesReset() {
+        XCTAssertTrue(CameraSession.canRestart(after: AVError(.mediaServicesWereReset)))
+        XCTAssertFalse(CameraSession.canRestart(after: AVError(.deviceIsNotAvailableInBackground)))
+    }
+
     func testOriginalFiltersAreOwnedUniqueRecipes() {
         XCTAssertEqual(FocelleOriginals.all.count, 12)
         XCTAssertEqual(Set(FocelleOriginals.all.map(\.id)).count, 12)

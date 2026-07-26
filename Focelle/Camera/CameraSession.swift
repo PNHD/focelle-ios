@@ -93,6 +93,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     enum State: Equatable {
         case starting
         case running
+        case interrupted
         case permissionDenied
         case unavailable
     }
@@ -144,6 +145,32 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var guidanceEngine = GuidanceEngine()
     private var pendingAIPreview: (@Sendable (Data?) -> Void)?
     private var cloudPlan: AICompositionPlan?
+
+    override init() {
+        super.init()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(sessionWasInterrupted),
+            name: AVCaptureSession.wasInterruptedNotification,
+            object: session
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(sessionInterruptionEnded),
+            name: AVCaptureSession.interruptionEndedNotification,
+            object: session
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(sessionRuntimeError),
+            name: AVCaptureSession.runtimeErrorNotification,
+            object: session
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
 
     func start() {
 #if targetEnvironment(simulator)
@@ -325,6 +352,27 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         updateVideoConnection(for: device)
         configured = true
         return true
+    }
+
+    @objc private func sessionWasInterrupted(_ notification: Notification) {
+        publish(state: .interrupted)
+    }
+
+    @objc private func sessionInterruptionEnded(_ notification: Notification) {
+        configureAndStart()
+    }
+
+    @objc private func sessionRuntimeError(_ notification: Notification) {
+        let error = notification.userInfo?[AVCaptureSessionErrorKey] as? AVError
+        if Self.canRestart(after: error) {
+            configureAndStart()
+        } else {
+            publish(state: .unavailable)
+        }
+    }
+
+    static func canRestart(after error: AVError?) -> Bool {
+        error?.code == .mediaServicesWereReset
     }
 
     func requestAIPreview(_ completion: @escaping @Sendable (Data?) -> Void) {
