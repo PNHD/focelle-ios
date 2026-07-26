@@ -58,18 +58,6 @@
     "settings.saveLocation" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Save photo location" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "L\u01b0u v\u1ecb tr\u00ed \u1ea3nh" } } } },
     "settings.saveOriginal" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Keep original when using a filter" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Gi\u1eef \u1ea3nh g\u1ed1c khi d\u00f9ng filter" } } } },
     "settings.title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Settings" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "C\u00e0i \u0111\u1eb7t" } } } },
-    "camera.placeholder.subtitle" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Camera setup is the next milestone." } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Camera sẽ được kết nối ở bước tiếp theo." } }
-      }
-    },
-    "camera.placeholder.title" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Your AI photo coach" } },
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Trợ lý chụp ảnh AI của bạn" } }
-      }
-    },
     "camera.error.capture" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Could not take the photo." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không thể chụp ảnh." } } } },
     "camera.error.configuration" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This control is unavailable." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Điều khiển này không khả dụng." } } } },
     "camera.error.photosPermission" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Allow Photos access to save." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hãy cho phép truy cập Ảnh để lưu." } } } },

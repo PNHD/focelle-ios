@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -36,6 +40,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate app configuration
+        run: /usr/libexec/PlistBuddy -c 'Print :GADApplicationIdentifier' Focelle/Info.plist
+
       - name: Boot iPhone 17e simulator
         run: |
           DEVICE_ID=$(xcrun simctl list devices available -j | jq -r '.devices["com.apple.CoreSimulator.SimRuntime.iOS-26-4"][] | select(.name == "iPhone 17e") | .udid')
@@ -44,22 +51,10 @@ jobs:
           xcrun simctl boot "$DEVICE_ID"
           xcrun simctl bootstatus "$DEVICE_ID" -b
 
-      - name: Build without signing
+      - name: Build and test on iPhone 17e simulator
         run: |
           set -o pipefail
           mkdir -p artifacts logs
-          xcodebuild \
-            -project Focelle.xcodeproj \
-            -scheme Focelle \
-            -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath DerivedData \
-            CODE_SIGNING_ALLOWED=NO \
-            build | tee logs/build.log
-
-      - name: Test on iPhone 17e simulator
-        run: |
-          set -o pipefail
           xcodebuild \
             -project Focelle.xcodeproj \
             -scheme Focelle \

@@ -77,8 +77,8 @@ jobs:
             CODE_SIGN_IDENTITY='Apple Distribution' \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
             CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
-            INFOPLIST_KEY_FocelleAIEndpoint="$FOCELLE_AI_ENDPOINT" \
-            INFOPLIST_KEY_FocelleAISharedToken="$FOCELLE_AI_SHARED_TOKEN" \
+            FOCELLE_AI_ENDPOINT="$FOCELLE_AI_ENDPOINT" \
+            FOCELLE_AI_SHARED_TOKEN="$FOCELLE_AI_SHARED_TOKEN" \
             archive
 
       - name: Export signed IPA
