@@ -44,8 +44,8 @@ audit refresh accompanies the resulting compiler fix.
 
 1. Supply a Gemini API key and set a generated app token in both Cloudflare
    and GitHub Secrets; deploy and smoke-test the Worker.
-2. After the GitHub Actions allowance resets, push the local commits and run
-   the optimized iOS workflow once. Do not retry blindly if it fails.
+2. After the GitHub Actions allowance resets, run the optimized iOS workflow
+   once against the already-pushed PR head. Do not retry blindly if it fails.
 3. Enable Sign in with Apple and CloudKit container
    `iCloud.com.pnhd.focelle` in the Apple App ID and provisioning profile.
 4. Supply Apple Developer/App Store Connect signing material plus seller,
