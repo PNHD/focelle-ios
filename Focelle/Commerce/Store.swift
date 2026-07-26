@@ -4,10 +4,15 @@ import StoreKit
 
 @MainActor
 final class Store: ObservableObject {
-    static let productIDs = [
+    static let subscriptionProductIDs = [
         "com.pnhd.focelle.pro.monthly",
         "com.pnhd.focelle.pro.yearly",
     ]
+    static let creditPacks = [
+        "com.pnhd.focelle.credits.30": 30,
+        "com.pnhd.focelle.credits.100": 100,
+    ]
+    static let productIDs = subscriptionProductIDs + creditPacks.keys.sorted()
 
     struct Entitlement: Codable, Equatable {
         let productID: String
@@ -53,14 +58,19 @@ final class Store: ObservableObject {
         }
     }
 
-    func purchase(_ product: Product) async {
+    func purchase(_ product: Product) async -> Bool {
         isLoading = true
         defer { isLoading = false }
         do {
             switch try await product.purchase() {
             case let .success(result):
-                await handle(result)
-                messageKey = isPro ? "purchase.success" : "purchase.error.verify"
+                let delivered = await handle(result)
+                messageKey = delivered
+                    ? (Self.creditPacks[product.id] == nil
+                        ? "purchase.success"
+                        : "account.creditsPurchased")
+                    : "purchase.error.verify"
+                return delivered
             case .pending:
                 messageKey = "purchase.pending"
             case .userCancelled:
@@ -71,6 +81,7 @@ final class Store: ObservableObject {
         } catch {
             messageKey = "purchase.error.purchase"
         }
+        return false
     }
 
     func restore() async {
@@ -89,7 +100,7 @@ final class Store: ObservableObject {
         var current: Entitlement?
         for await result in Transaction.currentEntitlements {
             guard case let .verified(transaction) = result,
-                  Self.productIDs.contains(transaction.productID),
+                  Self.subscriptionProductIDs.contains(transaction.productID),
                   transaction.revocationDate == nil,
                   let expiration = transaction.expirationDate,
                   expiration > .now
@@ -103,31 +114,37 @@ final class Store: ObservableObject {
         cache()
     }
 
-    private func handle(_ result: VerificationResult<Transaction>) async {
+    @discardableResult
+    private func handle(_ result: VerificationResult<Transaction>) async -> Bool {
         guard case let .verified(transaction) = result,
               Self.productIDs.contains(transaction.productID)
         else {
             messageKey = "purchase.error.verify"
-            return
+            return false
         }
-        if transaction.revocationDate == nil,
+        if Self.subscriptionProductIDs.contains(transaction.productID),
+           transaction.revocationDate == nil,
            let expiration = transaction.expirationDate,
            expiration > .now {
             entitlement = Entitlement(productID: transaction.productID, expirationDate: expiration)
             cache()
-        } else {
+        } else if Self.subscriptionProductIDs.contains(transaction.productID) {
             await refreshEntitlement()
         }
         if transaction.environment != .xcode {
-            guard await submit(result.jwsRepresentation) else { return }
+            guard await submit(result.jwsRepresentation) else { return false }
         }
         await transaction.finish()
+        return true
     }
 
     private func submit(_ signedTransaction: String) async -> Bool {
         do {
             var request = try await FocelleAPI.request(path: "v1/store/transaction", method: "POST")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            if let session = AccountSession.load() {
+                request.setValue(session, forHTTPHeaderField: "X-Focelle-Session")
+            }
             request.httpBody = try JSONEncoder().encode(
                 StoreTransactionRequest(
                     deviceId: await FocelleAPI.deviceID(),

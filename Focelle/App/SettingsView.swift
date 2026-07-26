@@ -5,6 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var location: LocationProvider
     @EnvironmentObject private var beta: BetaAccess
+    @EnvironmentObject private var account: Account
     let supportsMaximumResolution: Bool
 
     var body: some View {
@@ -41,6 +42,12 @@ struct SettingsView: View {
                     Toggle("settings.analytics", isOn: $settings.analyticsEnabled)
                     NavigationLink("settings.privacyDetails") {
                         PrivacyView()
+                    }
+                }
+
+                Section("account.title") {
+                    NavigationLink("account.manage") {
+                        AccountView().environmentObject(account)
                     }
                 }
             }

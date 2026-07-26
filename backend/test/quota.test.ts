@@ -6,6 +6,8 @@ import {
   refundCredit,
   reserveCredit,
 } from "../src/quota";
+import { creditBalance, grantCreditPurchase } from "../src/account";
+import { hashDevice } from "../src/beta";
 
 const deviceId = "device_1234567890";
 const now = new Date("2026-07-26T12:00:00Z");
@@ -13,6 +15,10 @@ const now = new Date("2026-07-26T12:00:00Z");
 beforeEach(async () => {
   await env.DB.prepare("DELETE FROM credit_operations").run();
   await env.DB.prepare("DELETE FROM reward_operations").run();
+  await env.DB.prepare("DELETE FROM account_credit_operations").run();
+  await env.DB.prepare("DELETE FROM account_devices").run();
+  await env.DB.prepare("DELETE FROM account_sessions").run();
+  await env.DB.prepare("DELETE FROM accounts").run();
   await env.DB.prepare(
     "UPDATE app_config SET value = 'off' WHERE key = 'beta_force'",
   ).run();
@@ -72,6 +78,39 @@ describe("daily quota", () => {
     await reserveCredit(env.DB, deviceId, 420, "ai", key(0), now);
     const tomorrow = new Date("2026-07-27T12:00:00Z");
     expect((await quotaStatus(env.DB, deviceId, 420, tomorrow)).aiRemaining).toBe(5);
+  });
+
+  it("uses synced purchased AI credits only after the daily allowance", async () => {
+    const created = await env.DB.prepare(
+      "INSERT INTO accounts (apple_subject_hash) VALUES ('subject') RETURNING id",
+    ).first<{ id: number }>();
+    await env.DB.prepare(
+      "INSERT INTO account_devices (device_hash, account_id) VALUES (?, ?)",
+    ).bind(await hashDevice(deviceId), created!.id).run();
+    await grantCreditPurchase(env.DB, created!.id, "purchase-1", 2);
+
+    for (let index = 0; index < 7; index++) {
+      expect((await reserveCredit(
+        env.DB,
+        deviceId,
+        420,
+        "ai",
+        key(index),
+        now,
+      )).allowed).toBe(true);
+    }
+    expect((await reserveCredit(
+      env.DB,
+      deviceId,
+      420,
+      "ai",
+      key(7),
+      now,
+    )).allowed).toBe(false);
+    expect(await creditBalance(env.DB, created!.id)).toBe(0);
+
+    await refundCredit(env.DB, key(6));
+    expect(await creditBalance(env.DB, created!.id)).toBe(1);
   });
 });
 

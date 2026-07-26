@@ -5,10 +5,19 @@ import {
 } from "@apple/app-store-server-library";
 import { deviceIDPattern, hashDevice } from "./beta";
 import { authorized, error, json, readJSON } from "./http";
+import {
+  authenticatedAccount,
+  grantCreditPurchase,
+  revokeCreditPurchase,
+} from "./account";
 
-const PRODUCT_IDS = new Set([
+const SUBSCRIPTION_IDS = new Set([
   "com.pnhd.focelle.pro.monthly",
   "com.pnhd.focelle.pro.yearly",
+]);
+const CREDIT_PACKS = new Map([
+  ["com.pnhd.focelle.credits.30", 30],
+  ["com.pnhd.focelle.credits.100", 100],
 ]);
 const JWS_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const APPLE_ROOTS = [
@@ -38,7 +47,19 @@ export async function handleStoreTransaction(request: Request, env: Env): Promis
 
   try {
     const transaction = await verifyTransaction(value.signedTransaction, env);
-    await applyStoreTransaction(env.DB, transaction, await hashDevice(value.deviceId));
+    const credits = transaction.productId ? CREDIT_PACKS.get(transaction.productId) : undefined;
+    if (credits != null) {
+      const accountId = await authenticatedAccount(request, env.DB);
+      if (accountId == null) return error("SESSION_REQUIRED", 401);
+      if (!transaction.transactionId) return error("INVALID_TRANSACTION", 400);
+      if (transaction.revocationDate == null) {
+        await grantCreditPurchase(env.DB, accountId, transaction.transactionId, credits);
+      } else {
+        await revokeCreditPurchase(env.DB, transaction.transactionId, credits);
+      }
+    } else {
+      await applyStoreTransaction(env.DB, transaction, await hashDevice(value.deviceId));
+    }
     return json({ ok: true }, 202);
   } catch {
     return error("INVALID_TRANSACTION", 400);
@@ -77,7 +98,14 @@ export async function handleStoreNotification(request: Request, env: Env): Promi
     if (existing) return json({ ok: true });
 
     const transaction = await verifyTransaction(signedTransaction, env);
-    await applyStoreTransaction(env.DB, transaction);
+    const credits = transaction.productId ? CREDIT_PACKS.get(transaction.productId) : undefined;
+    if (credits != null) {
+      if (transaction.transactionId && transaction.revocationDate != null) {
+        await revokeCreditPurchase(env.DB, transaction.transactionId, credits);
+      }
+    } else {
+      await applyStoreTransaction(env.DB, transaction);
+    }
     await env.DB.prepare(
       "INSERT OR IGNORE INTO store_notifications (notification_uuid) VALUES (?)",
     ).bind(uuid).run();
@@ -111,7 +139,7 @@ export async function applyStoreTransaction(
   const expiresAt = transaction.expiresDate;
   const environment = transaction.environment;
   if (!transactionId || !originalId || !productId || !expiresAt || !environment
-    || !PRODUCT_IDS.has(productId)) {
+    || !SUBSCRIPTION_IDS.has(productId)) {
     throw new Error("invalid subscription transaction");
   }
   const existing = await db.prepare(`

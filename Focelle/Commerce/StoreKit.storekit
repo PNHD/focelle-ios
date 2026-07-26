@@ -4,7 +4,46 @@
 
   ],
   "products" : [
-
+    {
+      "displayPrice" : "29000",
+      "familyShareable" : false,
+      "internalID" : "F0CE1401",
+      "localizations" : [
+        {
+          "description" : "30 lượt gợi ý AI không hết hạn",
+          "displayName" : "30 lượt AI",
+          "locale" : "vi_VN"
+        },
+        {
+          "description" : "30 non-expiring AI analyses",
+          "displayName" : "30 AI credits",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.pnhd.focelle.credits.30",
+      "referenceName" : "30 AI Credits",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "69000",
+      "familyShareable" : false,
+      "internalID" : "F0CE1402",
+      "localizations" : [
+        {
+          "description" : "100 lượt gợi ý AI không hết hạn",
+          "displayName" : "100 lượt AI",
+          "locale" : "vi_VN"
+        },
+        {
+          "description" : "100 non-expiring AI analyses",
+          "displayName" : "100 AI credits",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.pnhd.focelle.credits.100",
+      "referenceName" : "100 AI Credits",
+      "type" : "Consumable"
+    }
   ],
   "settings" : {
     "_askToBuyEnabled" : false,

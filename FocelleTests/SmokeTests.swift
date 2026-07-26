@@ -299,6 +299,26 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(Quota(defaults: defaults).snapshot, cached)
     }
 
+    @MainActor
+    func testStoreEntitlementCacheExpiresWithoutKeepingPro() throws {
+        let suite = "FocelleTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let active = Store.Entitlement(
+            productID: Store.productIDs[0],
+            expirationDate: Date(timeIntervalSince1970: 4_102_444_800)
+        )
+        defaults.set(try JSONEncoder().encode(active), forKey: "storeEntitlement")
+        XCTAssertTrue(Store(defaults: defaults).isPro)
+
+        let expired = Store.Entitlement(
+            productID: Store.productIDs[0],
+            expirationDate: Date(timeIntervalSince1970: 100)
+        )
+        defaults.set(try JSONEncoder().encode(expired), forKey: "storeEntitlement")
+        XCTAssertFalse(Store(defaults: defaults).isPro)
+    }
+
     func testEveryLocalizationHasVietnameseAndEnglish() throws {
         let source = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -334,7 +354,7 @@ final class SmokeTests: XCTestCase {
     private func makeAIPlan(id: String, zoom: Double = 1.4) -> AICompositionPlan {
         AICompositionPlan(
             id: id,
-            instructionVi: "D\u1ecbch m\u00e1y sang tr\u00e1i",
+            instructionVi: "Dịch máy sang trái",
             instructionEn: "Move left",
             target: NormalizedRect(CGRect(x: 0.2, y: 0.2, width: 0.3, height: 0.5)),
             movement: .left,
@@ -343,7 +363,7 @@ final class SmokeTests: XCTestCase {
             exposureBias: 0.2,
             flash: .off,
             presetIDs: ["neutral-skin"],
-            poseVi: "Th\u1ea3 l\u1ecfng vai",
+            poseVi: "Thả lỏng vai",
             poseEn: "Relax shoulders"
         )
     }

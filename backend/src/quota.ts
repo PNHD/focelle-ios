@@ -5,6 +5,7 @@ import {
 } from "./beta";
 import { authorized, error, json, readJSON } from "./http";
 import { hasActivePro } from "./store";
+import { accountForDevice, creditBalance } from "./account";
 
 export const requestKeyPattern = /^[A-Za-z0-9_-]{16,80}$/;
 
@@ -53,9 +54,11 @@ export async function quotaStatus(
   `).bind(deviceHash, localDay).all<{ kind: "ai" | "filter"; count: number }>();
   const used = Object.fromEntries(uses.results.map(({ kind, count }) => [kind, count]));
   const rewardCount = rewards?.count ?? 0;
+  const accountId = await accountForDevice(db, deviceHash);
+  const purchased = accountId == null ? 0 : await creditBalance(db, accountId);
   return {
     unlimited: false,
-    aiRemaining: Math.max(0, 5 + rewardCount * 3 - (used.ai ?? 0)),
+    aiRemaining: Math.max(0, 5 + rewardCount * 3 - (used.ai ?? 0)) + purchased,
     filterRemaining: Math.max(0, 5 + rewardCount * 5 - (used.filter ?? 0)),
     adsRemaining: Math.max(0, 5 - rewardCount),
     localDay,
@@ -73,6 +76,17 @@ export async function reserveCredit(
   const status = await quotaStatus(db, deviceId, timezoneOffsetMinutes, now);
   if (status.unlimited) return { allowed: true, reserved: false };
   const deviceHash = await hashDevice(deviceId);
+  const accountId = await accountForDevice(db, deviceHash);
+  const paidExisting = await db.prepare(`
+    SELECT account_id, status FROM account_credit_operations
+    WHERE idempotency_key = ? AND reason = 'spend'
+  `).bind(idempotencyKey).first<{ account_id: number; status: string }>();
+  if (paidExisting) {
+    return {
+      allowed: paidExisting.account_id === accountId && paidExisting.status !== "refunded",
+      reserved: paidExisting.status === "reserved",
+    };
+  }
   const existing = await db.prepare(`
     SELECT device_hash, kind, status FROM credit_operations WHERE idempotency_key = ?
   `).bind(idempotencyKey).first<{
@@ -125,26 +139,60 @@ export async function reserveCredit(
     kind: string;
     status: string;
   }>();
-  return {
+  if (concurrent) return {
     allowed: concurrent?.device_hash === deviceHash
       && concurrent.kind === kind
       && concurrent.status !== "refunded",
     reserved: concurrent?.status === "reserved",
   };
+  if (kind !== "ai" || accountId == null) return { allowed: false, reserved: false };
+  const paid = await db.prepare(`
+    INSERT INTO account_credit_operations (
+      idempotency_key, account_id, amount, reason, status
+    )
+    SELECT ?, ?, -1, 'spend', 'reserved'
+    WHERE (
+      SELECT COALESCE(SUM(amount), 0) FROM account_credit_operations
+      WHERE account_id = ? AND status IN ('reserved', 'consumed')
+    ) > 0
+    ON CONFLICT(idempotency_key) DO NOTHING
+  `).bind(idempotencyKey, accountId, accountId).run();
+  if ((paid.meta.changes ?? 0) === 1) return { allowed: true, reserved: true };
+  const paidConcurrent = await db.prepare(`
+    SELECT account_id, status FROM account_credit_operations
+    WHERE idempotency_key = ? AND reason = 'spend'
+  `).bind(idempotencyKey).first<{ account_id: number; status: string }>();
+  return {
+    allowed: paidConcurrent?.account_id === accountId
+      && paidConcurrent.status !== "refunded",
+    reserved: paidConcurrent?.status === "reserved",
+  };
 }
 
 export async function commitCredit(db: D1Database, idempotencyKey: string): Promise<void> {
-  await db.prepare(`
-    UPDATE credit_operations SET status = 'consumed'
-    WHERE idempotency_key = ? AND status = 'reserved'
-  `).bind(idempotencyKey).run();
+  await db.batch([
+    db.prepare(`
+      UPDATE credit_operations SET status = 'consumed'
+      WHERE idempotency_key = ? AND status = 'reserved'
+    `).bind(idempotencyKey),
+    db.prepare(`
+      UPDATE account_credit_operations SET status = 'consumed'
+      WHERE idempotency_key = ? AND reason = 'spend' AND status = 'reserved'
+    `).bind(idempotencyKey),
+  ]);
 }
 
 export async function refundCredit(db: D1Database, idempotencyKey: string): Promise<void> {
-  await db.prepare(`
-    UPDATE credit_operations SET status = 'refunded'
-    WHERE idempotency_key = ? AND status = 'reserved'
-  `).bind(idempotencyKey).run();
+  await db.batch([
+    db.prepare(`
+      UPDATE credit_operations SET status = 'refunded'
+      WHERE idempotency_key = ? AND status = 'reserved'
+    `).bind(idempotencyKey),
+    db.prepare(`
+      UPDATE account_credit_operations SET status = 'refunded'
+      WHERE idempotency_key = ? AND reason = 'spend' AND status = 'reserved'
+    `).bind(idempotencyKey),
+  ]);
 }
 
 export async function handleQuota(request: Request, env: Env): Promise<Response> {

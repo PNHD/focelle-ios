@@ -11,6 +11,7 @@ struct CameraView: View {
     @EnvironmentObject private var beta: BetaAccess
     @EnvironmentObject private var quota: Quota
     @EnvironmentObject private var store: Store
+    @EnvironmentObject private var account: Account
     @StateObject private var camera = CameraSession()
     @StateObject private var ai = AIAnalysisModel()
     @StateObject private var voice = VoiceGuidance()
@@ -213,7 +214,9 @@ struct CameraView: View {
             .environmentObject(quota)
         }
         .sheet(isPresented: $showsPaywall) {
-            PaywallView().environmentObject(store)
+            PaywallView()
+                .environmentObject(store)
+                .environmentObject(account)
         }
     }
 

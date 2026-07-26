@@ -4,6 +4,7 @@ import SwiftUI
 struct PaywallView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: Store
+    @EnvironmentObject private var account: Account
 
     var body: some View {
         NavigationStack {
@@ -16,24 +17,34 @@ struct PaywallView: View {
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
 
-                ForEach(store.products, id: \.id) { product in
-                    Button {
-                        Task { await store.purchase(product) }
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(product.displayName).font(.headline)
-                                Text(product.description).font(.caption)
-                            }
-                            Spacer()
-                            Text(product.displayPrice).font(.headline)
+                ForEach(store.products.filter {
+                    Store.subscriptionProductIDs.contains($0.id)
+                }, id: \.id) { product in
+                    productButton(product)
+                }
+
+                if !store.products.filter({ Store.creditPacks[$0.id] != nil }).isEmpty {
+                    Divider()
+                    Text("account.creditPacks").font(.headline)
+                    if account.isSignedIn {
+                        ForEach(store.products.filter {
+                            Store.creditPacks[$0.id] != nil
+                        }, id: \.id) { product in
+                            productButton(product)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
+                        LabeledContent("account.aiCredits", value: "\(account.credits)")
+                    } else {
+                        SignInWithAppleButton(
+                            .continue,
+                            onRequest: account.configure,
+                            onCompletion: account.complete
+                        )
+                        .signInWithAppleButtonStyle(.black)
+                        .frame(height: 48)
+                        Text("account.signInForCredits")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-                    .disabled(store.isLoading)
                 }
 
                 if store.products.isEmpty, store.isLoading {
@@ -60,6 +71,31 @@ struct PaywallView: View {
                 }
             }
             .task { await store.refresh() }
+            .task { await account.refresh() }
         }
+    }
+
+    private func productButton(_ product: Product) -> some View {
+        Button {
+            Task {
+                if await store.purchase(product) {
+                    await account.refresh()
+                }
+            }
+        } label: {
+            HStack {
+                VStack(alignment: .leading) {
+                    Text(product.displayName).font(.headline)
+                    Text(product.description).font(.caption)
+                }
+                Spacer()
+                Text(product.displayPrice).font(.headline)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(.orange)
+        .disabled(store.isLoading)
     }
 }
