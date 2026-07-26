@@ -42,8 +42,12 @@
 
 ## Evidence to attach
 
-- [ ] GitHub Actions URL and passing backend/iOS logs.
+- [x] Public GitHub Actions run [`30207001275`](https://github.com/PNHD/focelle-ios/actions/runs/30207001275) and passing backend/iOS logs.
 - [ ] Xcode privacy report and archive validation log.
 - [ ] Ten-minute device log with model, OS, 24/48 MP file dimensions, thermal/memory observations, and latency table.
 - [ ] Short screen recording of onboarding, camera, AI, filter editor, existing-photo editor, and failure recovery.
 - [ ] Tester feedback and all release-blocking issues resolved or explicitly accepted.
+
+## Repository after release
+
+- [ ] Switch `PNHD/focelle-ios` from public back to private after the release is complete.

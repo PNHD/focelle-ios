@@ -1,8 +1,8 @@
 # Focelle Beta Completion Audit
 
 Audited on 2026-07-26 against `docs/focelle-spec.md` and
-`docs/focelle-plan.md`. The last CI-tested source is commit `73eea50`; this
-audit refresh accompanies the resulting compiler fix.
+`docs/focelle-plan.md`. The current source at commit `c9e104f` passed the
+public GitHub Actions workflow; this audit records that verified baseline.
 
 ## Current automated evidence
 
@@ -14,12 +14,12 @@ audit refresh accompanies the resulting compiler fix.
 - D1: remote database `focelle-beta` has migrations 0001-0007. The two newest
   migrations were verified remotely, and all commerce/account/referral flags
   remain off.
-- iOS: remote run `30198810658` passed backend and plist validation, booted
-  the iPhone 17e simulator, then stopped while compiling `CameraView` because
-  one SwiftUI modifier expression exceeded the type-checker limit. The
-  follow-up source splits that expression into staged view-builder boundaries
-  and addresses every Swift-source warning reported by that run. It is pushed
-  with CI skipped because the Actions allowance is now fully consumed.
+- iOS: public run [`30207001275`](https://github.com/PNHD/focelle-ios/actions/runs/30207001275)
+  passed configuration validation, booted the iPhone 17e simulator, built the
+  app, passed the complete test suite, launched the app, captured onboarding,
+  and uploaded the logs, screenshot, and xcresult artifact. Simulator builds
+  intentionally retain presets locally because unsigned simulators cannot use
+  CloudKit; signed-device sync remains a release gate.
 - Repository: no provider key, certificate, provisioning profile, personal
   photo, or production ad unit is expected in source. Re-run the secret/file
   scan immediately before push.
@@ -38,22 +38,22 @@ audit refresh accompanies the resulting compiler fix.
 | 8 | Remote 60-day/500-user Beta Pro | D1 rules, three-success activation, milestone analytics, cache, and remote flags are implemented and tested | Deployed Worker health/config call |
 | 9 | Commerce safety net before enablement | StoreKit 2, signed server verification, non-personalized test reward, Sign in with Apple, deletion retention, and referral idempotency are implemented behind off flags | Apple sandbox, AdMob test, account, deletion, and referral device flows |
 | 10 | Privacy and repository hygiene | Metadata stripping, strict analytics allowlists, privacy manifest/policy drafts, and server-side provider credentials are implemented | Final secret scan, Xcode privacy report, public support/privacy details |
-| 11 | Passing macOS CI then physical checklist | Backend and plist checks pass; the latest iOS compiler issue has a targeted unverified fix | One post-reset CI run, signed archive, and iPhone 17e checklist |
+| 11 | Passing macOS CI then physical checklist | Public run `30207001275` passed backend, iOS build/test, simulator launch, and screenshot capture | Signed archive and iPhone 17e checklist |
 
 ## Mandatory external gates
 
 1. Supply a Gemini API key and set a generated app token in both Cloudflare
    and GitHub Secrets; deploy and smoke-test the Worker.
-2. After the GitHub Actions allowance resets, run the optimized iOS workflow
-   once against the already-pushed PR head. Do not retry blindly if it fails.
-3. Enable Sign in with Apple and CloudKit container
+2. Enable Sign in with Apple and CloudKit container
    `iCloud.com.pnhd.focelle` in the Apple App ID and provisioning profile.
-4. Supply Apple Developer/App Store Connect signing material plus seller,
+3. Supply Apple Developer/App Store Connect signing material plus seller,
    support, and privacy-policy details.
-5. Run the physical iPhone 17e checklist, including a second iCloud device,
+4. Run the physical iPhone 17e checklist, including a second iCloud device,
    StoreKit sandbox, AdMob test mode/consent, and the ten-minute performance
    session.
-6. Obtain explicit authorization before any TestFlight upload or public App
+5. Obtain explicit authorization before any TestFlight upload or public App
    Store action.
 
-Until those gates pass, the beta is implemented but not verified or releasable.
+Keep the repository public during beta CI, then switch it back to private
+after release. Until the remaining gates pass, the beta is implemented and
+CI-verified but not releasable.
