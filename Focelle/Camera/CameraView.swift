@@ -33,7 +33,7 @@ struct CameraView: View {
     @State private var aiStartedAt: TimeInterval?
 
     var body: some View {
-        GeometryReader { geometry in
+        let captureView = GeometryReader { geometry in
             ZStack {
                 Color.black.ignoresSafeArea()
 
@@ -108,7 +108,8 @@ struct CameraView: View {
                 if event.phase == .ended { triggerCapture() }
             }
         )
-        .sheet(isPresented: $showsFilterEditor) {
+
+        captureView.sheet(isPresented: $showsFilterEditor) {
             if let recipe = camera.activeFilter {
                 PresetEditorView(
                     recipe: recipe,
@@ -273,12 +274,14 @@ struct CameraView: View {
     }
 
     private var controls: some View {
+        let latestThumbnail = camera.latestThumbnail
+
         VStack(spacing: 14) {
             HStack {
                 Text("app.name").font(.headline)
                 Spacer()
                 PhotosPicker(selection: $photoSelection, matching: .images) {
-                    if let thumbnail = camera.latestThumbnail {
+                    if let thumbnail = latestThumbnail {
                         Image(decorative: thumbnail, scale: 1)
                             .resizable()
                             .scaledToFill()

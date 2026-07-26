@@ -1,8 +1,8 @@
 # Focelle Beta Completion Audit
 
 Audited on 2026-07-26 against `docs/focelle-spec.md` and
-`docs/focelle-plan.md`. The audited local source ends at commit `5c22606`;
-this audit refresh is the next commit.
+`docs/focelle-plan.md`. The last CI-tested source is commit `73eea50`; this
+audit refresh accompanies the resulting compiler fix.
 
 ## Current automated evidence
 
@@ -14,11 +14,12 @@ this audit refresh is the next commit.
 - D1: remote database `focelle-beta` has migrations 0001-0007. The two newest
   migrations were verified remotely, and all commerce/account/referral flags
   remain off.
-- iOS: remote run `30196226607` compiled the app and tests, then the test host
-  stopped because the generated app plist omitted the AdMob application ID.
-  Commit `8eafb35` replaces that generated plist with an explicit validated
-  plist and removes the duplicate CI build. This fix and later Swift changes
-  are intentionally not pushed until the GitHub Actions allowance resets.
+- iOS: remote run `30198810658` passed backend and plist validation, booted
+  the iPhone 17e simulator, then stopped while compiling `CameraView` because
+  one SwiftUI modifier expression exceeded the type-checker limit. The
+  follow-up source splits that expression at the capture-event boundary and
+  removes the related actor-isolation warning. It is pushed with CI skipped
+  because the Actions allowance is now fully consumed.
 - Repository: no provider key, certificate, provisioning profile, personal
   photo, or production ad unit is expected in source. Re-run the secret/file
   scan immediately before push.
@@ -37,7 +38,7 @@ this audit refresh is the next commit.
 | 8 | Remote 60-day/500-user Beta Pro | D1 rules, three-success activation, milestone analytics, cache, and remote flags are implemented and tested | Deployed Worker health/config call |
 | 9 | Commerce safety net before enablement | StoreKit 2, signed server verification, non-personalized test reward, Sign in with Apple, deletion retention, and referral idempotency are implemented behind off flags | Apple sandbox, AdMob test, account, deletion, and referral device flows |
 | 10 | Privacy and repository hygiene | Metadata stripping, strict analytics allowlists, privacy manifest/policy drafts, and server-side provider credentials are implemented | Final secret scan, Xcode privacy report, public support/privacy details |
-| 11 | Passing macOS CI then physical checklist | Backend checks pass; prior iOS build compiled | One post-reset CI run, signed archive, and iPhone 17e checklist |
+| 11 | Passing macOS CI then physical checklist | Backend and plist checks pass; the latest iOS compiler issue has a targeted unverified fix | One post-reset CI run, signed archive, and iPhone 17e checklist |
 
 ## Mandatory external gates
 
