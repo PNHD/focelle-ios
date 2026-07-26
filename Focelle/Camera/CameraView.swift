@@ -446,7 +446,10 @@ struct CameraView: View {
             .padding(.horizontal, 4)
 
             HStack {
-                Button(action: camera.switchCamera) {
+                Button {
+                    cancelAI()
+                    camera.switchCamera()
+                } label: {
                     Image(systemName: "arrow.triangle.2.circlepath.camera")
                         .frame(width: 52, height: 52)
                         .background(.black.opacity(0.5), in: Circle())
