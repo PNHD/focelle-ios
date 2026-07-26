@@ -1,8 +1,8 @@
 # Focelle Beta Completion Audit
 
 Audited on 2026-07-26 against `docs/focelle-spec.md` and
-`docs/focelle-plan.md`. The audited local source ends at commit `7270210`;
-the audit itself is the next commit.
+`docs/focelle-plan.md`. The audited local source ends at commit `5c22606`;
+this audit refresh is the next commit.
 
 ## Current automated evidence
 
