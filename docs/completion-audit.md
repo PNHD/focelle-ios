@@ -1,8 +1,9 @@
 # Focelle Beta Completion Audit
 
 Audited on 2026-07-26 against `docs/focelle-spec.md` and
-`docs/focelle-plan.md`. The current source at commit `c9e104f` passed the
-public GitHub Actions workflow; this audit records that verified baseline.
+`docs/focelle-plan.md`. Public GitHub Actions run
+[`30208737163`](https://github.com/PNHD/focelle-ios/actions/runs/30208737163)
+passed the formatted source baseline recorded here.
 
 ## Current automated evidence
 
@@ -14,12 +15,16 @@ public GitHub Actions workflow; this audit records that verified baseline.
 - D1: remote database `focelle-beta` has migrations 0001-0007. The two newest
   migrations were verified remotely, and all commerce/account/referral flags
   remain off.
-- iOS: public run [`30207001275`](https://github.com/PNHD/focelle-ios/actions/runs/30207001275)
-  passed configuration validation, booted the iPhone 17e simulator, built the
-  app, passed the complete test suite, launched the app, captured onboarding,
-  and uploaded the logs, screenshot, and xcresult artifact. Simulator builds
-  intentionally retain presets locally because unsigned simulators cannot use
-  CloudKit; signed-device sync remains a release gate.
+- iOS: run `30208737163` passed strict Swift formatting, booted the iPhone 17e
+  simulator, built the app, passed all 26 tests, launched the app, captured
+  onboarding, and uploaded the logs, screenshot, and xcresult artifact.
+  Simulator builds intentionally retain presets locally because unsigned
+  simulators cannot use CloudKit; signed-device sync remains a release gate.
+- AI lifecycle: cancel, background, and on-device-only transitions clear both
+  pending preview capture and in-flight network work; a late sender failure
+  after cancellation is covered by an automated regression test.
+- TestFlight workflow: signed archives are no longer uploaded as public CI
+  artifacts; only export diagnostics remain available.
 - Repository: no provider key, certificate, provisioning profile, personal
   photo, or production ad unit is expected in source. Re-run the secret/file
   scan immediately before push.
@@ -38,7 +43,7 @@ public GitHub Actions workflow; this audit records that verified baseline.
 | 8 | Remote 60-day/500-user Beta Pro | D1 rules, three-success activation, milestone analytics, cache, and remote flags are implemented and tested | Deployed Worker health/config call |
 | 9 | Commerce safety net before enablement | StoreKit 2, signed server verification, non-personalized test reward, Sign in with Apple, deletion retention, and referral idempotency are implemented behind off flags | Apple sandbox, AdMob test, account, deletion, and referral device flows |
 | 10 | Privacy and repository hygiene | Metadata stripping, strict analytics allowlists, privacy manifest/policy drafts, and server-side provider credentials are implemented | Final secret scan, Xcode privacy report, public support/privacy details |
-| 11 | Passing macOS CI then physical checklist | Public run `30207001275` passed backend, iOS build/test, simulator launch, and screenshot capture | Signed archive and iPhone 17e checklist |
+| 11 | Passing macOS CI then physical checklist | Public run `30208737163` passed backend, strict formatting, 26 iOS tests, simulator launch, and screenshot capture | Signed archive and iPhone 17e checklist |
 
 ## Mandatory external gates
 

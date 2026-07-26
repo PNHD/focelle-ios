@@ -127,10 +127,10 @@ enum AIClient {
                 throw AIClientError.quotaExhausted
             }
             guard http.statusCode == 200,
-                  let envelope = try? JSONDecoder().decode(AnalyzeResponse.self, from: data),
-                  envelope.ok,
-                  let result = envelope.result,
-                  result.isValid
+                let envelope = try? JSONDecoder().decode(AnalyzeResponse.self, from: data),
+                envelope.ok,
+                let result = envelope.result,
+                result.isValid
             else {
                 throw AIClientError.server
             }

@@ -1,6 +1,7 @@
 import AVFoundation
 import CoreImage
 import XCTest
+
 @testable import Focelle
 
 final class SmokeTests: XCTestCase {
@@ -245,32 +246,36 @@ final class SmokeTests: XCTestCase {
         var auto = AutoCapture()
         let subject = CGRect(x: 0.3, y: 0.2, width: 0.3, height: 0.5)
 
-        XCTAssertFalse(auto.update(
-            aligned: true,
-            subject: subject,
-            faceReady: true,
-            timestamp: 1
-        ))
-        XCTAssertFalse(auto.update(
-            aligned: true,
-            subject: subject.offsetBy(dx: 0.04, dy: 0),
-            faceReady: true,
-            timestamp: 2
-        ))
-        XCTAssertTrue(auto.update(
-            aligned: true,
-            subject: subject.offsetBy(dx: 0.04, dy: 0),
-            faceReady: true,
-            timestamp: 3.3
-        ))
+        XCTAssertFalse(
+            auto.update(
+                aligned: true,
+                subject: subject,
+                faceReady: true,
+                timestamp: 1
+            ))
+        XCTAssertFalse(
+            auto.update(
+                aligned: true,
+                subject: subject.offsetBy(dx: 0.04, dy: 0),
+                faceReady: true,
+                timestamp: 2
+            ))
+        XCTAssertTrue(
+            auto.update(
+                aligned: true,
+                subject: subject.offsetBy(dx: 0.04, dy: 0),
+                faceReady: true,
+                timestamp: 3.3
+            ))
 
         auto.cancel(now: 4)
-        XCTAssertFalse(auto.update(
-            aligned: true,
-            subject: subject,
-            faceReady: true,
-            timestamp: 5
-        ))
+        XCTAssertFalse(
+            auto.update(
+                aligned: true,
+                subject: subject,
+                faceReady: true,
+                timestamp: 5
+            ))
     }
 
     func testCloudPlanRemainsAlignedAgainstLiveMeasurements() {

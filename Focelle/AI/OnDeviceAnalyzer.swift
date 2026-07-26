@@ -61,7 +61,7 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
         CVPixelBufferLockBaseAddress(buffer, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
         guard CVPixelBufferGetPixelFormatType(buffer) == kCVPixelFormatType_32BGRA,
-              let base = CVPixelBufferGetBaseAddress(buffer)
+            let base = CVPixelBufferGetBaseAddress(buffer)
         else { return 0.5 }
 
         let width = CVPixelBufferGetWidth(buffer)
@@ -75,11 +75,10 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
         for y in Swift.stride(from: 0, to: height, by: stride) {
             for x in Swift.stride(from: 0, to: width, by: stride) {
                 let pixel = bytes + y * bytesPerRow + x * 4
-                total += (
-                    0.0722 * Double(pixel[0])
+                total +=
+                    (0.0722 * Double(pixel[0])
                         + 0.7152 * Double(pixel[1])
-                        + 0.2126 * Double(pixel[2])
-                ) / 255
+                        + 0.2126 * Double(pixel[2])) / 255
                 count += 1
             }
         }

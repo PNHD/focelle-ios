@@ -23,7 +23,8 @@ final class Quota: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        snapshot = defaults.data(forKey: Self.cacheKey)
+        snapshot =
+            defaults.data(forKey: Self.cacheKey)
             .flatMap { try? JSONDecoder().decode(Snapshot.self, from: $0) }
             ?? Snapshot(
                 unlimited: true,
@@ -89,8 +90,8 @@ final class Quota: ObservableObject {
         if http.statusCode == 402 { throw QuotaError.exhausted }
         if http.statusCode == 403 { throw QuotaError.featureDisabled }
         guard http.statusCode == 200,
-              let envelope = try? JSONDecoder().decode(QuotaResponse.self, from: data),
-              envelope.ok
+            let envelope = try? JSONDecoder().decode(QuotaResponse.self, from: data),
+            envelope.ok
         else { throw QuotaError.server }
         snapshot = envelope.quota
         if let cache = try? JSONEncoder().encode(snapshot) {

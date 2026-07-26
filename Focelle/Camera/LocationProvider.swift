@@ -1,5 +1,5 @@
-@preconcurrency import CoreLocation
 import Combine
+@preconcurrency import CoreLocation
 import Foundation
 
 @MainActor

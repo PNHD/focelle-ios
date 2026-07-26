@@ -38,7 +38,7 @@ struct LimitSheet: View {
                     dismiss()
                     onPurchase()
                 }
-                    .buttonStyle(.bordered)
+                .buttonStyle(.bordered)
 
                 if let messageKey {
                     Text(messageKey).font(.footnote).foregroundStyle(.secondary)

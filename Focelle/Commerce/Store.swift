@@ -66,9 +66,10 @@ final class Store: ObservableObject {
         defer { isLoading = false }
         do {
             switch try await product.purchase() {
-            case let .success(result):
+            case .success(let result):
                 let delivered = await handle(result)
-                messageKey = delivered
+                messageKey =
+                    delivered
                     ? (Self.creditPacks[product.id] == nil
                         ? "purchase.success"
                         : "account.creditsPurchased")
@@ -104,11 +105,11 @@ final class Store: ObservableObject {
     private func refreshEntitlement() async {
         var current: Entitlement?
         for await result in Transaction.currentEntitlements {
-            guard case let .verified(transaction) = result,
-                  Self.subscriptionProductIDs.contains(transaction.productID),
-                  transaction.revocationDate == nil,
-                  let expiration = transaction.expirationDate,
-                  expiration > .now
+            guard case .verified(let transaction) = result,
+                Self.subscriptionProductIDs.contains(transaction.productID),
+                transaction.revocationDate == nil,
+                let expiration = transaction.expirationDate,
+                expiration > .now
             else { continue }
             if current.map({ expiration > $0.expirationDate }) ?? true {
                 current = Entitlement(productID: transaction.productID, expirationDate: expiration)
@@ -121,16 +122,17 @@ final class Store: ObservableObject {
 
     @discardableResult
     private func handle(_ result: VerificationResult<Transaction>) async -> Bool {
-        guard case let .verified(transaction) = result,
-              Self.productIDs.contains(transaction.productID)
+        guard case .verified(let transaction) = result,
+            Self.productIDs.contains(transaction.productID)
         else {
             messageKey = "purchase.error.verify"
             return false
         }
         if Self.subscriptionProductIDs.contains(transaction.productID),
-           transaction.revocationDate == nil,
-           let expiration = transaction.expirationDate,
-           expiration > .now {
+            transaction.revocationDate == nil,
+            let expiration = transaction.expirationDate,
+            expiration > .now
+        {
             entitlement = Entitlement(productID: transaction.productID, expirationDate: expiration)
             cache()
         } else if Self.subscriptionProductIDs.contains(transaction.productID) {

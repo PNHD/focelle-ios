@@ -15,7 +15,8 @@ final class AIAnalysisModel: ObservableObject {
     private let send: @Sendable (Data, SceneMeasurement?) async throws -> AICompositionResponse
 
     init(
-        send: @escaping @Sendable (Data, SceneMeasurement?) async throws
+        send:
+            @escaping @Sendable (Data, SceneMeasurement?) async throws
             -> AICompositionResponse = AIClient.analyze
     ) {
         self.send = send
@@ -44,7 +45,7 @@ final class AIAnalysisModel: ObservableObject {
     }
 
     func select(_ index: Int) -> AICompositionPlan? {
-        guard case let .ready(result, _) = state, result.plans.indices.contains(index) else {
+        guard case .ready(let result, _) = state, result.plans.indices.contains(index) else {
             return nil
         }
         state = .ready(result, selected: index)

@@ -27,22 +27,22 @@ struct FocelleApp: App {
                     }
                 }
             }
-                .environmentObject(presets)
-                .environmentObject(settings)
-                .environmentObject(location)
-                .environmentObject(beta)
-                .environmentObject(quota)
-                .environmentObject(store)
-                .environmentObject(account)
-                .environmentObject(referral)
-                .task { await presets.sync() }
-                .task { await beta.refresh() }
-                .task { await quota.refresh() }
-                .task { await account.refresh() }
-                .task { await referral.refresh() }
-                .onAppear {
-                    Analytics.recordReturnMilestones(enabled: settings.analyticsEnabled)
-                }
+            .environmentObject(presets)
+            .environmentObject(settings)
+            .environmentObject(location)
+            .environmentObject(beta)
+            .environmentObject(quota)
+            .environmentObject(store)
+            .environmentObject(account)
+            .environmentObject(referral)
+            .task { await presets.sync() }
+            .task { await beta.refresh() }
+            .task { await quota.refresh() }
+            .task { await account.refresh() }
+            .task { await referral.refresh() }
+            .onAppear {
+                Analytics.recordReturnMilestones(enabled: settings.analyticsEnabled)
+            }
         }
     }
 }

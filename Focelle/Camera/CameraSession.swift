@@ -174,20 +174,20 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     func start() {
-#if targetEnvironment(simulator)
-        state = .unavailable
-#else
-        switch CameraPermission(AVCaptureDevice.authorizationStatus(for: .video)) {
-        case .allowed:
-            configureAndStart()
-        case .undecided:
-            AVCaptureDevice.requestAccess(for: .video) { [weak self] allowed in
-                allowed ? self?.configureAndStart() : self?.publish(state: .permissionDenied)
+        #if targetEnvironment(simulator)
+            state = .unavailable
+        #else
+            switch CameraPermission(AVCaptureDevice.authorizationStatus(for: .video)) {
+            case .allowed:
+                configureAndStart()
+            case .undecided:
+                AVCaptureDevice.requestAccess(for: .video) { [weak self] allowed in
+                    allowed ? self?.configureAndStart() : self?.publish(state: .permissionDenied)
+                }
+            case .denied:
+                state = .permissionDenied
             }
-        case .denied:
-            state = .permissionDenied
-        }
-#endif
+        #endif
     }
 
     func stop() {
@@ -202,7 +202,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             guard let self else { return }
             self.rotationAngle = angle
             if let connection = self.videoOutput.connection(with: .video),
-               connection.isVideoRotationAngleSupported(angle)
+                connection.isVideoRotationAngleSupported(angle)
             {
                 connection.videoRotationAngle = angle
             }
@@ -225,7 +225,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             guard let self, let oldInput = self.input else { return }
             let newPosition: AVCaptureDevice.Position = oldInput.device.position == .back ? .front : .back
             guard let device = Self.device(position: newPosition),
-                  let newInput = try? AVCaptureDeviceInput(device: device)
+                let newInput = try? AVCaptureDeviceInput(device: device)
             else {
                 self.publish(notice: "camera.error.switch")
                 return
@@ -302,7 +302,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 settings.maxPhotoDimensions = dimensions
             }
             if let connection = self.photoOutput.connection(with: .video),
-               connection.isVideoRotationAngleSupported(self.rotationAngle)
+                connection.isVideoRotationAngleSupported(self.rotationAngle)
             {
                 connection.videoRotationAngle = self.rotationAngle
             }
@@ -329,7 +329,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     private func configure() -> Bool {
         guard let device = Self.device(position: .back),
-              let cameraInput = try? AVCaptureDeviceInput(device: device)
+            let cameraInput = try? AVCaptureDeviceInput(device: device)
         else { return false }
 
         session.beginConfiguration()
@@ -337,8 +337,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         defer { session.commitConfiguration() }
 
         guard session.canAddInput(cameraInput),
-              session.canAddOutput(photoOutput),
-              session.canAddOutput(videoOutput)
+            session.canAddOutput(photoOutput),
+            session.canAddOutput(videoOutput)
         else { return false }
         session.addInput(cameraInput)
         session.addOutput(photoOutput)
@@ -412,17 +412,21 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         queue.async { [weak self] in
             guard let self, var measurement = self.measurement else { return }
             let visionPoint = CGPoint(x: point.x, y: 1 - point.y)
-            let candidates = measurement.faceRects
+            let candidates =
+                measurement.faceRects
                 + [measurement.subjectRect, measurement.salientRect].compactMap { $0 }
-            guard let selected = candidates.min(by: {
-                Self.distance(from: visionPoint, to: $0)
-                    < Self.distance(from: visionPoint, to: $1)
-            }) else { return }
+            guard
+                let selected = candidates.min(by: {
+                    Self.distance(from: visionPoint, to: $0)
+                        < Self.distance(from: visionPoint, to: $1)
+                })
+            else { return }
             measurement.subjectRect = selected
             self.stabilizer = MeasurementStabilizer()
-            let guidance = self.cloudPlan.map {
-                Self.cloudGuidance($0, measurement: measurement)
-            } ?? self.guidanceEngine.update(measurement)
+            let guidance =
+                self.cloudPlan.map {
+                    Self.cloudGuidance($0, measurement: measurement)
+                } ?? self.guidanceEngine.update(measurement)
             DispatchQueue.main.async {
                 self.measurement = measurement
                 self.guidance = guidance
@@ -550,12 +554,13 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
             publish(notice: "camera.error.capture")
             return
         }
-        let outputData = filterRenderer.renderedData(
-            from: data,
-            recipe: pendingFilter,
-            intensity: pendingFilterIntensity,
-            aspectRatio: pendingRatio == .fourThree ? nil : pendingRatio.value
-        ) ?? data
+        let outputData =
+            filterRenderer.renderedData(
+                from: data,
+                recipe: pendingFilter,
+                intensity: pendingFilterIntensity,
+                aspectRatio: pendingRatio == .fourThree ? nil : pendingRatio.value
+            ) ?? data
         if pendingSaveOriginal, pendingFilter != nil {
             save(data, countsFilter: false, showsThumbnail: false)
         }
@@ -587,7 +592,8 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         )
         let x = subject.midX - target.x
         let y = subject.midY - target.y
-        let areaRatio = subject.width * subject.height
+        let areaRatio =
+            subject.width * subject.height
             / max(plan.target.cgRect.width * plan.target.cgRect.height, 0.01)
 
         let direction: GuidanceDirection
@@ -645,7 +651,7 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
         let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         let analysisInterval = ProcessInfo.processInfo.thermalState == .nominal ? 0.35 : 0.8
         if !analysisInFlight,
-           CMTimeGetSeconds(timestamp - lastAnalysisTime) >= analysisInterval
+            CMTimeGetSeconds(timestamp - lastAnalysisTime) >= analysisInterval
         {
             analysisInFlight = true
             lastAnalysisTime = timestamp
@@ -655,9 +661,10 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
                     self.analysisInFlight = false
                     guard let measurement else { return }
                     let stable = self.stabilizer.update(measurement)
-                    let guidance = self.cloudPlan.map {
-                        Self.cloudGuidance($0, measurement: stable)
-                    } ?? self.guidanceEngine.update(stable)
+                    let guidance =
+                        self.cloudPlan.map {
+                            Self.cloudGuidance($0, measurement: stable)
+                        } ?? self.guidanceEngine.update(stable)
                     DispatchQueue.main.async {
                         self.measurement = stable
                         self.guidance = guidance
@@ -670,11 +677,13 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
         guard CMTimeGetSeconds(timestamp - lastPreviewTime) >= 1.0 / 15.0 else { return }
         lastPreviewTime = timestamp
 
-        guard let rendered = filterRenderer.previewImage(
-            image,
-            recipe: recipe,
-            intensity: previewIntensity
-        ) else { return }
+        guard
+            let rendered = filterRenderer.previewImage(
+                image,
+                recipe: recipe,
+                intensity: previewIntensity
+            )
+        else { return }
         DispatchQueue.main.async { self.filteredPreview = rendered }
     }
 }

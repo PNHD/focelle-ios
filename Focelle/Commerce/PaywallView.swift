@@ -19,9 +19,11 @@ struct PaywallView: View {
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
 
-                ForEach(store.products.filter {
-                    Store.subscriptionProductIDs.contains($0.id)
-                }, id: \.id) { product in
+                ForEach(
+                    store.products.filter {
+                        Store.subscriptionProductIDs.contains($0.id)
+                    }, id: \.id
+                ) { product in
                     productButton(product)
                 }
 
@@ -29,9 +31,11 @@ struct PaywallView: View {
                     Divider()
                     Text("account.creditPacks").font(.headline)
                     if account.isSignedIn {
-                        ForEach(store.products.filter {
-                            Store.creditPacks[$0.id] != nil
-                        }, id: \.id) { product in
+                        ForEach(
+                            store.products.filter {
+                                Store.creditPacks[$0.id] != nil
+                            }, id: \.id
+                        ) { product in
                             productButton(product)
                         }
                         LabeledContent("account.aiCredits", value: "\(account.credits)")

@@ -48,15 +48,17 @@ enum PresetSync {
 
     private static func database() throws -> CKDatabase {
         #if targetEnvironment(simulator)
-        // ponytail: unsigned CI simulators cannot use CloudKit; verify sync on signed devices.
-        throw PresetSyncError.iCloudNotConfigured
-        #else
-        guard let identifier = Bundle.main.object(
-            forInfoDictionaryKey: containerInfoKey
-        ) as? String, !identifier.isEmpty else {
+            // ponytail: unsigned CI simulators cannot use CloudKit; verify sync on signed devices.
             throw PresetSyncError.iCloudNotConfigured
-        }
-        return CKContainer(identifier: identifier).privateCloudDatabase
+        #else
+            guard
+                let identifier = Bundle.main.object(
+                    forInfoDictionaryKey: containerInfoKey
+                ) as? String, !identifier.isEmpty
+            else {
+                throw PresetSyncError.iCloudNotConfigured
+            }
+            return CKContainer(identifier: identifier).privateCloudDatabase
         #endif
     }
 
@@ -65,8 +67,8 @@ enum PresetSync {
     ) -> [UserPreset] {
         let decoder = JSONDecoder()
         return results.compactMap { _, result in
-            guard case let .success(record) = result,
-                  let data = record[payloadKey] as? Data
+            guard case .success(let record) = result,
+                let data = record[payloadKey] as? Data
             else { return nil }
             return try? decoder.decode(UserPreset.self, from: data)
         }

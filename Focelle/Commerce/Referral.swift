@@ -73,8 +73,8 @@ final class Referral: ObservableObject {
         if http.statusCode == 403 { throw ReferralError.disabled }
         if http.statusCode == 409 { throw ReferralError.conflict }
         guard http.statusCode == 200,
-              let envelope = try? JSONDecoder().decode(ReferralResponse.self, from: data),
-              envelope.ok
+            let envelope = try? JSONDecoder().decode(ReferralResponse.self, from: data),
+            envelope.ok
         else { throw ReferralError.server }
         return envelope.referral
     }

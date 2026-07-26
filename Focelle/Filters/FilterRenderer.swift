@@ -59,7 +59,8 @@ struct FilterRenderer {
         }
 
         if recipe.grain > 0, let grain {
-            let tiled = grain
+            let tiled =
+                grain
                 .transformed(by: CGAffineTransform(scaleX: 1.4, y: 1.4))
                 .applyingFilter("CIAffineTile")
                 .cropped(to: image.extent)
@@ -98,7 +99,7 @@ struct FilterRenderer {
     ) -> Data? {
         if recipe == nil, aspectRatio == nil { return data }
         guard var image = CIImage(data: data, options: [.applyOrientationProperty: true]),
-              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)
+            let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)
         else { return nil }
 
         if let aspectRatio {
@@ -142,7 +143,8 @@ struct FilterRenderer {
             let height = extent.width / ratio
             crop = CGRect(x: extent.minX, y: extent.midY - height / 2, width: extent.width, height: height)
         }
-        return image
+        return
+            image
             .cropped(to: crop)
             .transformed(by: CGAffineTransform(translationX: -crop.minX, y: -crop.minY))
     }
@@ -156,7 +158,7 @@ struct FilterRenderer {
             bytes[index] = UInt8(truncatingIfNeeded: seed >> 24)
         }
         guard let provider = CGDataProvider(data: Data(bytes) as CFData),
-              let image = CGImage(
+            let image = CGImage(
                 width: side,
                 height: side,
                 bitsPerComponent: 8,
@@ -168,7 +170,7 @@ struct FilterRenderer {
                 decode: nil,
                 shouldInterpolate: false,
                 intent: .defaultIntent
-              )
+            )
         else { return nil }
         return CIImage(cgImage: image)
     }

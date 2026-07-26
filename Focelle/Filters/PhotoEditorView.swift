@@ -66,7 +66,7 @@ struct PhotoEditorView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("common.save", action: save)
-                    .disabled(model.isSaving || model.preview == nil)
+                        .disabled(model.isSaving || model.preview == nil)
                 }
             }
             .sheet(isPresented: $showsEditor) {
@@ -119,9 +119,10 @@ struct PhotoEditorView: View {
 
     private func save() {
         if model.recipe != nil,
-           !quota.snapshot.unlimited,
-           !store.isPro,
-           quota.snapshot.filterRemaining < 1 {
+            !quota.snapshot.unlimited,
+            !store.isPro,
+            quota.snapshot.filterRemaining < 1
+        {
             showsLimit = true
             return
         }

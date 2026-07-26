@@ -92,7 +92,7 @@ final class PhotoEditorModel: ObservableObject {
 
     private static func makePreview(from data: Data) -> CIImage? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let image = CGImageSourceCreateThumbnailAtIndex(
+            let image = CGImageSourceCreateThumbnailAtIndex(
                 source,
                 0,
                 [
@@ -100,7 +100,7 @@ final class PhotoEditorModel: ObservableObject {
                     kCGImageSourceCreateThumbnailWithTransform: true,
                     kCGImageSourceThumbnailMaxPixelSize: 1_600,
                 ] as CFDictionary
-              )
+            )
         else { return nil }
         return CIImage(cgImage: image)
     }

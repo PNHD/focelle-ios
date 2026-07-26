@@ -17,7 +17,8 @@ final class BetaAccess: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        snapshot = defaults.data(forKey: Self.cacheKey)
+        snapshot =
+            defaults.data(forKey: Self.cacheKey)
             .flatMap { try? JSONDecoder().decode(Snapshot.self, from: $0) }
             ?? Snapshot(
                 enabled: true,
@@ -39,8 +40,8 @@ final class BetaAccess: ObservableObject {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             guard (response as? HTTPURLResponse)?.statusCode == 200,
-                  let envelope = try? decoder.decode(ConfigResponse.self, from: data),
-                  envelope.ok
+                let envelope = try? decoder.decode(ConfigResponse.self, from: data),
+                envelope.ok
             else { return }
             snapshot = envelope.beta.snapshot
             if let data = try? JSONEncoder().encode(snapshot) {

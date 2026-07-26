@@ -16,7 +16,7 @@ struct SettingsView: View {
                         beta.snapshot.enabled ? "beta.freeMessage" : "beta.endedMessage",
                         systemImage: "sparkles"
                     )
-                        .foregroundStyle(.orange)
+                    .foregroundStyle(.orange)
                 }
 
                 Section {

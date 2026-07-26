@@ -19,7 +19,7 @@ struct AutoCapture {
         }
 
         if let lastSubject,
-           hypot(subject.midX - lastSubject.midX, subject.midY - lastSubject.midY) > 0.018
+            hypot(subject.midX - lastSubject.midX, subject.midY - lastSubject.midY) > 0.018
         {
             alignedSince = timestamp
             fired = false

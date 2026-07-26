@@ -21,11 +21,11 @@ final class Account: ObservableObject {
     }
 
     func complete(_ result: Result<ASAuthorization, Error>) {
-        guard case let .success(authorization) = result,
-              let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-              let tokenData = credential.identityToken,
-              let identityToken = String(data: tokenData, encoding: .utf8),
-              let nonce
+        guard case .success(let authorization) = result,
+            let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+            let tokenData = credential.identityToken,
+            let identityToken = String(data: tokenData, encoding: .utf8),
+            let nonce
         else {
             messageKey = "account.error.signIn"
             return
@@ -102,8 +102,8 @@ final class Account: ObservableObject {
         guard let http = response as? HTTPURLResponse else { throw AccountError.server }
         if http.statusCode == 401 { throw AccountError.unauthorized }
         guard (200...299).contains(http.statusCode),
-              let value = try? JSONDecoder().decode(AccountResponse.self, from: data),
-              value.ok
+            let value = try? JSONDecoder().decode(AccountResponse.self, from: data),
+            value.ok
         else { throw AccountError.server }
         return value
     }
@@ -142,34 +142,37 @@ enum AccountSession {
 
     static func save(_ token: String) {
         clear()
-        SecItemAdd([
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: account,
-            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-            kSecValueData: Data(token.utf8),
-        ] as CFDictionary, nil)
+        SecItemAdd(
+            [
+                kSecClass: kSecClassGenericPassword,
+                kSecAttrService: service,
+                kSecAttrAccount: account,
+                kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+                kSecValueData: Data(token.utf8),
+            ] as CFDictionary, nil)
     }
 
     static func load() -> String? {
         var result: CFTypeRef?
-        let status = SecItemCopyMatching([
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: account,
-            kSecReturnData: true,
-            kSecMatchLimit: kSecMatchLimitOne,
-        ] as CFDictionary, &result)
+        let status = SecItemCopyMatching(
+            [
+                kSecClass: kSecClassGenericPassword,
+                kSecAttrService: service,
+                kSecAttrAccount: account,
+                kSecReturnData: true,
+                kSecMatchLimit: kSecMatchLimitOne,
+            ] as CFDictionary, &result)
         guard status == errSecSuccess, let data = result as? Data else { return nil }
         return String(data: data, encoding: .utf8)
     }
 
     static func clear() {
-        SecItemDelete([
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: account,
-        ] as CFDictionary)
+        SecItemDelete(
+            [
+                kSecClass: kSecClassGenericPassword,
+                kSecAttrService: service,
+                kSecAttrAccount: account,
+            ] as CFDictionary)
     }
 }
 

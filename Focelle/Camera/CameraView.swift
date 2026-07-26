@@ -174,12 +174,13 @@ struct CameraView: View {
             }
         }
         .onChange(of: ai.state) { oldState, state in
-            if case let .ready(result, selected) = state {
+            if case .ready(let result, let selected) = state {
                 camera.applyAIPlan(result.plans[selected])
                 if case .loading = oldState {
-                    let latency = aiStartedAt.map {
-                        ProcessInfo.processInfo.systemUptime - $0
-                    } ?? 0
+                    let latency =
+                        aiStartedAt.map {
+                            ProcessInfo.processInfo.systemUptime - $0
+                        } ?? 0
                     Analytics.record(
                         "ai_success",
                         enabled: settings.analyticsEnabled,
@@ -195,10 +196,11 @@ struct CameraView: View {
                 }
             } else {
                 camera.clearAIPlan()
-                if case let .failed(error) = state, aiStartedAt != nil {
-                    let latency = aiStartedAt.map {
-                        ProcessInfo.processInfo.systemUptime - $0
-                    } ?? 0
+                if case .failed(let error) = state, aiStartedAt != nil {
+                    let latency =
+                        aiStartedAt.map {
+                            ProcessInfo.processInfo.systemUptime - $0
+                        } ?? 0
                     Analytics.record(
                         "ai_failure",
                         enabled: settings.analyticsEnabled,
@@ -294,7 +296,9 @@ struct CameraView: View {
                 }
                 .accessibilityLabel(Text("photoEditor.pick"))
 
-                Button { settings.guidanceEnabled.toggle() } label: {
+                Button {
+                    settings.guidanceEnabled.toggle()
+                } label: {
                     Image(
                         systemName: settings.guidanceEnabled ? "sparkles" : "sparkles.slash"
                     )
@@ -309,12 +313,16 @@ struct CameraView: View {
                 }
                 .accessibilityLabel(Text("camera.assist"))
 
-                Button { showsSettings = true } label: {
+                Button {
+                    showsSettings = true
+                } label: {
                     Image(systemName: "gearshape")
                 }
                 .accessibilityLabel(Text("settings.title"))
 
-                Button { camera.showsGrid.toggle() } label: {
+                Button {
+                    camera.showsGrid.toggle()
+                } label: {
                     Image(systemName: camera.showsGrid ? "grid" : "square")
                 }
                 .accessibilityLabel(Text("camera.grid"))
@@ -495,13 +503,13 @@ struct CameraView: View {
             .font(.caption.weight(.medium))
             .padding(10)
             .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
-        case let .failed(error):
+        case .failed(let error):
             Text(LocalizedStringKey(aiErrorKey(error)))
                 .font(.caption.weight(.medium))
                 .padding(10)
                 .frame(maxWidth: .infinity)
                 .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
-        case let .ready(result, selected):
+        case .ready(let result, let selected):
             let plan = result.plans[selected]
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -744,9 +752,10 @@ struct CameraView: View {
     private func triggerCapture() {
         guard countdown == nil, !camera.isCapturing else { return }
         if camera.activeFilter != nil,
-           !quota.snapshot.unlimited,
-           !store.isPro,
-           quota.snapshot.filterRemaining < 1 {
+            !quota.snapshot.unlimited,
+            !store.isPro,
+            quota.snapshot.filterRemaining < 1
+        {
             showsLimit = true
             return
         }
@@ -884,11 +893,11 @@ private final class PreviewView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         guard let previewLayer,
-              let orientation = window?.windowScene?.interfaceOrientation
+            let orientation = window?.windowScene?.interfaceOrientation
         else { return }
         let angle = CameraRotation.angle(for: orientation)
         if let connection = previewLayer.connection,
-           connection.isVideoRotationAngleSupported(angle)
+            connection.isVideoRotationAngleSupported(angle)
         {
             connection.videoRotationAngle = angle
         }
