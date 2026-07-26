@@ -39,7 +39,7 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
                         horizonAngle: horizon.results?.first.map { Double($0.angle) },
                         exposure: Self.averageLuma(buffer),
                         faceReady: faces.results?.allSatisfy {
-                            ($0.faceCaptureQuality?.doubleValue ?? 0) >= 0.35
+                            ($0.faceCaptureQuality ?? 0) >= 0.35
                         } ?? true,
                         timestamp: ProcessInfo.processInfo.systemUptime
                     )

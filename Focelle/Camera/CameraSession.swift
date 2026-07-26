@@ -1,4 +1,5 @@
 @preconcurrency import AVFoundation
+@preconcurrency import CoreLocation
 import Photos
 import SwiftUI
 import UIKit
@@ -107,6 +108,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     @Published var timer: CameraTimer = .off
     @Published var resolution: CameraResolution = .standard
     @Published var showsGrid = true
+    @Published var savesOriginal = false
+    var photoLocation: CLLocation?
     @Published private(set) var activeFilter: FilterRecipe?
     @Published private(set) var filterIntensity = 1.0
     @Published private(set) var filteredPreview: CGImage?
@@ -127,6 +130,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var pendingRatio: CameraRatio = .fourThree
     private var pendingFilter: FilterRecipe?
     private var pendingFilterIntensity = 1.0
+    private var pendingSaveOriginal = false
+    private var pendingLocation: CLLocation?
     private var standardDimensions: CMVideoDimensions?
     private var maximumDimensions: CMVideoDimensions?
     private var previewRecipe: FilterRecipe?
@@ -275,6 +280,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             self.pendingRatio = selectedRatio
             self.pendingFilter = selectedFilter
             self.pendingFilterIntensity = selectedFilterIntensity
+            self.pendingSaveOriginal = self.savesOriginal
+            self.pendingLocation = self.photoLocation
             self.photoOutput.capturePhoto(with: settings, delegate: self)
         }
     }
@@ -427,9 +434,12 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     private func save(_ data: Data) {
+        let location = pendingLocation
         let performSave = {
             PHPhotoLibrary.shared().performChanges {
-                PHAssetCreationRequest.forAsset().addResource(with: .photo, data: data, options: nil)
+                let creation = PHAssetCreationRequest.forAsset()
+                creation.location = location
+                creation.addResource(with: .photo, data: data, options: nil)
             } completionHandler: { [weak self] saved, _ in
                 self?.publish(notice: saved ? "camera.saved" : "camera.error.save")
             }
@@ -484,6 +494,9 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
             intensity: pendingFilterIntensity,
             aspectRatio: pendingRatio == .fourThree ? nil : pendingRatio.value
         ) ?? data
+        if pendingSaveOriginal, pendingFilter != nil {
+            save(data)
+        }
         save(outputData)
     }
 

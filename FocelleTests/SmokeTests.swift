@@ -248,6 +248,44 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(voice.shouldSpeak("Move left", now: 5))
     }
 
+    @MainActor
+    func testSettingsPersistPrivacyAndCameraChoices() {
+        let suite = "FocelleTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+
+        settings.onDeviceOnly = true
+        settings.analyticsEnabled = false
+        settings.saveOriginal = true
+
+        let restored = AppSettings(defaults: defaults)
+        XCTAssertTrue(restored.onDeviceOnly)
+        XCTAssertFalse(restored.analyticsEnabled)
+        XCTAssertTrue(restored.saveOriginal)
+    }
+
+    func testEveryLocalizationHasVietnameseAndEnglish() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appending(path: "Focelle/App/Localizable.xcstrings")
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: source)) as? [String: Any]
+        )
+        let strings = try XCTUnwrap(object["strings"] as? [String: Any])
+
+        for (key, value) in strings {
+            let entry = try XCTUnwrap(value as? [String: Any], key)
+            let localizations = try XCTUnwrap(
+                entry["localizations"] as? [String: Any],
+                key
+            )
+            XCTAssertNotNil(localizations["vi"], key)
+            XCTAssertNotNil(localizations["en"], key)
+        }
+    }
+
     private func makeAIResponse() -> AICompositionResponse {
         AICompositionResponse(
             schemaVersion: 1,

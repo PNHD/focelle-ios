@@ -6,6 +6,8 @@ import UIKit
 
 struct CameraView: View {
     @EnvironmentObject private var presets: PresetStore
+    @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var location: LocationProvider
     @StateObject private var camera = CameraSession()
     @StateObject private var ai = AIAnalysisModel()
     @StateObject private var voice = VoiceGuidance()
@@ -18,10 +20,8 @@ struct CameraView: View {
     @State private var presetToRename: UserPreset?
     @State private var photoSelection: PhotosPickerItem?
     @State private var photoEditorData: Data?
-    @State private var guidanceEnabled = true
-    @State private var voiceEnabled = false
-    @State private var autoCaptureEnabled = false
     @State private var autoCapture = AutoCapture()
+    @State private var showsSettings = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -47,7 +47,7 @@ struct CameraView: View {
                     }
 
                     if camera.showsGrid { grid }
-                    if guidanceEnabled, let guidance = camera.guidance {
+                    if settings.guidanceEnabled, let guidance = camera.guidance {
                         GuidanceOverlay(guidance: guidance)
                     }
                     focusIndicator
@@ -68,9 +68,16 @@ struct CameraView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .onAppear(perform: camera.start)
+        .onAppear {
+            camera.savesOriginal = settings.saveOriginal
+            location.setEnabled(settings.saveLocation)
+            camera.photoLocation = settings.saveLocation ? location.latest : nil
+            camera.resolution = settings.maximumResolution ? .maximum : .standard
+            camera.start()
+        }
         .onDisappear {
             countdownTask?.cancel()
+            voice.stop()
             camera.stop()
         }
         .onCameraCaptureEvent(
@@ -113,13 +120,13 @@ struct CameraView: View {
         }
         .onChange(of: camera.guidance) { _, guidance in
             guard let guidance else { return }
-            if voiceEnabled {
+            if settings.voiceGuidance {
                 voice.speak(
                     guidance.instruction
                         ?? NSLocalizedString(guidance.instructionKey, comment: "")
                 )
             }
-            guard autoCaptureEnabled, let measurement = camera.measurement else { return }
+            guard settings.autoCapture, let measurement = camera.measurement else { return }
             if autoCapture.update(
                 aligned: guidance.aligned,
                 subject: measurement.primaryRect,
@@ -136,17 +143,35 @@ struct CameraView: View {
                 camera.clearAIPlan()
             }
         }
-        .onChange(of: voiceEnabled) { _, enabled in
+        .onChange(of: settings.voiceGuidance) { _, enabled in
             if !enabled { voice.stop() }
         }
-        .onChange(of: autoCaptureEnabled) { _, _ in
+        .onChange(of: settings.autoCapture) { _, _ in
             autoCapture.cancel()
+        }
+        .onChange(of: settings.saveOriginal) { _, enabled in
+            camera.savesOriginal = enabled
+        }
+        .onChange(of: settings.saveLocation) { _, enabled in
+            location.setEnabled(enabled)
+            camera.photoLocation = enabled ? location.latest : nil
+        }
+        .onChange(of: location.latest) { _, value in
+            camera.photoLocation = settings.saveLocation ? value : nil
+        }
+        .onChange(of: settings.maximumResolution) { _, enabled in
+            camera.resolution = enabled ? .maximum : .standard
         }
         .sheet(isPresented: photoEditorPresented) {
             if let photoEditorData {
                 PhotoEditorView(data: photoEditorData)
                     .environmentObject(presets)
             }
+        }
+        .sheet(isPresented: $showsSettings) {
+            SettingsView(supportsMaximumResolution: camera.supportsMaximumResolution)
+                .environmentObject(settings)
+                .environmentObject(location)
         }
     }
 
@@ -160,18 +185,25 @@ struct CameraView: View {
                 }
                 .accessibilityLabel(Text("photoEditor.pick"))
 
-                Button { guidanceEnabled.toggle() } label: {
-                    Image(systemName: guidanceEnabled ? "sparkles" : "sparkles.slash")
+                Button { settings.guidanceEnabled.toggle() } label: {
+                    Image(
+                        systemName: settings.guidanceEnabled ? "sparkles" : "sparkles.slash"
+                    )
                 }
                 .accessibilityLabel(Text("guidance.toggle"))
 
                 Menu {
-                    Toggle("voice.toggle", isOn: $voiceEnabled)
-                    Toggle("autoCapture.toggle", isOn: $autoCaptureEnabled)
+                    Toggle("voice.toggle", isOn: $settings.voiceGuidance)
+                    Toggle("autoCapture.toggle", isOn: $settings.autoCapture)
                 } label: {
                     Image(systemName: "ear.badge.waveform")
                 }
                 .accessibilityLabel(Text("camera.assist"))
+
+                Button { showsSettings = true } label: {
+                    Image(systemName: "gearshape")
+                }
+                .accessibilityLabel(Text("settings.title"))
 
                 Button { camera.showsGrid.toggle() } label: {
                     Image(systemName: camera.showsGrid ? "grid" : "square")
@@ -328,7 +360,7 @@ struct CameraView: View {
                     .background(.orange.opacity(0.85), in: Circle())
                 }
                 .accessibilityLabel(Text("ai.analyze"))
-                .disabled(camera.state != .running)
+                .disabled(camera.state != .running || settings.onDeviceOnly)
             }
         }
         .foregroundStyle(.white)
