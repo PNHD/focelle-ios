@@ -33,7 +33,7 @@ jobs:
 
   build-test-screenshot:
     runs-on: macos-26
-    timeout-minutes: 20
+    timeout-minutes: 10
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
 
