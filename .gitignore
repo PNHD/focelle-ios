@@ -3,3 +3,6 @@ DerivedData/
 *.xcuserstate
 xcuserdata/
 .DS_Store
+backend/node_modules/
+backend/.dev.vars*
+backend/.wrangler/
