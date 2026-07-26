@@ -196,6 +196,15 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(engine.update(right).direction, .right)
     }
 
+    func testAimRingOnlyRepresentsTwoDimensionalMovement() {
+        XCTAssertTrue(GuidanceDirection.up.usesAimRing)
+        XCTAssertTrue(GuidanceDirection.none.usesAimRing)
+        XCTAssertFalse(GuidanceDirection.closer.usesAimRing)
+        XCTAssertFalse(GuidanceDirection.level.usesAimRing)
+        XCTAssertTrue(GuidanceDirection.closer.usesTargetFrame)
+        XCTAssertFalse(GuidanceDirection.up.usesTargetFrame)
+    }
+
     @MainActor
     func testAIAnalysisKeepsThreePlansFromOneRequest() async {
         let response = makeAIResponse()
@@ -293,6 +302,7 @@ final class SmokeTests: XCTestCase {
 
         XCTAssertTrue(guidance.aligned)
         XCTAssertEqual(guidance.target.x, 0.35, accuracy: 0.001)
+        XCTAssertEqual(guidance.targetRect, CGRect(x: 0.2, y: 0.2, width: 0.3, height: 0.5))
     }
 
     @MainActor

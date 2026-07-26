@@ -626,6 +626,7 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         return Guidance(
             subjectRect: subject,
             target: target,
+            targetRect: plan.target.cgRect,
             direction: direction,
             instructionKey: key,
             instruction: direction == .none ? nil : plan.instruction,
