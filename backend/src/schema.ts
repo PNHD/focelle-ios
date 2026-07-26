@@ -146,7 +146,9 @@ function isRect(value: unknown): boolean {
     && numberIn(value.x, 0, 1)
     && numberIn(value.y, 0, 1)
     && numberIn(value.width, 0.01, 1)
-    && numberIn(value.height, 0.01, 1);
+    && numberIn(value.height, 0.01, 1)
+    && value.x + value.width <= 1
+    && value.y + value.height <= 1;
 }
 
 function isExactObject(

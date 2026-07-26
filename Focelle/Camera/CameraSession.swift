@@ -18,7 +18,7 @@ enum CameraPermission: Equatable {
     }
 }
 
-enum CameraFlash: String, CaseIterable {
+enum CameraFlash: String, CaseIterable, Codable, Sendable {
     case off
     case auto
     case on
@@ -344,10 +344,12 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     func selectSubject(at point: CGPoint) {
         queue.async { [weak self] in
             guard let self, var measurement = self.measurement else { return }
+            let visionPoint = CGPoint(x: point.x, y: 1 - point.y)
             let candidates = measurement.faceRects
                 + [measurement.subjectRect, measurement.salientRect].compactMap { $0 }
             guard let selected = candidates.min(by: {
-                Self.distance(from: point, to: $0) < Self.distance(from: point, to: $1)
+                Self.distance(from: visionPoint, to: $0)
+                    < Self.distance(from: visionPoint, to: $1)
             }) else { return }
             measurement.subjectRect = selected
             self.stabilizer = MeasurementStabilizer()

@@ -84,10 +84,9 @@ struct NormalizedRect: Codable, Equatable, Sendable {
     fileprivate var isValid: Bool {
         (0...1).contains(x) && (0...1).contains(y)
             && (0.01...1).contains(width) && (0.01...1).contains(height)
+            && x + width <= 1 && y + height <= 1
     }
 }
-
-extension CameraFlash: Codable, Sendable {}
 
 enum AIClientError: String, Error, Equatable, Sendable {
     case unavailable

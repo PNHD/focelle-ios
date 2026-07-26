@@ -46,6 +46,17 @@ describe("analyze", () => {
     });
   });
 
+  it("rejects a target rectangle outside the preview", async () => {
+    const result = structuredClone(validResult);
+    result.primary.target = { x: 0.9, y: 0.5, width: 0.3, height: 0.5 };
+    const response = await handleAnalyze(
+      request(jpeg(), true),
+      environment(),
+      provider(result),
+    );
+    expect(response.status).toBe(502);
+  });
+
   it("maps provider rate limits", async () => {
     const response = await handleAnalyze(
       request(jpeg(), true),
