@@ -429,6 +429,8 @@ macOS CI project
 
 ### Task 19: Harden camera, AI, and render performance
 
+**Status:** Camera interruption and app lifecycle recovery implemented; CI and physical 10-minute/device evidence pending.
+
 **Description:** Fix measured memory, orientation, thermal, latency, and interruption issues from extended device sessions; do not add speculative optimizations.
 
 **Acceptance criteria:**
@@ -447,6 +449,8 @@ macOS CI project
 **Estimated scope:** Multiple small targeted fixes, not one bulk rewrite.
 
 ### Task 20: Prepare TestFlight beta and support materials
+
+**Status:** Original app icon, release/privacy drafts, device checklist, and manual TestFlight CI workflow prepared. Signed upload is blocked on the named Apple/API credentials and explicit upload authorization.
 
 **Description:** Finalize icon/launch assets, privacy/support copy, App Store privacy answers, TestFlight notes, signed cloud archive, and a staged internal beta release.
 
