@@ -18,8 +18,8 @@ audit refresh accompanies the resulting compiler fix.
   the iPhone 17e simulator, then stopped while compiling `CameraView` because
   one SwiftUI modifier expression exceeded the type-checker limit. The
   follow-up source splits that expression into staged view-builder boundaries
-  and removes the related actor-isolation warning. It is pushed with CI skipped
-  because the Actions allowance is now fully consumed.
+  and addresses every Swift-source warning reported by that run. It is pushed
+  with CI skipped because the Actions allowance is now fully consumed.
 - Repository: no provider key, certificate, provisioning profile, personal
   photo, or production ad unit is expected in source. Re-run the secret/file
   scan immediately before push.

@@ -113,7 +113,7 @@ final class Store: ObservableObject {
             if current.map({ expiration > $0.expirationDate }) ?? true {
                 current = Entitlement(productID: transaction.productID, expirationDate: expiration)
             }
-            await submit(result.jwsRepresentation)
+            _ = await submit(result.jwsRepresentation)
         }
         entitlement = current
         cache()

@@ -12,6 +12,7 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
         _ buffer: CVPixelBuffer,
         completion: @escaping @Sendable (SceneMeasurement?) -> Void
     ) {
+        nonisolated(unsafe) let pixelBuffer = buffer
         queue.async {
             let faces = VNDetectFaceCaptureQualityRequest()
             let humans = VNDetectHumanRectanglesRequest()
@@ -20,7 +21,7 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
             let horizon = VNDetectHorizonRequest()
             let saliency = VNGenerateAttentionBasedSaliencyImageRequest()
             let handler = VNImageRequestHandler(
-                cvPixelBuffer: buffer,
+                cvPixelBuffer: pixelBuffer,
                 orientation: .up
             )
 
@@ -39,7 +40,7 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
                             .max { Self.area($0.boundingBox) < Self.area($1.boundingBox) }?
                             .boundingBox,
                         horizonAngle: horizon.results?.first.map { Double($0.angle) },
-                        exposure: Self.averageLuma(buffer),
+                        exposure: Self.averageLuma(pixelBuffer),
                         faceReady: faces.results?.allSatisfy {
                             ($0.faceCaptureQuality ?? 0) >= 0.35
                         } ?? true,

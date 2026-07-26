@@ -470,7 +470,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         ).devices.first
     }
 
-    private func configureDevice(_ change: @escaping (AVCaptureDevice) -> Void) {
+    private func configureDevice(_ change: @escaping @Sendable (AVCaptureDevice) -> Void) {
         queue.async { [weak self] in
             guard let device = self?.input?.device else { return }
             do {
@@ -485,7 +485,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     private func save(_ data: Data, countsFilter: Bool, showsThumbnail: Bool) {
         let location = pendingLocation
-        let performSave = {
+        let performSave: @Sendable () -> Void = {
             PHPhotoLibrary.shared().performChanges {
                 let creation = PHAssetCreationRequest.forAsset()
                 creation.location = location
