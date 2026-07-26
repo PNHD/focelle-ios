@@ -4,13 +4,17 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var location: LocationProvider
+    @EnvironmentObject private var beta: BetaAccess
     let supportsMaximumResolution: Bool
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Label("beta.freeMessage", systemImage: "sparkles")
+                    Label(
+                        beta.snapshot.enabled ? "beta.freeMessage" : "beta.endedMessage",
+                        systemImage: "sparkles"
+                    )
                         .foregroundStyle(.orange)
                 }
 

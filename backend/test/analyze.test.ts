@@ -1,3 +1,4 @@
+import { env as testEnv } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 import { handleAnalyze, stripJpegMetadata, type Fetcher } from "../src/analyze";
 
@@ -136,8 +137,12 @@ function environment(rateAllowed = true): Env {
     APP_SHARED_TOKEN: "test-token",
     GEMINI_API_KEY: "test-key",
     GEMINI_MODEL: "gemini-3.5-flash-lite",
+    DB: testEnv.DB,
     AI_RATE_LIMITER: {
       limit: vi.fn(async () => ({ success: rateAllowed })),
+    },
+    EVENT_RATE_LIMITER: {
+      limit: vi.fn(async () => ({ success: true })),
     },
   };
 }

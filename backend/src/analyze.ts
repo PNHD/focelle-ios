@@ -3,6 +3,8 @@ import {
   isCompositionResponse,
   type CompositionResponse,
 } from "./schema";
+import { recordSuccessfulAnalysis } from "./beta";
+import { authorized, error, json, PayloadTooLarge, readJSON } from "./http";
 
 const MAX_REQUEST_BYTES = 1_500_000;
 const MAX_IMAGE_BYTES = 900_000;
@@ -26,6 +28,7 @@ export async function handleAnalyze(
   request: Request,
   env: Env,
   fetcher: Fetcher = fetch,
+  context?: ExecutionContext,
 ): Promise<Response> {
   if (request.method !== "POST") return error("METHOD_NOT_ALLOWED", 405);
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
@@ -108,9 +111,9 @@ export async function handleAnalyze(
     const body = await readJSON(provider, MAX_PROVIDER_BYTES);
     const text = providerText(body);
     const result: unknown = JSON.parse(text);
-    return isCompositionResponse(result)
-      ? json({ ok: true, result })
-      : error("INVALID_AI_RESPONSE", 502);
+    if (!isCompositionResponse(result)) return error("INVALID_AI_RESPONSE", 502);
+    context?.waitUntil(recordSuccessfulAnalysis(env.DB, input.deviceId));
+    return json({ ok: true, result });
   } catch {
     return error("INVALID_AI_RESPONSE", 502);
   }
@@ -167,43 +170,6 @@ function validateRect(value: unknown): { x: number; y: number; width: number; he
     || !numberIn(value.width, 0, 1)
     || !numberIn(value.height, 0, 1)) throw new Error("invalid");
   return { x: value.x, y: value.y, width: value.width, height: value.height };
-}
-
-async function authorized(request: Request, expected: string): Promise<boolean> {
-  const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  const encoder = new TextEncoder();
-  const [providedHash, expectedHash] = await Promise.all([
-    crypto.subtle.digest("SHA-256", encoder.encode(provided)),
-    crypto.subtle.digest("SHA-256", encoder.encode(expected)),
-  ]);
-  return crypto.subtle.timingSafeEqual(providedHash, expectedHash);
-}
-
-async function readJSON(source: Request | Response, limit: number): Promise<unknown> {
-  const length = Number(source.headers.get("content-length") ?? 0);
-  if (length > limit) throw new PayloadTooLarge();
-  if (!source.body) throw new Error("missing body");
-
-  const reader = source.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > limit) {
-      await reader.cancel();
-      throw new PayloadTooLarge();
-    }
-    chunks.push(value);
-  }
-  const data = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    data.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return JSON.parse(new TextDecoder().decode(data));
 }
 
 function providerText(value: unknown): string {
@@ -294,18 +260,5 @@ function numberIn(value: unknown, minimum: number, maximum: number): value is nu
     && value >= minimum
     && value <= maximum;
 }
-
-function error(code: string, status: number): Response {
-  return json({ ok: false, error: { code } }, status);
-}
-
-function json(value: unknown, status = 200): Response {
-  return Response.json(value, {
-    status,
-    headers: { "cache-control": "no-store" },
-  });
-}
-
-class PayloadTooLarge extends Error {}
 
 export type { AnalyzeRequest, CompositionResponse, Fetcher };

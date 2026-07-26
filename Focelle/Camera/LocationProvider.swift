@@ -3,7 +3,7 @@ import Combine
 import Foundation
 
 @MainActor
-final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDelegate {
+final class LocationProvider: NSObject, ObservableObject, @MainActor CLLocationManagerDelegate {
     @Published private(set) var latest: CLLocation?
     private let manager = CLLocationManager()
 

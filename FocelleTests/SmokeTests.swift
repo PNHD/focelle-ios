@@ -265,6 +265,23 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(restored.saveOriginal)
     }
 
+    @MainActor
+    func testBetaAccessUsesOfflineCache() throws {
+        let suite = "FocelleTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let cached = BetaAccess.Snapshot(
+            enabled: false,
+            activated: true,
+            successfulAnalyses: 3,
+            endsAt: Date(timeIntervalSince1970: 100),
+            activatedUsers: 500
+        )
+        defaults.set(try JSONEncoder().encode(cached), forKey: "betaAccess")
+
+        XCTAssertEqual(BetaAccess(defaults: defaults).snapshot, cached)
+    }
+
     func testEveryLocalizationHasVietnameseAndEnglish() throws {
         let source = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

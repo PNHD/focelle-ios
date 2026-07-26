@@ -8,6 +8,7 @@ struct CameraView: View {
     @EnvironmentObject private var presets: PresetStore
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var location: LocationProvider
+    @EnvironmentObject private var beta: BetaAccess
     @StateObject private var camera = CameraSession()
     @StateObject private var ai = AIAnalysisModel()
     @StateObject private var voice = VoiceGuidance()
@@ -136,11 +137,21 @@ struct CameraView: View {
                 camera.capture()
             }
         }
-        .onChange(of: ai.state) { _, state in
+        .onChange(of: ai.state) { oldState, state in
             if case let .ready(result, selected) = state {
                 camera.applyAIPlan(result.plans[selected])
+                if case .loading = oldState {
+                    Analytics.record("ai_success", enabled: settings.analyticsEnabled)
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(500))
+                        await beta.refresh()
+                    }
+                }
             } else {
                 camera.clearAIPlan()
+                if case .loading = oldState, case .failed = state {
+                    Analytics.record("ai_failure", enabled: settings.analyticsEnabled)
+                }
             }
         }
         .onChange(of: settings.voiceGuidance) { _, enabled in
@@ -172,6 +183,7 @@ struct CameraView: View {
             SettingsView(supportsMaximumResolution: camera.supportsMaximumResolution)
                 .environmentObject(settings)
                 .environmentObject(location)
+                .environmentObject(beta)
         }
     }
 
@@ -534,6 +546,7 @@ struct CameraView: View {
             )
             selectedPresetID = preset.id
         }
+        Analytics.record("preset_save", enabled: settings.analyticsEnabled)
         syncPresets()
     }
 
@@ -619,6 +632,9 @@ struct CameraView: View {
     private func triggerCapture() {
         guard countdown == nil, !camera.isCapturing else { return }
         autoCapture.cancel()
+        if case .ready = ai.state {
+            Analytics.record("capture_after_guidance", enabled: settings.analyticsEnabled)
+        }
         guard camera.timer.rawValue > 0 else {
             camera.capture()
             return
@@ -639,6 +655,7 @@ struct CameraView: View {
             ai.cancel()
             return
         }
+        Analytics.record("ai_tap", enabled: settings.analyticsEnabled)
         let measurement = camera.measurement
         camera.requestAIPreview { data in
             Task { @MainActor in

@@ -1,5 +1,4 @@
 import Foundation
-import UIKit
 
 struct AICompositionResponse: Codable, Equatable, Sendable {
     let schemaVersion: Int
@@ -101,25 +100,7 @@ enum AIClient {
     static func analyze(_ preview: Data, measurement: SceneMeasurement?) async throws
         -> AICompositionResponse
     {
-        guard
-            let endpointText = Bundle.main.object(
-                forInfoDictionaryKey: "FocelleAIEndpoint"
-            ) as? String,
-            let endpoint = URL(string: endpointText),
-            endpoint.scheme == "https",
-            let token = Bundle.main.object(
-                forInfoDictionaryKey: "FocelleAISharedToken"
-            ) as? String,
-            !token.isEmpty
-        else {
-            throw AIClientError.unavailable
-        }
-
-        let deviceId = await MainActor.run {
-            UIDevice.current.identifierForVendor?
-                .uuidString.replacingOccurrences(of: "-", with: "")
-                ?? UUID().uuidString.replacingOccurrences(of: "-", with: "")
-        }
+        let deviceId = await FocelleAPI.deviceID()
         let requestBody = AnalyzeRequest(
             deviceId: deviceId,
             locale: Locale.current.language.languageCode?.identifier == "vi" ? "vi" : "en",
@@ -127,11 +108,8 @@ enum AIClient {
             measurements: measurement.map(AnalyzeRequest.Measurements.init)
         )
 
-        var request = URLRequest(url: endpoint.appending(path: "v1/analyze"))
-        request.httpMethod = "POST"
-        request.timeoutInterval = 10
+        var request = try await FocelleAPI.request(path: "v1/analyze", method: "POST")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.httpBody = try JSONEncoder().encode(requestBody)
 
         do {
