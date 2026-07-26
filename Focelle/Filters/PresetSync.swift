@@ -1,6 +1,5 @@
 @preconcurrency import CloudKit
 import Foundation
-import Security
 
 enum PresetSync {
     private static let recordType = "UserPreset"
@@ -48,24 +47,17 @@ enum PresetSync {
     }
 
     private static func database() throws -> CKDatabase {
-        guard let task = SecTaskCreateFromSelf(nil),
-              supportsCloudKit(
-                  SecTaskCopyValueForEntitlement(
-                      task,
-                      "com.apple.developer.icloud-services" as CFString,
-                      nil
-                  )
-              ),
-              let identifier = Bundle.main.object(
-                  forInfoDictionaryKey: containerInfoKey
-              ) as? String, !identifier.isEmpty else {
+        #if targetEnvironment(simulator)
+        // ponytail: unsigned CI simulators cannot use CloudKit; verify sync on signed devices.
+        throw PresetSyncError.iCloudNotConfigured
+        #else
+        guard let identifier = Bundle.main.object(
+            forInfoDictionaryKey: containerInfoKey
+        ) as? String, !identifier.isEmpty else {
             throw PresetSyncError.iCloudNotConfigured
         }
         return CKContainer(identifier: identifier).privateCloudDatabase
-    }
-
-    static func supportsCloudKit(_ services: Any?) -> Bool {
-        (services as? [String])?.contains("CloudKit") == true
+        #endif
     }
 
     private static func decode(
