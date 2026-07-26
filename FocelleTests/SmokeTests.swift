@@ -213,11 +213,25 @@ final class SmokeTests: XCTestCase {
             timestamp: 1
         )
         XCTAssertEqual(
-            CameraSession.selectedSubject(
-                in: measurement,
-                near: CGPoint(x: 0.75, y: 0.5)
-            ),
+            measurement.subject(near: CGPoint(x: 0.75, y: 0.5)),
             right
+        )
+    }
+
+    func testAnalyzerDefersFullDetectionBetweenTrackedFrames() {
+        XCTAssertTrue(
+            OnDeviceAnalyzer.shouldDeferFullDetection(
+                elapsed: 0.69,
+                hasMeasurement: true,
+                thermallyConstrained: false
+            )
+        )
+        XCTAssertFalse(
+            OnDeviceAnalyzer.shouldDeferFullDetection(
+                elapsed: 0.7,
+                hasMeasurement: true,
+                thermallyConstrained: false
+            )
         )
     }
 

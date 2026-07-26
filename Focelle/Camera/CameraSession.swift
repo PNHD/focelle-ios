@@ -147,6 +147,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var pendingAIPreview: (@Sendable (Data?) -> Void)?
     private var cloudPlan: AICompositionPlan?
     private var selectedSubjectPoint: CGPoint?
+    private var analysisGeneration = 0
 
     override init() {
         super.init()
@@ -238,6 +239,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 self.session.addInput(newInput)
                 self.input = newInput
                 self.selectedSubjectPoint = nil
+                self.analysisGeneration += 1
+                self.analyzer.resetTracking()
                 self.stabilizer = MeasurementStabilizer()
                 self.guidanceEngine = GuidanceEngine()
                 self.configureCapabilities(for: device)
@@ -422,10 +425,11 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             let visionPoint = CGPoint(x: point.x, y: 1 - point.y)
             self.selectedSubjectPoint = visionPoint
             guard var measurement = self.measurement,
-                let selected = Self.selectedSubject(in: measurement, near: visionPoint)
+                let selected = measurement.subject(near: visionPoint)
             else { return }
             measurement.subjectRect = selected
             self.selectedSubjectPoint = CGPoint(x: selected.midX, y: selected.midY)
+            self.analyzer.track(selected)
             self.stabilizer = MeasurementStabilizer()
             let guidance =
                 self.cloudPlan.map {
@@ -571,26 +575,6 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         save(outputData, countsFilter: pendingFilter != nil, showsThumbnail: true)
     }
 
-    static func selectedSubject(
-        in measurement: SceneMeasurement,
-        near point: CGPoint
-    ) -> CGRect? {
-        let containingHumans = measurement.humanRects.filter { $0.contains(point) }
-        let candidates =
-            containingHumans.isEmpty
-            ? measurement.humanRects
-                + measurement.faceRects
-                + [measurement.subjectRect, measurement.salientRect].compactMap { $0 }
-            : containingHumans
-        return candidates.min {
-            distance(from: point, to: $0) < distance(from: point, to: $1)
-        }
-    }
-
-    private static func distance(from point: CGPoint, to rect: CGRect) -> CGFloat {
-        hypot(point.x - rect.midX, point.y - rect.midY)
-    }
-
     static func cloudGuidance(
         _ plan: AICompositionPlan,
         measurement: SceneMeasurement
@@ -670,21 +654,26 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
         }
 
         let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        let analysisInterval = ProcessInfo.processInfo.thermalState == .nominal ? 0.35 : 0.8
+        let analysisInterval = ProcessInfo.processInfo.thermalState == .nominal ? 0.1 : 0.25
         if !analysisInFlight,
             CMTimeGetSeconds(timestamp - lastAnalysisTime) >= analysisInterval
         {
             analysisInFlight = true
             lastAnalysisTime = timestamp
-            analyzer.analyze(buffer) { [weak self] measurement in
+            let generation = analysisGeneration
+            analyzer.analyze(
+                buffer,
+                preferredSubjectPoint: selectedSubjectPoint
+            ) { [weak self] measurement in
                 guard let self else { return }
                 self.queue.async {
                     self.analysisInFlight = false
-                    guard var measurement else { return }
-                    if let point = self.selectedSubjectPoint,
-                        let selected = Self.selectedSubject(in: measurement, near: point)
+                    guard generation == self.analysisGeneration,
+                        let measurement
+                    else { return }
+                    if self.selectedSubjectPoint != nil,
+                        let selected = measurement.subjectRect
                     {
-                        measurement.subjectRect = selected
                         self.selectedSubjectPoint = CGPoint(
                             x: selected.midX,
                             y: selected.midY
