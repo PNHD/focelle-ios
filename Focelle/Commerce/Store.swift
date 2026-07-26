@@ -51,7 +51,10 @@ final class Store: ObservableObject {
         defer { isLoading = false }
         do {
             products = try await Product.products(for: Self.productIDs)
-                .sorted { Self.productIDs.firstIndex(of: $0.id)! < Self.productIDs.firstIndex(of: $1.id)! }
+                .sorted {
+                    (Self.productIDs.firstIndex(of: $0.id) ?? .max)
+                        < (Self.productIDs.firstIndex(of: $1.id) ?? .max)
+                }
             await refreshEntitlement()
         } catch {
             messageKey = "purchase.error.load"
@@ -105,7 +108,7 @@ final class Store: ObservableObject {
                   let expiration = transaction.expirationDate,
                   expiration > .now
             else { continue }
-            if current == nil || expiration > current!.expirationDate {
+            if current.map({ expiration > $0.expirationDate }) ?? true {
                 current = Entitlement(productID: transaction.productID, expirationDate: expiration)
             }
             await submit(result.jwsRepresentation)

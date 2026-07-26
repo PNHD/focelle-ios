@@ -1,4 +1,3 @@
-import AuthenticationServices
 import SwiftUI
 
 struct AccountView: View {
@@ -23,18 +22,6 @@ struct AccountView: View {
                     Button("account.delete", role: .destructive) {
                         confirmsDeletion = true
                     }
-                }
-            } else {
-                Section {
-                    SignInWithAppleButton(
-                        .signIn,
-                        onRequest: account.configure,
-                        onCompletion: account.complete
-                    )
-                    .signInWithAppleButtonStyle(.black)
-                    .frame(height: 48)
-                } footer: {
-                    Text("account.signInDetail")
                 }
             }
 

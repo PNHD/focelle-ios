@@ -45,9 +45,11 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("account.title") {
-                    NavigationLink("account.manage") {
-                        AccountView().environmentObject(account)
+                if account.isSignedIn {
+                    Section("account.title") {
+                        NavigationLink("account.manage") {
+                            AccountView().environmentObject(account)
+                        }
                     }
                 }
             }

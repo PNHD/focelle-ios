@@ -776,8 +776,8 @@ private struct CameraPreview: UIViewRepresentable {
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
-        view.previewLayer.session = session
-        view.previewLayer.videoGravity = .resizeAspectFill
+        view.previewLayer?.session = session
+        view.previewLayer?.videoGravity = .resizeAspectFill
         view.onFocus = onFocus
         view.onSubject = onSubject
         view.onRotation = onRotation
@@ -793,7 +793,7 @@ private struct CameraPreview: UIViewRepresentable {
 
 private final class PreviewView: UIView {
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
-    var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+    var previewLayer: AVCaptureVideoPreviewLayer? { layer as? AVCaptureVideoPreviewLayer }
     var onFocus: ((CGPoint, CGPoint) -> Void)?
     var onSubject: ((CGPoint) -> Void)?
     var onRotation: ((CGFloat) -> Void)?
@@ -812,7 +812,9 @@ private final class PreviewView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        guard let orientation = window?.windowScene?.interfaceOrientation else { return }
+        guard let previewLayer,
+              let orientation = window?.windowScene?.interfaceOrientation
+        else { return }
         let angle = CameraRotation.angle(for: orientation)
         if let connection = previewLayer.connection,
            connection.isVideoRotationAngleSupported(angle)
@@ -824,7 +826,7 @@ private final class PreviewView: UIView {
 
     @objc private func didTap(_ gesture: UITapGestureRecognizer) {
         let point = gesture.location(in: self)
-        guard bounds.width > 0, bounds.height > 0 else { return }
+        guard let previewLayer, bounds.width > 0, bounds.height > 0 else { return }
         onFocus?(
             previewLayer.captureDevicePointConverted(fromLayerPoint: point),
             CGPoint(x: point.x / bounds.width, y: point.y / bounds.height)
