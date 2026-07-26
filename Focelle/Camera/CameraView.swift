@@ -321,12 +321,14 @@ struct CameraView: View {
                 }
                 .accessibilityLabel(Text("camera.timer"))
 
-                Text("beta.badge")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.orange.opacity(0.2), in: Capsule())
-                    .foregroundStyle(.orange)
+                if beta.snapshot.enabled {
+                    Text("beta.badge")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.orange.opacity(0.2), in: Capsule())
+                        .foregroundStyle(.orange)
+                }
             }
 
             HStack {

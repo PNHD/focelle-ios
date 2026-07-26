@@ -38,7 +38,6 @@ struct FocelleApp: App {
                 .task { await presets.sync() }
                 .task { await beta.refresh() }
                 .task { await quota.refresh() }
-                .task { await store.refresh() }
                 .task { await account.refresh() }
                 .task { await referral.refresh() }
                 .onAppear {

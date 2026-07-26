@@ -3,7 +3,7 @@
 ## Listing draft
 
 - Name: Focelle
-- Subtitle: AI Photo Coach
+- Subtitle: Focelle - AI Photo Coach
 - Primary category: Photo & Video
 - Primary language: Vietnamese
 - Version: 0.1.0
@@ -52,4 +52,3 @@ Do not disclose precise location: optional photo location is written only to the
 ## Name clearance
 
 A general web/App Store-style search on July 26, 2026 found no obvious photography app using the exact name “Focelle.” This is only a preliminary screening, not legal trademark clearance. Before public submission, search the Vietnam IP Office and WIPO Global Brand Database for the relevant software/photography classes and have the seller approve the risk.
-
