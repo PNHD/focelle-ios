@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 import AVKit
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -13,6 +14,8 @@ struct CameraView: View {
     @State private var selectedPresetID: UUID?
     @State private var presetName = ""
     @State private var presetToRename: UserPreset?
+    @State private var photoSelection: PhotosPickerItem?
+    @State private var photoEditorData: Data?
 
     var body: some View {
         GeometryReader { geometry in
@@ -85,6 +88,20 @@ struct CameraView: View {
                 syncPresets()
             }
         }
+        .onChange(of: photoSelection) { _, selection in
+            guard let selection else { return }
+            Task {
+                photoEditorData = try? await selection.loadTransferable(type: Data.self)
+                if photoEditorData == nil { camera.notice = "photoEditor.error.load" }
+                photoSelection = nil
+            }
+        }
+        .sheet(isPresented: photoEditorPresented) {
+            if let photoEditorData {
+                PhotoEditorView(data: photoEditorData)
+                    .environmentObject(presets)
+            }
+        }
     }
 
     private var controls: some View {
@@ -92,6 +109,11 @@ struct CameraView: View {
             HStack {
                 Text("app.name").font(.headline)
                 Spacer()
+                PhotosPicker(selection: $photoSelection, matching: .images) {
+                    Image(systemName: "photo.on.rectangle")
+                }
+                .accessibilityLabel(Text("photoEditor.pick"))
+
                 Button { camera.showsGrid.toggle() } label: {
                     Image(systemName: camera.showsGrid ? "grid" : "square")
                 }
@@ -322,6 +344,13 @@ struct CameraView: View {
         Binding(
             get: { presetToRename != nil },
             set: { if !$0 { presetToRename = nil } }
+        )
+    }
+
+    private var photoEditorPresented: Binding<Bool> {
+        Binding(
+            get: { photoEditorData != nil },
+            set: { if !$0 { photoEditorData = nil } }
         )
     }
 

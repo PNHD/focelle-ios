@@ -117,10 +117,10 @@ struct FilterRenderer {
 
     func previewImage(
         _ input: CIImage,
-        recipe: FilterRecipe,
+        recipe: FilterRecipe?,
         intensity: Double
     ) -> CGImage? {
-        let output = render(input, recipe: recipe, intensity: intensity)
+        let output = recipe.map { render(input, recipe: $0, intensity: intensity) } ?? input
         return context.createCGImage(output, from: output.extent)
     }
 

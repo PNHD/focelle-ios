@@ -1,0 +1,139 @@
+import SwiftUI
+
+struct PhotoEditorView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var presets: PresetStore
+    @StateObject private var model: PhotoEditorModel
+    @State private var showsEditor = false
+
+    init(data: Data) {
+        _model = StateObject(wrappedValue: PhotoEditorModel(data: data))
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                if let preview = model.preview {
+                    Image(decorative: preview, scale: 1)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(.black)
+                } else {
+                    ContentUnavailableView(
+                        "photoEditor.error.load",
+                        systemImage: "photo.badge.exclamationmark"
+                    )
+                }
+
+                filterPicker
+
+                if model.recipe != nil {
+                    HStack {
+                        Image(systemName: "camera.filters")
+                        Slider(
+                            value: Binding(
+                                get: { model.intensity },
+                                set: { model.apply(model.recipe, intensity: $0) }
+                            ),
+                            in: 0...1
+                        )
+                        Button("filter.edit") { showsEditor = true }
+                    }
+
+                    Text("filter.holdCompare")
+                        .font(.footnote)
+                        .padding(10)
+                        .background(.secondary.opacity(0.12), in: Capsule())
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { _ in model.compareOriginal(true) }
+                                .onEnded { _ in model.compareOriginal(false) }
+                        )
+                }
+            }
+            .padding()
+            .navigationTitle("photoEditor.title")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("common.cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("common.save") {
+                        Task {
+                            if await model.saveCopy() { dismiss() }
+                        }
+                    }
+                    .disabled(model.isSaving || model.preview == nil)
+                }
+            }
+            .sheet(isPresented: $showsEditor) {
+                if let recipe = model.recipe {
+                    PresetEditorView(
+                        recipe: recipe,
+                        intensity: model.intensity,
+                        onPreview: model.apply,
+                        onSave: { recipe, intensity in
+                            let preset = presets.create(
+                                name: String(
+                                    format: String(localized: "filter.myPresetFormat"),
+                                    presets.presets.count + 1
+                                ),
+                                recipe: recipe,
+                                intensity: intensity
+                            )
+                            model.apply(preset.recipe, intensity: preset.intensity)
+                            Task { await presets.sync() }
+                        }
+                    )
+                }
+            }
+            .alert(
+                "common.error",
+                isPresented: Binding(
+                    get: { model.errorKey != nil },
+                    set: { if !$0 { model.errorKey = nil } }
+                )
+            ) {
+                Button("common.done") { model.errorKey = nil }
+            } message: {
+                if let errorKey = model.errorKey {
+                    Text(LocalizedStringKey(errorKey))
+                }
+            }
+        }
+    }
+
+    private var filterPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                filterButton(nil, title: "filter.none")
+                ForEach(FocelleOriginals.all) {
+                    filterButton($0, title: LocalizedStringKey($0.nameKey))
+                }
+                ForEach(presets.presets) {
+                    filterButton($0.recipe, title: LocalizedStringKey($0.name))
+                }
+            }
+        }
+    }
+
+    private func filterButton(
+        _ recipe: FilterRecipe?,
+        title: LocalizedStringKey
+    ) -> some View {
+        let selected = model.recipe?.id == recipe?.id
+        return Button {
+            model.apply(recipe)
+        } label: {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(selected ? Color.orange : Color.secondary.opacity(0.2), in: Capsule())
+        }
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}

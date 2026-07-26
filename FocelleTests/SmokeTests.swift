@@ -99,4 +99,23 @@ final class SmokeTests: XCTestCase {
         XCTAssertFalse(migrated.isFavorite)
         XCTAssertFalse(migrated.isDeleted)
     }
+
+    @MainActor
+    func testPhotoEditorKeepsOriginalWhilePreviewChanges() throws {
+        let input = CIImage(color: .init(red: 0.3, green: 0.4, blue: 0.5))
+            .cropped(to: CGRect(x: 0, y: 0, width: 24, height: 18))
+        let data = try XCTUnwrap(
+            CIContext().jpegRepresentation(
+                of: input,
+                colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!
+            )
+        )
+        let model = PhotoEditorModel(data: data)
+        let original = model.originalData
+
+        model.apply(FocelleOriginals.all[1], intensity: 0.5)
+
+        XCTAssertEqual(model.originalData, original)
+        XCTAssertNotNil(model.preview)
+    }
 }

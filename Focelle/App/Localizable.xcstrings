@@ -62,6 +62,7 @@
     "common.cancel" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "H\u1ee7y" } } } },
     "common.delete" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "X\u00f3a" } } } },
     "common.done" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Done" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Xong" } } } },
+    "common.error" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Something went wrong" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "C\u00f3 l\u1ed7i x\u1ea3y ra" } } } },
     "common.save" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Save" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "L\u01b0u" } } } },
     "filter.contrast" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Contrast" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "T\u01b0\u01a1ng ph\u1ea3n" } } } },
     "filter.edit" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Ch\u1ec9nh" } } } },
@@ -85,6 +86,10 @@
     "filter.unfavorite" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove favorite" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "B\u1ecf y\u00eau th\u00edch" } } } },
     "filter.vignette" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Vignette" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "T\u1ed1i vi\u1ec1n" } } } },
     "filter.warmth" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Warmth" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "\u0110\u1ed9 \u1ea5m" } } } },
+    "photoEditor.error.load" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Could not load this photo." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Kh\u00f4ng th\u1ec3 m\u1edf \u1ea3nh n\u00e0y." } } } },
+    "photoEditor.error.render" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Could not render this photo." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Kh\u00f4ng th\u1ec3 x\u1eed l\u00fd \u1ea3nh n\u00e0y." } } } },
+    "photoEditor.pick" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit a photo" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Ch\u1ec9nh \u1ea3nh c\u00f3 s\u1eb5n" } } } },
+    "photoEditor.title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit Photo" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Ch\u1ec9nh \u1ea3nh" } } } },
     "camera.shutter" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Shutter" } },
