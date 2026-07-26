@@ -126,7 +126,6 @@ jobs:
         with:
           name: focelle-testflight-${{ github.run_number }}
           path: |
-            build/Focelle.xcarchive
             build/export/DistributionSummary.plist
             build/export/ExportOptions.plist
           if-no-files-found: warn

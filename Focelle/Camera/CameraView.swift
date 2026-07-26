@@ -31,6 +31,7 @@ struct CameraView: View {
     @State private var showsPaywall = false
     @State private var recordedCameraPermission = false
     @State private var aiStartedAt: TimeInterval?
+    @State private var aiPreviewRequestID: UUID?
 
     var body: some View {
         let captureView = GeometryReader { geometry in
@@ -86,7 +87,7 @@ struct CameraView: View {
         }
         .onDisappear {
             countdownTask?.cancel()
-            ai.cancel()
+            cancelAI()
             voice.stop()
             camera.stop()
         }
@@ -97,7 +98,7 @@ struct CameraView: View {
                 countdownTask?.cancel()
                 countdown = nil
                 autoCapture.cancel()
-                ai.cancel()
+                cancelAI()
                 voice.stop()
                 camera.stop()
             }
@@ -214,7 +215,7 @@ struct CameraView: View {
             if !enabled { voice.stop() }
         }
         .onChange(of: settings.onDeviceOnly) { _, enabled in
-            if enabled { ai.cancel() }
+            if enabled { cancelAI() }
         }
         .onChange(of: settings.autoCapture) { _, _ in
             autoCapture.cancel()
@@ -460,7 +461,9 @@ struct CameraView: View {
 
                 Button(action: analyzeScene) {
                     Group {
-                        if case .loading = ai.state {
+                        if aiPreviewRequestID != nil {
+                            ProgressView()
+                        } else if case .loading = ai.state {
                             ProgressView()
                         } else {
                             Image(systemName: "wand.and.sparkles")
@@ -767,8 +770,12 @@ struct CameraView: View {
     }
 
     private func analyzeScene() {
+        if aiPreviewRequestID != nil {
+            cancelAI()
+            return
+        }
         if case .loading = ai.state {
-            ai.cancel()
+            cancelAI()
             return
         }
         if !quota.snapshot.unlimited, !store.isPro, quota.snapshot.aiRemaining < 1 {
@@ -778,8 +785,12 @@ struct CameraView: View {
         Analytics.record("ai_tap", enabled: settings.analyticsEnabled)
         aiStartedAt = ProcessInfo.processInfo.systemUptime
         let measurement = camera.measurement
+        let requestID = UUID()
+        aiPreviewRequestID = requestID
         camera.requestAIPreview { data in
             Task { @MainActor in
+                guard aiPreviewRequestID == requestID else { return }
+                aiPreviewRequestID = nil
                 guard let data else {
                     ai.fail(.unavailable)
                     return
@@ -787,6 +798,13 @@ struct CameraView: View {
                 ai.analyze(data, measurement: measurement)
             }
         }
+    }
+
+    private func cancelAI() {
+        aiPreviewRequestID = nil
+        aiStartedAt = nil
+        camera.cancelAIPreview()
+        ai.cancel()
     }
 
     private func aiErrorKey(_ error: AIClientError) -> String {

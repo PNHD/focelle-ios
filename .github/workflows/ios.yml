@@ -43,6 +43,9 @@ jobs:
       - name: Validate app configuration
         run: /usr/libexec/PlistBuddy -c 'Print :GADApplicationIdentifier' Focelle/Info.plist
 
+      - name: Lint Swift
+        run: swift format lint --recursive --strict Focelle FocelleTests
+
       - name: Boot iPhone 17e simulator
         run: |
           DEVICE_ID=$(xcrun simctl list devices available -j | jq -r '.devices["com.apple.CoreSimulator.SimRuntime.iOS-26-4"][] | select(.name == "iPhone 17e") | .udid')

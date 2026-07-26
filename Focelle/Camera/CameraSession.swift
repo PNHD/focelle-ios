@@ -382,6 +382,12 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
+    func cancelAIPreview() {
+        queue.async { [weak self] in
+            self?.pendingAIPreview = nil
+        }
+    }
+
     func applyAIPlan(_ plan: AICompositionPlan) {
         setZoom(CGFloat(plan.zoom))
         setExposure(Float(plan.exposureBias))

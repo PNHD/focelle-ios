@@ -209,6 +209,20 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(model.state, .ready(response, selected: 2))
     }
 
+    @MainActor
+    func testAIAnalysisCancellationIgnoresLateFailure() async {
+        let model = AIAnalysisModel { _, _ in
+            try? await Task.sleep(for: .seconds(1))
+            throw AIClientError.offline
+        }
+
+        model.analyze(Data([1]), measurement: nil)
+        model.cancel()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(model.state, .idle)
+    }
+
     func testAIResponseRejectsOutOfRangeCameraChanges() {
         var response = makeAIResponse()
         response = AICompositionResponse(

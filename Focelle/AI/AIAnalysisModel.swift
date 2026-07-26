@@ -31,10 +31,14 @@ final class AIAnalysisModel: ObservableObject {
                 state = .ready(result, selected: 0)
             } catch is CancellationError {
                 state = .idle
-            } catch let error as AIClientError {
-                state = .failed(error)
             } catch {
-                state = .failed(.invalidResponse)
+                // Cancellation is cooperative; a sender may still return a domain error.
+                // Source: https://github.com/swiftlang/swift/blob/main/stdlib/public/Concurrency/TaskCancellation.swift
+                guard !Task.isCancelled else {
+                    state = .idle
+                    return
+                }
+                state = .failed((error as? AIClientError) ?? .invalidResponse)
             }
         }
     }
