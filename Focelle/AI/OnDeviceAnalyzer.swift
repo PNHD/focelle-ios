@@ -121,7 +121,7 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
         guard let tracker else { return nil }
         do {
             try sequenceHandler.perform([tracker], on: buffer, orientation: .up)
-            guard let observation = tracker.results?.first,
+            guard let observation = tracker.results?.first as? VNDetectedObjectObservation,
                 observation.confidence >= 0.35,
                 observation.boundingBox.width > 0,
                 observation.boundingBox.height > 0,
