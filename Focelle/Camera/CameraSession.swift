@@ -117,6 +117,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     @Published private(set) var measurement: SceneMeasurement?
     @Published private(set) var guidance: Guidance?
     @Published private(set) var filterSaveSequence = 0
+    @Published private(set) var latestThumbnail: CGImage?
     @Published var notice: String?
 
     let session = AVCaptureSession()
@@ -482,7 +483,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
-    private func save(_ data: Data, countsFilter: Bool) {
+    private func save(_ data: Data, countsFilter: Bool, showsThumbnail: Bool) {
         let location = pendingLocation
         let performSave = {
             PHPhotoLibrary.shared().performChanges {
@@ -491,6 +492,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 creation.addResource(with: .photo, data: data, options: nil)
             } completionHandler: { [weak self] saved, _ in
                 self?.publish(notice: saved ? "camera.saved" : "camera.error.save")
+                if saved, showsThumbnail, let thumbnail = UIImage(data: data)?.cgImage {
+                    DispatchQueue.main.async { self?.latestThumbnail = thumbnail }
+                }
                 if saved, countsFilter {
                     DispatchQueue.main.async { self?.filterSaveSequence += 1 }
                 }
@@ -547,9 +551,9 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
             aspectRatio: pendingRatio == .fourThree ? nil : pendingRatio.value
         ) ?? data
         if pendingSaveOriginal, pendingFilter != nil {
-            save(data, countsFilter: false)
+            save(data, countsFilter: false, showsThumbnail: false)
         }
-        save(outputData, countsFilter: pendingFilter != nil)
+        save(outputData, countsFilter: pendingFilter != nil, showsThumbnail: true)
     }
 
     private static func distance(from point: CGPoint, to rect: CGRect) -> CGFloat {

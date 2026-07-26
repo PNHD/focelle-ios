@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct FocelleApp: App {
+    @AppStorage("onboardingComplete") private var onboardingComplete = false
     @StateObject private var presets = PresetStore()
     @StateObject private var settings = AppSettings()
     @StateObject private var location = LocationProvider()
@@ -13,7 +14,19 @@ struct FocelleApp: App {
 
     var body: some Scene {
         WindowGroup {
-            CameraView()
+            Group {
+                if onboardingComplete {
+                    CameraView()
+                } else {
+                    OnboardingView {
+                        onboardingComplete = true
+                        Analytics.record(
+                            "onboarding_complete",
+                            enabled: settings.analyticsEnabled
+                        )
+                    }
+                }
+            }
                 .environmentObject(presets)
                 .environmentObject(settings)
                 .environmentObject(location)
@@ -28,6 +41,56 @@ struct FocelleApp: App {
                 .task { await store.refresh() }
                 .task { await account.refresh() }
                 .task { await referral.refresh() }
+        }
+    }
+}
+
+private struct OnboardingView: View {
+    let continueAction: () -> Void
+
+    var body: some View {
+        VStack(spacing: 28) {
+            Spacer()
+            Image(systemName: "viewfinder")
+                .font(.system(size: 68, weight: .light))
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            VStack(spacing: 8) {
+                Text("onboarding.title")
+                    .font(.largeTitle.bold())
+                Text("onboarding.subtitle")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+            .multilineTextAlignment(.center)
+
+            VStack(alignment: .leading, spacing: 20) {
+                row("iphone", "onboarding.onDevice")
+                row("cloud", "onboarding.cloud")
+                row("lock.shield", "onboarding.control")
+            }
+            .frame(maxWidth: 420)
+
+            Spacer()
+            Button("onboarding.continue", action: continueAction)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(.orange)
+            Text("onboarding.permission")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(28)
+    }
+
+    private func row(_ icon: String, _ text: LocalizedStringKey) -> some View {
+        Label {
+            Text(text)
+        } icon: {
+            Image(systemName: icon)
+                .foregroundStyle(.orange)
+                .frame(width: 28)
         }
     }
 }

@@ -29,6 +29,7 @@ struct CameraView: View {
     @State private var showsSettings = false
     @State private var showsLimit = false
     @State private var showsPaywall = false
+    @State private var recordedCameraPermission = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -134,6 +135,19 @@ struct CameraView: View {
         .onChange(of: camera.guidance?.aligned) { oldValue, newValue in
             if oldValue != true, newValue == true {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
+                Analytics.record("guidance_aligned", enabled: settings.analyticsEnabled)
+            }
+        }
+        .onChange(of: camera.state) { _, state in
+            guard !recordedCameraPermission else { return }
+            if state == .running || state == .permissionDenied {
+                recordedCameraPermission = true
+                Analytics.record(
+                    state == .running
+                        ? "camera_permission_allowed"
+                        : "camera_permission_denied",
+                    enabled: settings.analyticsEnabled
+                )
             }
         }
         .onChange(of: camera.guidance) { _, guidance in
@@ -194,6 +208,7 @@ struct CameraView: View {
         }
         .onChange(of: camera.filterSaveSequence) { oldValue, newValue in
             guard newValue > oldValue else { return }
+            Analytics.record("filter_save", enabled: settings.analyticsEnabled)
             Task {
                 do {
                     try await quota.consumeFilter()
@@ -238,7 +253,15 @@ struct CameraView: View {
                 Text("app.name").font(.headline)
                 Spacer()
                 PhotosPicker(selection: $photoSelection, matching: .images) {
-                    Image(systemName: "photo.on.rectangle")
+                    if let thumbnail = camera.latestThumbnail {
+                        Image(decorative: thumbnail, scale: 1)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 28, height: 28)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    } else {
+                        Image(systemName: "photo.on.rectangle")
+                    }
                 }
                 .accessibilityLabel(Text("photoEditor.pick"))
 
