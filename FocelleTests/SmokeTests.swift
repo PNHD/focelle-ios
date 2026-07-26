@@ -42,4 +42,16 @@ final class SmokeTests: XCTestCase {
             XCTAssertEqual(renderer.render(input, recipe: recipe).extent, input.extent)
         }
     }
+
+    func testPresetDraftClampsToneColorAndResets() throws {
+        let base = FocelleOriginals.all[0]
+        var draft = PresetDraft(base: base)
+        draft.setToneColor(tone: 2, color: -2)
+        XCTAssertEqual(draft.recipe.exposure, 0.35)
+        XCTAssertEqual(draft.recipe.warmth, -0.5)
+
+        draft.reset()
+        XCTAssertEqual(draft.recipe, base)
+        XCTAssertNoThrow(try JSONEncoder().encode(draft))
+    }
 }

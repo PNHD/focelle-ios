@@ -32,3 +32,25 @@ enum FocelleOriginals {
         .init(id: "mono-contrast", nameKey: "filter.monoContrast", highlights: -0.12, shadows: 0.08, contrast: 0.28, grain: 0.10, vignette: 0.14, monochrome: true),
     ]
 }
+
+struct PresetDraft: Codable, Equatable {
+    let base: FilterRecipe
+    var recipe: FilterRecipe
+    var intensity: Double
+
+    init(base: FilterRecipe) {
+        self.base = base
+        recipe = base
+        intensity = 1
+    }
+
+    mutating func setToneColor(tone: Double, color: Double) {
+        recipe.exposure = min(max(tone, -1), 1) * 0.35
+        recipe.warmth = min(max(color, -1), 1) * 0.5
+    }
+
+    mutating func reset() {
+        recipe = base
+        intensity = 1
+    }
+}

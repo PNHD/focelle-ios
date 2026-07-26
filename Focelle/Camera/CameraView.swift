@@ -8,24 +8,35 @@ struct CameraView: View {
     @State private var countdown: Int?
     @State private var countdownTask: Task<Void, Never>?
     @State private var focusMarker: CGPoint?
+    @State private var showsFilterEditor = false
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                CameraPreview(
-                    session: camera.session,
-                    onFocus: { devicePoint, viewPoint in
-                        focusMarker = viewPoint
-                        camera.focus(at: devicePoint)
-                    },
-                    onRotation: camera.setRotationAngle
-                )
+                ZStack {
+                    CameraPreview(
+                        session: camera.session,
+                        onFocus: { devicePoint, viewPoint in
+                            focusMarker = viewPoint
+                            camera.focus(at: devicePoint)
+                        },
+                        onRotation: camera.setRotationAngle
+                    )
+
+                    if let filteredPreview = camera.filteredPreview {
+                        Image(decorative: filteredPreview, scale: 1)
+                            .resizable()
+                            .scaledToFill()
+                            .allowsHitTesting(false)
+                    }
+
+                    if camera.showsGrid { grid }
+                    focusIndicator
+                }
                 .aspectRatio(previewRatio(for: geometry.size), contentMode: .fit)
-                .clipShape(Rectangle())
-                .overlay { if camera.showsGrid { grid } }
-                .overlay { focusIndicator }
+                .clipped()
 
                 if camera.state != .running { statusView }
 
@@ -51,6 +62,15 @@ struct CameraView: View {
                 if event.phase == .ended { triggerCapture() }
             }
         )
+        .sheet(isPresented: $showsFilterEditor) {
+            if let recipe = camera.activeFilter {
+                PresetEditorView(
+                    recipe: recipe,
+                    intensity: camera.filterIntensity,
+                    onPreview: camera.applyFilter
+                )
+            }
+        }
     }
 
     private var controls: some View {
@@ -126,6 +146,25 @@ struct CameraView: View {
             }
 
             VStack(spacing: 8) {
+                filterPicker
+
+                if camera.activeFilter != nil {
+                    HStack {
+                        Image(systemName: "camera.filters")
+                        Slider(
+                            value: Binding(
+                                get: { camera.filterIntensity },
+                                set: { camera.applyFilter(camera.activeFilter, intensity: $0) }
+                            ),
+                            in: 0...1
+                        )
+                        Button("filter.edit") { showsFilterEditor = true }
+                            .font(.caption.weight(.semibold))
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(Text("filter.intensity"))
+                }
+
                 HStack {
                     Image(systemName: "sun.min")
                     Slider(
@@ -186,6 +225,35 @@ struct CameraView: View {
         }
         .foregroundStyle(.white)
         .padding(24)
+    }
+
+    private var filterPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                filterButton(recipe: nil, title: "filter.none")
+                ForEach(FocelleOriginals.all) { recipe in
+                    filterButton(recipe: recipe, title: LocalizedStringKey(recipe.nameKey))
+                }
+            }
+        }
+    }
+
+    private func filterButton(
+        recipe: FilterRecipe?,
+        title: LocalizedStringKey
+    ) -> some View {
+        let selected = camera.activeFilter?.id == recipe?.id
+        return Button {
+            camera.applyFilter(recipe)
+        } label: {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(selected ? Color.orange : Color.black.opacity(0.55), in: Capsule())
+        }
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private var grid: some View {

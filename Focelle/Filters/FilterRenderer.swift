@@ -115,6 +115,15 @@ struct FilterRenderer {
         ) ?? context.jpegRepresentation(of: image, colorSpace: colorSpace)
     }
 
+    func previewImage(
+        _ input: CIImage,
+        recipe: FilterRecipe,
+        intensity: Double
+    ) -> CGImage? {
+        let output = render(input, recipe: recipe, intensity: intensity)
+        return context.createCGImage(output, from: output.extent)
+    }
+
     private func crop(_ image: CIImage, to ratio: CGFloat) -> CIImage {
         let extent = image.extent
         let current = extent.width / extent.height

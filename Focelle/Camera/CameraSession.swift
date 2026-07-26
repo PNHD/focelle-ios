@@ -107,14 +107,16 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     @Published var timer: CameraTimer = .off
     @Published var resolution: CameraResolution = .standard
     @Published var showsGrid = true
-    @Published var activeFilter: FilterRecipe?
-    @Published var filterIntensity = 1.0
+    @Published private(set) var activeFilter: FilterRecipe?
+    @Published private(set) var filterIntensity = 1.0
+    @Published private(set) var filteredPreview: CGImage?
     @Published var notice: String?
 
     let session = AVCaptureSession()
 
     private let queue = DispatchQueue(label: "com.pnhd.focelle.camera")
     private let photoOutput = AVCapturePhotoOutput()
+    private let videoOutput = AVCaptureVideoDataOutput()
     private let filterRenderer = FilterRenderer()
     private var input: AVCaptureDeviceInput?
     private var configured = false
@@ -124,6 +126,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var pendingFilterIntensity = 1.0
     private var standardDimensions: CMVideoDimensions?
     private var maximumDimensions: CMVideoDimensions?
+    private var previewRecipe: FilterRecipe?
+    private var previewIntensity = 1.0
+    private var lastPreviewTime = CMTime.zero
 
     func start() {
 #if targetEnvironment(simulator)
@@ -150,7 +155,26 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     func setRotationAngle(_ angle: CGFloat) {
-        queue.async { [weak self] in self?.rotationAngle = angle }
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.rotationAngle = angle
+            if let connection = self.videoOutput.connection(with: .video),
+               connection.isVideoRotationAngleSupported(angle)
+            {
+                connection.videoRotationAngle = angle
+            }
+        }
+    }
+
+    func applyFilter(_ recipe: FilterRecipe?, intensity: Double = 1) {
+        let value = min(max(intensity, 0), 1)
+        activeFilter = recipe
+        filterIntensity = value
+        if recipe == nil { filteredPreview = nil }
+        queue.async { [weak self] in
+            self?.previewRecipe = recipe
+            self?.previewIntensity = value
+        }
     }
 
     func switchCamera() {
@@ -170,6 +194,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 self.session.addInput(newInput)
                 self.input = newInput
                 self.configureCapabilities(for: device)
+                self.updateVideoConnection(for: device)
             } else {
                 self.session.addInput(oldInput)
             }
@@ -266,13 +291,34 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         session.sessionPreset = .photo
         defer { session.commitConfiguration() }
 
-        guard session.canAddInput(cameraInput), session.canAddOutput(photoOutput) else { return false }
+        guard session.canAddInput(cameraInput),
+              session.canAddOutput(photoOutput),
+              session.canAddOutput(videoOutput)
+        else { return false }
         session.addInput(cameraInput)
         session.addOutput(photoOutput)
+        videoOutput.alwaysDiscardsLateVideoFrames = true
+        videoOutput.videoSettings = [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+        ]
+        videoOutput.setSampleBufferDelegate(self, queue: queue)
+        session.addOutput(videoOutput)
         input = cameraInput
         configureCapabilities(for: device)
+        updateVideoConnection(for: device)
         configured = true
         return true
+    }
+
+    private func updateVideoConnection(for device: AVCaptureDevice) {
+        guard let connection = videoOutput.connection(with: .video) else { return }
+        if connection.isVideoRotationAngleSupported(rotationAngle) {
+            connection.videoRotationAngle = rotationAngle
+        }
+        if connection.isVideoMirroringSupported {
+            connection.automaticallyAdjustsVideoMirroring = false
+            connection.isVideoMirrored = device.position == .front
+        }
     }
 
     private func configureCapabilities(for device: AVCaptureDevice) {
@@ -382,5 +428,29 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
             aspectRatio: pendingRatio == .fourThree ? nil : pendingRatio.value
         ) ?? data
         save(outputData)
+    }
+}
+
+extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
+    func captureOutput(
+        _ output: AVCaptureOutput,
+        didOutput sampleBuffer: CMSampleBuffer,
+        from connection: AVCaptureConnection
+    ) {
+        guard let recipe = previewRecipe,
+              let buffer = CMSampleBufferGetImageBuffer(sampleBuffer)
+        else { return }
+
+        let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        guard CMTimeGetSeconds(timestamp - lastPreviewTime) >= 1.0 / 15.0 else { return }
+        lastPreviewTime = timestamp
+
+        let image = CIImage(cvPixelBuffer: buffer)
+        guard let rendered = filterRenderer.previewImage(
+            image,
+            recipe: recipe,
+            intensity: previewIntensity
+        ) else { return }
+        DispatchQueue.main.async { self.filteredPreview = rendered }
     }
 }
