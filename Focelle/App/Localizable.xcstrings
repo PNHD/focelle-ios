@@ -47,6 +47,18 @@
     "camera.timer.off" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Off" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tắt" } } } },
     "camera.unavailable" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Camera needs a real iPhone." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Cần iPhone thật để dùng camera." } } } },
     "camera.zoom" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Zoom" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thu phóng" } } } },
+    "filter.cafeAmber" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Café Amber" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Café Hổ Phách" } } } },
+    "filter.cleanBright" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Clean Bright" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Trong Sáng" } } } },
+    "filter.coolAir" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Cool Air" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Khí Lạnh" } } } },
+    "filter.fadedFilm" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Faded Film" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Film Phai" } } } },
+    "filter.goldenHour" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Golden Hour" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Giờ Vàng" } } } },
+    "filter.matteGrain" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Matte Grain" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hạt Lì" } } } },
+    "filter.monoContrast" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Mono Contrast" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đơn Sắc Tương Phản" } } } },
+    "filter.neutralSkin" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Neutral Skin" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Da Tự Nhiên" } } } },
+    "filter.nightNeon" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Night Neon" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Neon Đêm" } } } },
+    "filter.softPortrait" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Soft Portrait" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chân Dung Mềm" } } } },
+    "filter.travelVivid" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Travel Vivid" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Du Lịch Rực Rỡ" } } } },
+    "filter.warmGlow" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Warm Glow" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Ánh Ấm" } } } },
     "camera.shutter" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Shutter" } },

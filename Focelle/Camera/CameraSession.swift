@@ -1,5 +1,4 @@
 @preconcurrency import AVFoundation
-import CoreImage
 import Photos
 import SwiftUI
 import UIKit
@@ -108,17 +107,21 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     @Published var timer: CameraTimer = .off
     @Published var resolution: CameraResolution = .standard
     @Published var showsGrid = true
+    @Published var activeFilter: FilterRecipe?
+    @Published var filterIntensity = 1.0
     @Published var notice: String?
 
     let session = AVCaptureSession()
 
     private let queue = DispatchQueue(label: "com.pnhd.focelle.camera")
     private let photoOutput = AVCapturePhotoOutput()
-    private let imageContext = CIContext(options: [.cacheIntermediates: false])
+    private let filterRenderer = FilterRenderer()
     private var input: AVCaptureDeviceInput?
     private var configured = false
     private var rotationAngle: CGFloat = 90
     private var pendingRatio: CameraRatio = .fourThree
+    private var pendingFilter: FilterRecipe?
+    private var pendingFilterIntensity = 1.0
     private var standardDimensions: CMVideoDimensions?
     private var maximumDimensions: CMVideoDimensions?
 
@@ -210,6 +213,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         let selectedFlash = flash
         let selectedRatio = ratio
         let selectedResolution = resolution
+        let selectedFilter = activeFilter
+        let selectedFilterIntensity = filterIntensity
         isCapturing = true
 
         queue.async { [weak self] in
@@ -234,6 +239,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 connection.videoRotationAngle = self.rotationAngle
             }
             self.pendingRatio = selectedRatio
+            self.pendingFilter = selectedFilter
+            self.pendingFilterIntensity = selectedFilterIntensity
             self.photoOutput.capturePhoto(with: settings, delegate: self)
         }
     }
@@ -316,33 +323,6 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
-    private func encodedData(_ data: Data, ratio: CameraRatio) -> Data? {
-        guard ratio != .fourThree else { return data }
-        guard let image = CIImage(data: data, options: [.applyOrientationProperty: true]),
-              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)
-        else { return nil }
-
-        let extent = image.extent
-        let target = ratio.value
-        let current = extent.width / extent.height
-        let crop: CGRect
-        if current > target {
-            let width = extent.height * target
-            crop = CGRect(x: extent.midX - width / 2, y: extent.minY, width: width, height: extent.height)
-        } else {
-            let height = extent.width / target
-            crop = CGRect(x: extent.minX, y: extent.midY - height / 2, width: extent.width, height: height)
-        }
-        let rendered = image
-            .cropped(to: crop)
-            .transformed(by: CGAffineTransform(translationX: -crop.minX, y: -crop.minY))
-        return imageContext.heifRepresentation(
-            of: rendered,
-            format: .RGBA8,
-            colorSpace: colorSpace
-        ) ?? imageContext.jpegRepresentation(of: rendered, colorSpace: colorSpace)
-    }
-
     private func save(_ data: Data) {
         let performSave = {
             PHPhotoLibrary.shared().performChanges {
@@ -391,13 +371,16 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         error: Error?
     ) {
         defer { finishCapture() }
-        guard error == nil,
-              let data = photo.fileDataRepresentation(),
-              let outputData = encodedData(data, ratio: pendingRatio)
-        else {
+        guard error == nil, let data = photo.fileDataRepresentation() else {
             publish(notice: "camera.error.capture")
             return
         }
+        let outputData = filterRenderer.renderedData(
+            from: data,
+            recipe: pendingFilter,
+            intensity: pendingFilterIntensity,
+            aspectRatio: pendingRatio == .fourThree ? nil : pendingRatio.value
+        ) ?? data
         save(outputData)
     }
 }

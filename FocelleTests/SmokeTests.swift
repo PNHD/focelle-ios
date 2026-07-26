@@ -1,3 +1,4 @@
+import CoreImage
 import XCTest
 @testable import Focelle
 
@@ -25,5 +26,20 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(CameraRotation.angle(for: .portrait), 90)
         XCTAssertEqual(CameraRotation.angle(for: .landscapeLeft), 0)
         XCTAssertEqual(CameraRotation.angle(for: .landscapeRight), 180)
+    }
+
+    func testOriginalFiltersAreOwnedUniqueRecipes() {
+        XCTAssertEqual(FocelleOriginals.all.count, 12)
+        XCTAssertEqual(Set(FocelleOriginals.all.map(\.id)).count, 12)
+    }
+
+    func testEveryOriginalFilterRendersSyntheticImage() {
+        let renderer = FilterRenderer()
+        let input = CIImage(color: .init(red: 0.4, green: 0.5, blue: 0.6))
+            .cropped(to: CGRect(x: 0, y: 0, width: 32, height: 24))
+
+        for recipe in FocelleOriginals.all {
+            XCTAssertEqual(renderer.render(input, recipe: recipe).extent, input.extent)
+        }
     }
 }
