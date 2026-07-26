@@ -86,6 +86,7 @@ struct CameraView: View {
         }
         .onDisappear {
             countdownTask?.cancel()
+            ai.cancel()
             voice.stop()
             camera.stop()
         }
@@ -96,6 +97,7 @@ struct CameraView: View {
                 countdownTask?.cancel()
                 countdown = nil
                 autoCapture.cancel()
+                ai.cancel()
                 voice.stop()
                 camera.stop()
             }
@@ -209,6 +211,9 @@ struct CameraView: View {
         }
         .onChange(of: settings.voiceGuidance) { _, enabled in
             if !enabled { voice.stop() }
+        }
+        .onChange(of: settings.onDeviceOnly) { _, enabled in
+            if enabled { ai.cancel() }
         }
         .onChange(of: settings.autoCapture) { _, _ in
             autoCapture.cancel()

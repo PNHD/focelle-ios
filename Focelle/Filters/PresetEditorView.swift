@@ -169,5 +169,15 @@ private struct ToneColorPad: View {
         .accessibilityValue(
             Text("\(draft.recipe.exposure, specifier: "%.2f"), \(draft.recipe.warmth, specifier: "%.2f")")
         )
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                draft.recipe.exposure = min(draft.recipe.exposure + 0.05, 1)
+            case .decrement:
+                draft.recipe.exposure = max(draft.recipe.exposure - 0.05, -1)
+            @unknown default:
+                break
+            }
+        }
     }
 }

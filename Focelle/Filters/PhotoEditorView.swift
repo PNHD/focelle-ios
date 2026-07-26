@@ -145,12 +145,12 @@ struct PhotoEditorView: View {
     private var filterPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                filterButton(nil, title: "filter.none")
+                filterButton(nil, title: Text("filter.none"))
                 ForEach(FocelleOriginals.all) {
-                    filterButton($0, title: LocalizedStringKey($0.nameKey))
+                    filterButton($0, title: Text(LocalizedStringKey($0.nameKey)))
                 }
                 ForEach(presets.presets) {
-                    filterButton($0.recipe, title: LocalizedStringKey($0.name))
+                    filterButton($0.recipe, title: Text(verbatim: $0.name))
                 }
             }
         }
@@ -158,13 +158,13 @@ struct PhotoEditorView: View {
 
     private func filterButton(
         _ recipe: FilterRecipe?,
-        title: LocalizedStringKey
+        title: Text
     ) -> some View {
         let selected = model.recipe?.id == recipe?.id
         return Button {
             model.apply(recipe)
         } label: {
-            Text(title)
+            title
                 .font(.caption.weight(.medium))
                 .lineLimit(1)
                 .padding(.horizontal, 12)
