@@ -1,8 +1,10 @@
+import AVFoundation
 import CoreImage
 import XCTest
 @testable import Focelle
 
 final class SmokeTests: XCTestCase {
+    @MainActor
     func testCameraViewCanBeCreated() {
         XCTAssertNotNil(CameraView())
     }

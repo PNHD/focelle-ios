@@ -72,12 +72,12 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             test | tee logs/test.log
 
-      - name: Capture placeholder screen
+      - name: Capture onboarding screen
         run: |
           xcrun simctl install "$DEVICE_ID" DerivedData/Build/Products/Debug-iphonesimulator/Focelle.app
           xcrun simctl launch "$DEVICE_ID" com.pnhd.focelle
           sleep 2
-          xcrun simctl io "$DEVICE_ID" screenshot artifacts/focelle-placeholder.png
+          xcrun simctl io "$DEVICE_ID" screenshot artifacts/focelle-onboarding.png
 
       - name: Upload logs and screenshot
         if: always()
