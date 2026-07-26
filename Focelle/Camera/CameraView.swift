@@ -276,7 +276,7 @@ struct CameraView: View {
     private var controls: some View {
         let latestThumbnail = camera.latestThumbnail
 
-        VStack(spacing: 14) {
+        return VStack(spacing: 14) {
             HStack {
                 Text("app.name").font(.headline)
                 Spacer()
