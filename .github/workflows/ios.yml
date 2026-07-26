@@ -43,6 +43,12 @@ jobs:
       - name: Validate app configuration
         run: /usr/libexec/PlistBuddy -c 'Print :GADApplicationIdentifier' Focelle/Info.plist
 
+      - name: Generate Swift format patch
+        run: |
+          mkdir -p artifacts
+          swift format --in-place --recursive Focelle FocelleTests
+          git diff --binary > artifacts/swift-format.patch
+
       - name: Lint Swift
         run: swift format lint --recursive --strict Focelle FocelleTests
 
