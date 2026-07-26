@@ -27,11 +27,11 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
 
             do {
                 try handler.perform([faces, humans, bodyPoses, horizon, saliency])
+                let humanRects = humans.results?.map(\.boundingBox) ?? []
                 completion(
                     SceneMeasurement(
-                        subjectRect: humans.results?
-                            .max { Self.area($0.boundingBox) < Self.area($1.boundingBox) }?
-                            .boundingBox,
+                        subjectRect: Self.combinedRect(humanRects),
+                        humanRects: humanRects,
                         faceRects: faces.results?.map(\.boundingBox) ?? [],
                         bodyPoseCount: bodyPoses.results?.count ?? 0,
                         salientRect: saliency.results?
@@ -51,6 +51,11 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
                 completion(nil)
             }
         }
+    }
+
+    static func combinedRect(_ rects: [CGRect]) -> CGRect? {
+        guard let first = rects.first else { return nil }
+        return rects.dropFirst().reduce(first) { $0.union($1) }
     }
 
     private static func area(_ rect: CGRect) -> CGFloat {
