@@ -2,7 +2,7 @@
 
 Audited on 2026-07-26 against `docs/focelle-spec.md` and
 `docs/focelle-plan.md`. Public GitHub Actions run
-[`30208737163`](https://github.com/PNHD/focelle-ios/actions/runs/30208737163)
+[`30210673032`](https://github.com/PNHD/focelle-ios/actions/runs/30210673032)
 passed the formatted source baseline recorded here.
 
 ## Current automated evidence
@@ -15,8 +15,8 @@ passed the formatted source baseline recorded here.
 - D1: remote database `focelle-beta` has migrations 0001-0007. The two newest
   migrations were verified remotely, and all commerce/account/referral flags
   remain off.
-- iOS: run `30208737163` passed strict Swift formatting, booted the iPhone 17e
-  simulator, built the app, passed all 26 tests, launched the app, captured
+- iOS: run `30210673032` passed strict Swift formatting, booted the iPhone 17e
+  simulator, built the app, passed all 27 tests, launched the app, captured
   onboarding, and uploaded the logs, screenshot, and xcresult artifact.
   Simulator builds intentionally retain presets locally because unsigned
   simulators cannot use CloudKit; signed-device sync remains a release gate.
@@ -43,7 +43,7 @@ passed the formatted source baseline recorded here.
 | 8 | Remote 60-day/500-user Beta Pro | D1 rules, three-success activation, milestone analytics, cache, and remote flags are implemented and tested | Deployed Worker health/config call |
 | 9 | Commerce safety net before enablement | StoreKit 2, signed server verification, non-personalized test reward, Sign in with Apple, deletion retention, and referral idempotency are implemented behind off flags | Apple sandbox, AdMob test, account, deletion, and referral device flows |
 | 10 | Privacy and repository hygiene | Metadata stripping, strict analytics allowlists, privacy manifest/policy drafts, and server-side provider credentials are implemented | Final secret scan, Xcode privacy report, public support/privacy details |
-| 11 | Passing macOS CI then physical checklist | Public run `30208737163` passed backend, strict formatting, 26 iOS tests, simulator launch, and screenshot capture | Signed archive and iPhone 17e checklist |
+| 11 | Passing macOS CI then physical checklist | Public run `30210673032` passed backend, strict formatting, 27 iOS tests, simulator launch, and verified Focelle onboarding screenshot | Signed archive and iPhone 17e checklist |
 
 ## Mandatory external gates
 

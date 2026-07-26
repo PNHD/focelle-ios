@@ -57,3 +57,61 @@ countdowns, and making auto-capture optional instead of hiding manual capture.
 These unknowns require physical-device testing with people, food, landscapes,
 low light and motion. They must not be replaced by assumptions from marketing
 screens.
+
+## Competitive bar, not a clone
+
+Doka is the minimum parity bar, not Focelle's product specification. Its
+current App Store listing confirms one-tap AI composition, AR guidance,
+scene-based filter recommendations, subject selection, personalized filter
+preferences and multi-shot framing. It also supports iOS 13, so iPhone-only
+does not imply a dependency on Apple Intelligence. Doka's agreement says its
+AI features may be constrained by server bandwidth and compute resources; a
+hybrid local/server implementation is the safest inference, not a confirmed
+internal design.
+
+Focelle must match the useful baseline and win on measurable outcomes:
+
+| Baseline | Focelle advantage |
+| --- | --- |
+| One-tap AI composition | Immediate local cue first, semantic AI refinement second; no empty spinner-only wait. |
+| Dot/ring and target frame | Device-motion plus subject tracking, haptic lock and optional voice; the user follows the visual target instead of interpreting degrees. |
+| Auto lens/framing advice | Apply only supported safe zoom/exposure changes and keep manual shutter available. |
+| Select subject and multi-view | One tap returns Primary, Safe and Creative plans; alternatives do not spend another credit. |
+| Recommended filters | Recommend Focelle originals and the user's own presets; keep editable intensity and private iCloud sync. |
+| Static-scene analysis | Reject or defer unusable frames before spending a credit; keep local horizon, exposure, blur-risk and face-readiness guidance active. |
+| Filtered capture/export | Preserve natural faces, no default watermark, optional original, consistent camera/editor rendering. |
+
+Opportunities not demonstrated by the supplied Doka recording are treated as
+test hypotheses, not claims that Doka lacks them:
+
+- optional auto-capture only after stable alignment and face readiness;
+- Vietnamese-first coaching and accessible color-independent/haptic guidance;
+- on-device-only mode and a camera that remains useful offline;
+- post-capture explanation of the single most valuable improvement;
+- a consented guided-versus-unguided photo benchmark, measuring keeper rate,
+  time to capture, correction count, latency and thermal cost.
+
+The realtime split is deliberate:
+
+1. AVFoundation/Core Motion owns preview, attitude, horizon, overlays, haptics
+   and shutter.
+2. Vision/Core ML detects geometry periodically and tracks the subject between
+   detections, always dropping stale work.
+3. Gemini or an available on-device Foundation Model is called only for a
+   semantic composition plan; local code guides every subsequent frame.
+
+Android can implement the same broad design with CameraX, ML Kit and LiteRT.
+iOS stays first because its narrower camera/hardware test matrix makes quality
+and latency easier to prove, not because Android is incapable.
+
+Research sources checked on 2026-07-26:
+
+- [Doka App Store listing](https://apps.apple.com/cn/app/doka-cam/id6751240418?l=en-GB)
+- [Doka user agreement](https://www.yindoka.com/web/ios/user_agreement?lang=en)
+- [Apple Core ML](https://developer.apple.com/documentation/coreml/)
+- [Apple Vision sequence tracking](https://developer.apple.com/documentation/vision/vnsequencerequesthandler)
+- [Apple Core Motion device motion](https://developer.apple.com/documentation/coremotion/getting-processed-device-motion-data)
+- [Apple Foundation Models image prompting](https://developer.apple.com/documentation/foundationmodels/analyzing-images-with-multimodal-prompting)
+- [Apple Intelligence availability](https://support.apple.com/vi-vn/121115)
+- [Android CameraX analysis](https://developer.android.com/media/camera/camerax/analyze)
+- [Google ML Kit object tracking](https://developers.google.com/ml-kit/vision/object-detection/android)
