@@ -118,4 +118,31 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(model.originalData, original)
         XCTAssertNotNil(model.preview)
     }
+
+    func testMeasurementStabilizerDampensMovement() {
+        var stabilizer = MeasurementStabilizer()
+        let first = SceneMeasurement(
+            subjectRect: CGRect(x: 0, y: 0, width: 0.2, height: 0.3),
+            faceRects: [],
+            salientRect: nil,
+            horizonAngle: 0,
+            exposure: 0.2,
+            timestamp: 1
+        )
+        _ = stabilizer.update(first)
+        let result = stabilizer.update(
+            SceneMeasurement(
+                subjectRect: CGRect(x: 1, y: 1, width: 0.2, height: 0.3),
+                faceRects: [],
+                salientRect: nil,
+                horizonAngle: 1,
+                exposure: 1,
+                timestamp: 2
+            )
+        )
+
+        XCTAssertEqual(result.subjectRect?.origin.x, 0.35)
+        XCTAssertEqual(result.horizonAngle, 0.35)
+        XCTAssertEqual(result.exposure, 0.48, accuracy: 0.001)
+    }
 }

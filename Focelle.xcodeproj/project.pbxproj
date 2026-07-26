@@ -19,6 +19,9 @@
 		A2000000000000000000000B /* PresetSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000000D /* PresetSync.swift */; };
 		A2000000000000000000000C /* PhotoEditorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000000E /* PhotoEditorModel.swift */; };
 		A2000000000000000000000D /* PhotoEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000000F /* PhotoEditorView.swift */; };
+		A2000000000000000000000E /* SceneMeasurement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000010 /* SceneMeasurement.swift */; };
+		A2000000000000000000000F /* MeasurementStabilizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011 /* MeasurementStabilizer.swift */; };
+		A20000000000000000000010 /* OnDeviceAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000012 /* OnDeviceAnalyzer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -41,6 +44,9 @@
 		A3000000000000000000000D /* PresetSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetSync.swift; sourceTree = "<group>"; };
 		A3000000000000000000000E /* PhotoEditorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoEditorModel.swift; sourceTree = "<group>"; };
 		A3000000000000000000000F /* PhotoEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoEditorView.swift; sourceTree = "<group>"; };
+		A30000000000000000000010 /* SceneMeasurement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneMeasurement.swift; sourceTree = "<group>"; };
+		A30000000000000000000011 /* MeasurementStabilizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementStabilizer.swift; sourceTree = "<group>"; };
+		A30000000000000000000012 /* OnDeviceAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnDeviceAnalyzer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,12 +60,13 @@
 			children = (A70000000000000000000002 /* Focelle */, A70000000000000000000004 /* FocelleTests */, A70000000000000000000005 /* Products */);
 			sourceTree = "<group>";
 		};
-		A70000000000000000000002 /* Focelle */ = {isa = PBXGroup; children = (A70000000000000000000003 /* App */, A70000000000000000000006 /* Camera */, A70000000000000000000007 /* Filters */); path = Focelle; sourceTree = "<group>"; };
+		A70000000000000000000002 /* Focelle */ = {isa = PBXGroup; children = (A70000000000000000000003 /* App */, A70000000000000000000006 /* Camera */, A70000000000000000000007 /* Filters */, A70000000000000000000008 /* AI */); path = Focelle; sourceTree = "<group>"; };
 		A70000000000000000000003 /* App */ = {isa = PBXGroup; children = (A30000000000000000000001 /* FocelleApp.swift */, A30000000000000000000003 /* Localizable.xcstrings */); path = App; sourceTree = "<group>"; };
 		A70000000000000000000004 /* FocelleTests */ = {isa = PBXGroup; children = (A30000000000000000000004 /* SmokeTests.swift */); path = FocelleTests; sourceTree = "<group>"; };
 		A70000000000000000000005 /* Products */ = {isa = PBXGroup; children = (A30000000000000000000005 /* Focelle.app */, A30000000000000000000006 /* FocelleTests.xctest */); name = Products; sourceTree = "<group>"; };
 		A70000000000000000000006 /* Camera */ = {isa = PBXGroup; children = (A30000000000000000000002 /* CameraView.swift */, A30000000000000000000007 /* CameraSession.swift */); path = Camera; sourceTree = "<group>"; };
 		A70000000000000000000007 /* Filters */ = {isa = PBXGroup; children = (A30000000000000000000008 /* FilterRecipe.swift */, A30000000000000000000009 /* FilterRenderer.swift */, A3000000000000000000000A /* PresetEditorView.swift */, A3000000000000000000000B /* UserPreset.swift */, A3000000000000000000000C /* PresetStore.swift */, A3000000000000000000000D /* PresetSync.swift */, A3000000000000000000000E /* PhotoEditorModel.swift */, A3000000000000000000000F /* PhotoEditorView.swift */); path = Filters; sourceTree = "<group>"; };
+		A70000000000000000000008 /* AI */ = {isa = PBXGroup; children = (A30000000000000000000010 /* SceneMeasurement.swift */, A30000000000000000000011 /* MeasurementStabilizer.swift */, A30000000000000000000012 /* OnDeviceAnalyzer.swift */); path = AI; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -108,7 +115,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A80000000000000000000001 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A20000000000000000000001 /* FocelleApp.swift in Sources */, A20000000000000000000002 /* CameraView.swift in Sources */, A20000000000000000000005 /* CameraSession.swift in Sources */, A20000000000000000000006 /* FilterRecipe.swift in Sources */, A20000000000000000000007 /* FilterRenderer.swift in Sources */, A20000000000000000000008 /* PresetEditorView.swift in Sources */, A20000000000000000000009 /* UserPreset.swift in Sources */, A2000000000000000000000A /* PresetStore.swift in Sources */, A2000000000000000000000B /* PresetSync.swift in Sources */, A2000000000000000000000C /* PhotoEditorModel.swift in Sources */, A2000000000000000000000D /* PhotoEditorView.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
+		A80000000000000000000001 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A20000000000000000000001 /* FocelleApp.swift in Sources */, A20000000000000000000002 /* CameraView.swift in Sources */, A20000000000000000000005 /* CameraSession.swift in Sources */, A20000000000000000000006 /* FilterRecipe.swift in Sources */, A20000000000000000000007 /* FilterRenderer.swift in Sources */, A20000000000000000000008 /* PresetEditorView.swift in Sources */, A20000000000000000000009 /* UserPreset.swift in Sources */, A2000000000000000000000A /* PresetStore.swift in Sources */, A2000000000000000000000B /* PresetSync.swift in Sources */, A2000000000000000000000C /* PhotoEditorModel.swift in Sources */, A2000000000000000000000D /* PhotoEditorView.swift in Sources */, A2000000000000000000000E /* SceneMeasurement.swift in Sources */, A2000000000000000000000F /* MeasurementStabilizer.swift in Sources */, A20000000000000000000010 /* OnDeviceAnalyzer.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
 		A80000000000000000000002 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A20000000000000000000004 /* SmokeTests.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 

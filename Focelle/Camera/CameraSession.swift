@@ -110,6 +110,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     @Published private(set) var activeFilter: FilterRecipe?
     @Published private(set) var filterIntensity = 1.0
     @Published private(set) var filteredPreview: CGImage?
+    @Published private(set) var measurement: SceneMeasurement?
     @Published var notice: String?
 
     let session = AVCaptureSession()
@@ -118,6 +119,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private let photoOutput = AVCapturePhotoOutput()
     private let videoOutput = AVCaptureVideoDataOutput()
     private let filterRenderer = FilterRenderer()
+    private let analyzer = OnDeviceAnalyzer()
     private var input: AVCaptureDeviceInput?
     private var configured = false
     private var rotationAngle: CGFloat = 90
@@ -129,6 +131,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var previewRecipe: FilterRecipe?
     private var previewIntensity = 1.0
     private var lastPreviewTime = CMTime.zero
+    private var lastAnalysisTime = CMTime.zero
+    private var analysisInFlight = false
+    private var stabilizer = MeasurementStabilizer()
 
     func start() {
 #if targetEnvironment(simulator)
@@ -437,11 +442,27 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
         didOutput sampleBuffer: CMSampleBuffer,
         from connection: AVCaptureConnection
     ) {
-        guard let recipe = previewRecipe,
-              let buffer = CMSampleBufferGetImageBuffer(sampleBuffer)
-        else { return }
+        guard let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
         let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        let analysisInterval = ProcessInfo.processInfo.thermalState == .nominal ? 0.35 : 0.8
+        if !analysisInFlight,
+           CMTimeGetSeconds(timestamp - lastAnalysisTime) >= analysisInterval
+        {
+            analysisInFlight = true
+            lastAnalysisTime = timestamp
+            analyzer.analyze(buffer) { [weak self] measurement in
+                guard let self else { return }
+                self.queue.async {
+                    self.analysisInFlight = false
+                    guard let measurement else { return }
+                    let stable = self.stabilizer.update(measurement)
+                    DispatchQueue.main.async { self.measurement = stable }
+                }
+            }
+        }
+
+        guard let recipe = previewRecipe else { return }
         guard CMTimeGetSeconds(timestamp - lastPreviewTime) >= 1.0 / 15.0 else { return }
         lastPreviewTime = timestamp
 
