@@ -146,6 +146,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var guidanceEngine = GuidanceEngine()
     private var pendingAIPreview: (@Sendable (Data?) -> Void)?
     private var cloudPlan: AICompositionPlan?
+    private var selectedSubjectPoint: CGPoint?
 
     override init() {
         super.init()
@@ -236,8 +237,15 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             if self.session.canAddInput(newInput) {
                 self.session.addInput(newInput)
                 self.input = newInput
+                self.selectedSubjectPoint = nil
+                self.stabilizer = MeasurementStabilizer()
+                self.guidanceEngine = GuidanceEngine()
                 self.configureCapabilities(for: device)
                 self.updateVideoConnection(for: device)
+                DispatchQueue.main.async {
+                    self.measurement = nil
+                    self.guidance = nil
+                }
             } else {
                 self.session.addInput(oldInput)
             }
@@ -410,18 +418,14 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     func selectSubject(at point: CGPoint) {
         queue.async { [weak self] in
-            guard let self, var measurement = self.measurement else { return }
+            guard let self else { return }
             let visionPoint = CGPoint(x: point.x, y: 1 - point.y)
-            let candidates =
-                measurement.faceRects
-                + [measurement.subjectRect, measurement.salientRect].compactMap { $0 }
-            guard
-                let selected = candidates.min(by: {
-                    Self.distance(from: visionPoint, to: $0)
-                        < Self.distance(from: visionPoint, to: $1)
-                })
+            self.selectedSubjectPoint = visionPoint
+            guard var measurement = self.measurement,
+                let selected = Self.selectedSubject(in: measurement, near: visionPoint)
             else { return }
             measurement.subjectRect = selected
+            self.selectedSubjectPoint = CGPoint(x: selected.midX, y: selected.midY)
             self.stabilizer = MeasurementStabilizer()
             let guidance =
                 self.cloudPlan.map {
@@ -567,6 +571,22 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         save(outputData, countsFilter: pendingFilter != nil, showsThumbnail: true)
     }
 
+    static func selectedSubject(
+        in measurement: SceneMeasurement,
+        near point: CGPoint
+    ) -> CGRect? {
+        let containingHumans = measurement.humanRects.filter { $0.contains(point) }
+        let candidates =
+            containingHumans.isEmpty
+            ? measurement.humanRects
+                + measurement.faceRects
+                + [measurement.subjectRect, measurement.salientRect].compactMap { $0 }
+            : containingHumans
+        return candidates.min {
+            distance(from: point, to: $0) < distance(from: point, to: $1)
+        }
+    }
+
     private static func distance(from point: CGPoint, to rect: CGRect) -> CGFloat {
         hypot(point.x - rect.midX, point.y - rect.midY)
     }
@@ -660,7 +680,16 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
                 guard let self else { return }
                 self.queue.async {
                     self.analysisInFlight = false
-                    guard let measurement else { return }
+                    guard var measurement else { return }
+                    if let point = self.selectedSubjectPoint,
+                        let selected = Self.selectedSubject(in: measurement, near: point)
+                    {
+                        measurement.subjectRect = selected
+                        self.selectedSubjectPoint = CGPoint(
+                            x: selected.midX,
+                            y: selected.midY
+                        )
+                    }
                     let stable = self.stabilizer.update(measurement)
                     let guidance =
                         self.cloudPlan.map {
