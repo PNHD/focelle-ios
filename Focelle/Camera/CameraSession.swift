@@ -661,23 +661,30 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
             analysisInFlight = true
             lastAnalysisTime = timestamp
             let generation = analysisGeneration
+            let preferredPoint = selectedSubjectPoint
             analyzer.analyze(
                 buffer,
-                preferredSubjectPoint: selectedSubjectPoint
+                preferredSubjectPoint: preferredPoint
             ) { [weak self] measurement in
                 guard let self else { return }
                 self.queue.async {
                     self.analysisInFlight = false
                     guard generation == self.analysisGeneration,
-                        let measurement
+                        var measurement
                     else { return }
-                    if self.selectedSubjectPoint != nil,
-                        let selected = measurement.subjectRect
-                    {
-                        self.selectedSubjectPoint = CGPoint(
-                            x: selected.midX,
-                            y: selected.midY
-                        )
+                    if let currentPoint = self.selectedSubjectPoint {
+                        if currentPoint != preferredPoint,
+                            let selected = measurement.subject(near: currentPoint)
+                        {
+                            measurement.subjectRect = selected
+                            self.analyzer.track(selected)
+                        }
+                        if let selected = measurement.subjectRect {
+                            self.selectedSubjectPoint = CGPoint(
+                                x: selected.midX,
+                                y: selected.midY
+                            )
+                        }
                     }
                     let stable = self.stabilizer.update(measurement)
                     let guidance =
