@@ -6,11 +6,13 @@ struct PresetEditorView: View {
 
     let original: PresetDraft
     let onPreview: (FilterRecipe, Double) -> Void
+    let onSave: (FilterRecipe, Double) -> Void
 
     init(
         recipe: FilterRecipe,
         intensity: Double,
-        onPreview: @escaping (FilterRecipe, Double) -> Void
+        onPreview: @escaping (FilterRecipe, Double) -> Void,
+        onSave: @escaping (FilterRecipe, Double) -> Void
     ) {
         var value = PresetDraft(base: recipe)
         value.recipe = recipe
@@ -18,6 +20,7 @@ struct PresetEditorView: View {
         _draft = State(initialValue: value)
         original = value
         self.onPreview = onPreview
+        self.onSave = onSave
     }
 
     var body: some View {
@@ -72,7 +75,10 @@ struct PresetEditorView: View {
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("common.done") { dismiss() }
+                    Button("filter.savePreset") {
+                        onSave(draft.recipe, draft.intensity)
+                        dismiss()
+                    }
                 }
             }
             .onChange(of: draft) { _, value in

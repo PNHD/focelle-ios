@@ -4,11 +4,15 @@ import SwiftUI
 import UIKit
 
 struct CameraView: View {
+    @EnvironmentObject private var presets: PresetStore
     @StateObject private var camera = CameraSession()
     @State private var countdown: Int?
     @State private var countdownTask: Task<Void, Never>?
     @State private var focusMarker: CGPoint?
     @State private var showsFilterEditor = false
+    @State private var selectedPresetID: UUID?
+    @State private var presetName = ""
+    @State private var presetToRename: UserPreset?
 
     var body: some View {
         GeometryReader { geometry in
@@ -67,8 +71,18 @@ struct CameraView: View {
                 PresetEditorView(
                     recipe: recipe,
                     intensity: camera.filterIntensity,
-                    onPreview: camera.applyFilter
+                    onPreview: camera.applyFilter,
+                    onSave: savePreset
                 )
+            }
+        }
+        .alert("filter.presetName", isPresented: renameAlert) {
+            TextField("filter.presetName", text: $presetName)
+            Button("common.cancel", role: .cancel) {}
+            Button("common.save") {
+                guard let preset = presetToRename, !presetName.isEmpty else { return }
+                presets.rename(preset.id, to: presetName)
+                syncPresets()
             }
         }
     }
@@ -234,6 +248,9 @@ struct CameraView: View {
                 ForEach(FocelleOriginals.all) { recipe in
                     filterButton(recipe: recipe, title: LocalizedStringKey(recipe.nameKey))
                 }
+                ForEach(presets.presets) { preset in
+                    userPresetButton(preset)
+                }
             }
         }
     }
@@ -244,6 +261,7 @@ struct CameraView: View {
     ) -> some View {
         let selected = camera.activeFilter?.id == recipe?.id
         return Button {
+            selectedPresetID = nil
             camera.applyFilter(recipe)
         } label: {
             Text(title)
@@ -254,6 +272,76 @@ struct CameraView: View {
                 .background(selected ? Color.orange : Color.black.opacity(0.55), in: Capsule())
         }
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func userPresetButton(_ preset: UserPreset) -> some View {
+        Button {
+            selectedPresetID = preset.id
+            camera.applyFilter(preset.recipe, intensity: preset.intensity)
+        } label: {
+            HStack(spacing: 4) {
+                if preset.isFavorite { Image(systemName: "star.fill") }
+                Text(preset.name).lineLimit(1)
+            }
+            .font(.caption.weight(.medium))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                selectedPresetID == preset.id ? Color.orange : Color.black.opacity(0.55),
+                in: Capsule()
+            )
+        }
+        .contextMenu {
+            if preset.isFavorite {
+                Button("filter.unfavorite") {
+                    presets.setFavorite(preset.id, false)
+                    syncPresets()
+                }
+            } else {
+                Button("filter.favorite") {
+                    presets.setFavorite(preset.id, true)
+                    syncPresets()
+                }
+            }
+            Button("filter.rename") {
+                presetName = preset.name
+                presetToRename = preset
+            }
+            Button("common.delete", role: .destructive) {
+                if selectedPresetID == preset.id {
+                    selectedPresetID = nil
+                    camera.applyFilter(nil)
+                }
+                presets.delete(preset.id)
+                syncPresets()
+            }
+        }
+    }
+
+    private var renameAlert: Binding<Bool> {
+        Binding(
+            get: { presetToRename != nil },
+            set: { if !$0 { presetToRename = nil } }
+        )
+    }
+
+    private func savePreset(_ recipe: FilterRecipe, intensity: Double) {
+        if let selectedPresetID {
+            presets.edit(selectedPresetID, recipe: recipe, intensity: intensity)
+        } else {
+            let number = presets.presets.count + 1
+            let preset = presets.create(
+                name: String(format: String(localized: "filter.myPresetFormat"), number),
+                recipe: recipe,
+                intensity: intensity
+            )
+            selectedPresetID = preset.id
+        }
+        syncPresets()
+    }
+
+    private func syncPresets() {
+        Task { await presets.sync() }
     }
 
     private var grid: some View {

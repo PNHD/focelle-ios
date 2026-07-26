@@ -1,8 +1,8 @@
 import Foundation
 
-struct FilterRecipe: Codable, Equatable, Identifiable {
-    let id: String
-    let nameKey: String
+struct FilterRecipe: Codable, Equatable, Identifiable, Sendable {
+    var id: String
+    var nameKey: String
     var exposure: Double = 0
     var highlights: Double = 0
     var shadows: Double = 0

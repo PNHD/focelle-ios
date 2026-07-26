@@ -54,4 +54,49 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(draft.recipe, base)
         XCTAssertNoThrow(try JSONEncoder().encode(draft))
     }
+
+    @MainActor
+    func testPresetStorePersistsAndLatestEditWinsMerge() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let file = folder.appending(path: "presets.json")
+        let store = PresetStore(fileURL: file)
+        let oldDate = Date(timeIntervalSince1970: 10)
+        let preset = store.create(
+            name: "My Look",
+            recipe: FocelleOriginals.all[0],
+            intensity: 2,
+            now: oldDate
+        )
+        XCTAssertEqual(PresetStore(fileURL: file).presets.first?.intensity, 1)
+
+        var remote = preset
+        remote.name = "Newer Name"
+        remote.updatedAt = Date(timeIntervalSince1970: 20)
+        XCTAssertEqual(UserPreset.merged(store.records, [remote]).first?.name, "Newer Name")
+    }
+
+    func testPresetMigratesMissingVersionAndFlags() throws {
+        let preset = UserPreset(
+            id: UUID(),
+            name: "Legacy",
+            recipe: FocelleOriginals.all[0],
+            intensity: 0.7,
+            updatedAt: .now
+        )
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(preset)) as? [String: Any]
+        )
+        object["schemaVersion"] = nil
+        object["isFavorite"] = nil
+        object["isDeleted"] = nil
+
+        let migrated = try JSONDecoder().decode(
+            UserPreset.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+        XCTAssertEqual(migrated.schemaVersion, 1)
+        XCTAssertFalse(migrated.isFavorite)
+        XCTAssertFalse(migrated.isDeleted)
+    }
 }
