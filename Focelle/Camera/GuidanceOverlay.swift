@@ -41,7 +41,7 @@ struct GuidanceOverlay: View {
                         ZStack {
                             Circle().fill(.black.opacity(0.55))
                             Circle().stroke(.white, lineWidth: 2)
-                            Circle().fill(.cyan).frame(width: 6, height: 6)
+                            Circle().fill(.orange).frame(width: 6, height: 6)
                         }
                         .frame(width: 22, height: 22)
                         .position(current)
@@ -50,19 +50,14 @@ struct GuidanceOverlay: View {
                             .stroke(
                                 guidance.aligned
                                     ? AnyShapeStyle(.green)
-                                    : AnyShapeStyle(
-                                        AngularGradient(
-                                            colors: [.cyan, .orange, .pink, .cyan],
-                                            center: .center
-                                        )
-                                    ),
+                                    : AnyShapeStyle(Color.orange),
                                 style: StrokeStyle(lineWidth: 3, dash: [7, 4])
                             )
                             .frame(
                                 width: guidance.aligned ? 34 : 52,
                                 height: guidance.aligned ? 34 : 52
                             )
-                            .shadow(color: guidance.aligned ? .green : .cyan, radius: 4)
+                            .shadow(color: guidance.aligned ? .green : .orange, radius: 4)
                             .position(target)
                     }
 
@@ -71,10 +66,7 @@ struct GuidanceOverlay: View {
                     {
                         RoundedRectangle(cornerRadius: 18)
                             .stroke(
-                                AngularGradient(
-                                    colors: [.cyan, .orange, .pink, .cyan],
-                                    center: .center
-                                ),
+                                Color.orange,
                                 style: StrokeStyle(lineWidth: 3, dash: [10, 5])
                             )
                             .frame(
@@ -105,19 +97,29 @@ struct GuidanceOverlay: View {
                     {
                         Text("guidance.aimAtRing")
                             .font(.caption)
-                            .foregroundStyle(.cyan)
+                            .foregroundStyle(.orange)
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(.black.opacity(0.72), in: Capsule())
                 .foregroundStyle(.white)
-                .position(x: geometry.size.width / 2, y: geometry.size.height * 0.16)
+                // Sit above the subject normally, but drop below it when the
+                // subject reaches into the band the instruction would occupy.
+                .position(
+                    x: geometry.size.width / 2,
+                    y: geometry.size.height * (Self.instructionSitsHigh(guidance) ? 0.16 : 0.84)
+                )
             }
         }
         .allowsHitTesting(false)
         .accessibilityElement()
         .accessibilityLabel(accessibilityLabel)
+    }
+
+    static func instructionSitsHigh(_ guidance: Guidance) -> Bool {
+        guard let rect = guidance.subjectRect else { return true }
+        return rect.minY > 0.26
     }
 
     private var icon: String {

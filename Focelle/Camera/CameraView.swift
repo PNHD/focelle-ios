@@ -407,6 +407,7 @@ struct CameraView: View {
                             ),
                             in: 0...1
                         )
+                        .tint(.orange)
                         Button("filter.edit") { showsFilterEditor = true }
                             .font(.caption.weight(.semibold))
                     }
@@ -424,13 +425,14 @@ struct CameraView: View {
                         in: -2...2,
                         step: 0.1
                     )
+                    .tint(.orange)
                     Image(systemName: "sun.max")
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(Text("camera.exposure"))
 
                 HStack {
-                    Text("1×").font(.caption.monospacedDigit())
+                    Image(systemName: "magnifyingglass")
                     Slider(
                         value: Binding(
                             get: { Double(camera.zoom) },
@@ -438,9 +440,13 @@ struct CameraView: View {
                         ),
                         in: 1...Double(max(camera.maxZoom, 1))
                     )
+                    .tint(.orange)
+                    // The left end of the track already means 1x; a static "1x"
+                    // label beside the live value read as the same number twice.
                     Text("\(camera.zoom, specifier: "%.1f")×")
-                        .font(.caption.monospacedDigit())
-                        .frame(width: 38)
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(camera.zoom > 1.05 ? Color.orange : .secondary)
+                        .frame(width: 42, alignment: .trailing)
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(Text("camera.zoom"))

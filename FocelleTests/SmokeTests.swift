@@ -340,6 +340,23 @@ final class SmokeTests: XCTestCase {
         )
     }
 
+    func testInstructionMovesBelowASubjectThatReachesTheTop() {
+        var guidance = Guidance(
+            subjectRect: CGRect(x: 0.3, y: 0.35, width: 0.3, height: 0.4),
+            target: CGPoint(x: 0.5, y: 0.5),
+            direction: .left,
+            instructionKey: "guidance.left",
+            aligned: false
+        )
+        XCTAssertTrue(GuidanceOverlay.instructionSitsHigh(guidance))
+
+        guidance.subjectRect = CGRect(x: 0.3, y: 0.02, width: 0.3, height: 0.6)
+        XCTAssertFalse(GuidanceOverlay.instructionSitsHigh(guidance))
+
+        guidance.subjectRect = nil
+        XCTAssertTrue(GuidanceOverlay.instructionSitsHigh(guidance))
+    }
+
     func testAimRingOnlyRepresentsTwoDimensionalMovement() {
         XCTAssertTrue(GuidanceDirection.up.usesAimRing)
         XCTAssertTrue(GuidanceDirection.none.usesAimRing)
