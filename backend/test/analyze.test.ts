@@ -14,6 +14,13 @@ describe("analyze", () => {
     expect(response.status).toBe(401);
   });
 
+  it("fails closed when the shared secret is missing", async () => {
+    const missingSecret = environment();
+    delete (missingSecret as Partial<Env>).APP_SHARED_TOKEN;
+    const response = await handleAnalyze(request(), missingSecret, provider(validResult));
+    expect(response.status).toBe(401);
+  });
+
   it("rejects oversized images", async () => {
     const response = await handleAnalyze(
       request("A".repeat(1_300_000), true),

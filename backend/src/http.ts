@@ -1,5 +1,6 @@
 export async function authorized(request: Request, expected: string): Promise<boolean> {
   const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+  if (!provided || !expected) return false;
   const encoder = new TextEncoder();
   const [providedHash, expectedHash] = await Promise.all([
     crypto.subtle.digest("SHA-256", encoder.encode(provided)),
