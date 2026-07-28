@@ -234,11 +234,54 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(GuidanceEngine.propose(left).direction, .left)
 
         var engine = GuidanceEngine()
-        _ = engine.update(left)
-        var right = left
-        right.subjectRect = CGRect(x: 0.75, y: 0.3, width: 0.2, height: 0.4)
-        XCTAssertEqual(engine.update(right).direction, .left)
-        XCTAssertEqual(engine.update(right).direction, .right)
+        XCTAssertEqual(engine.update(left).direction, .left)
+
+        // Drifting inside the exit band must not rewrite the instruction while
+        // the user is still carrying out the previous one.
+        var drifting = left
+        drifting.subjectRect = CGRect(x: 0.10, y: 0.3, width: 0.2, height: 0.4)
+        drifting.timestamp = 2
+        XCTAssertEqual(engine.update(drifting).direction, .left)
+
+        // Overshooting to the far side clears it at once; holding an
+        // instruction that is now wrong is worse than switching.
+        var overshot = left
+        overshot.subjectRect = CGRect(x: 0.75, y: 0.3, width: 0.2, height: 0.4)
+        overshot.timestamp = 3
+        XCTAssertEqual(engine.update(overshot).direction, .right)
+    }
+
+    func testTargetSlidesToCentreInsteadOfJumping() {
+        let side = 1.0 / 3
+        let small = GuidanceEngine.targetX(side: side, width: 0.28)
+        let mid = GuidanceEngine.targetX(side: side, width: 0.40)
+        let large = GuidanceEngine.targetX(side: side, width: 0.55)
+
+        XCTAssertEqual(small, side, accuracy: 0.001)
+        XCTAssertEqual(large, 0.5, accuracy: 0.001)
+        XCTAssertGreaterThan(mid, small)
+        XCTAssertLessThan(mid, large)
+        // The previous rule moved the target a sixth of the frame in one step
+        // as soon as width crossed 0.42, which read as "move closer" becoming
+        // "move left" while the user was still walking in.
+        XCTAssertLessThan(
+            abs(mid - GuidanceEngine.targetX(side: side, width: 0.41)),
+            0.02
+        )
+    }
+
+    func testChosenThirdSurvivesASubjectHoveringNearTheMiddle() {
+        let left = 1.0 / 3
+        let hovering = CGRect(x: 0.42, y: 0.3, width: 0.16, height: 0.4)
+
+        XCTAssertEqual(GuidanceEngine.side(for: hovering, latched: left), left)
+        XCTAssertEqual(
+            GuidanceEngine.side(
+                for: CGRect(x: 0.60, y: 0.3, width: 0.16, height: 0.4),
+                latched: left
+            ),
+            2.0 / 3
+        )
     }
 
     func testGroupBoundsAndSelectedSubject() {
