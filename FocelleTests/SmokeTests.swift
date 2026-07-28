@@ -489,9 +489,17 @@ final class SmokeTests: XCTestCase {
         }
     }
 
+    func testLanguageTagFallsBackToEnglishAndKeepsScript() {
+        XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "en_US")), "en")
+        XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "vi_VN")), "vi")
+        XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "ja_JP")), "ja")
+        XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "ko_KR")), "ko")
+        XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "zh_Hans_CN")), "zh-Hans")
+    }
+
     private func makeAIResponse() -> AICompositionResponse {
         AICompositionResponse(
-            schemaVersion: 1,
+            schemaVersion: 2,
             primary: makeAIPlan(id: "primary"),
             alternatives: [
                 makeAIPlan(id: "safe"),
@@ -503,8 +511,7 @@ final class SmokeTests: XCTestCase {
     private func makeAIPlan(id: String, zoom: Double = 1.4) -> AICompositionPlan {
         AICompositionPlan(
             id: id,
-            instructionVi: "Dịch máy sang trái",
-            instructionEn: "Move left",
+            instruction: "Move left",
             target: NormalizedRect(CGRect(x: 0.2, y: 0.2, width: 0.3, height: 0.5)),
             movement: .left,
             angle: .eyeLevel,
@@ -512,8 +519,7 @@ final class SmokeTests: XCTestCase {
             exposureBias: 0.2,
             flash: .off,
             presetIDs: ["neutral-skin"],
-            poseVi: "Thả lỏng vai",
-            poseEn: "Relax shoulders"
+            pose: "Relax shoulders"
         )
     }
 }

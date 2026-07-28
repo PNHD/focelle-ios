@@ -13,6 +13,8 @@ import {
   validTimezone,
 } from "./quota";
 
+export const localePattern = /^[a-z]{2,3}(-[A-Za-z]{2,8})?$/;
+
 const MAX_REQUEST_BYTES = 1_500_000;
 const MAX_IMAGE_BYTES = 900_000;
 const MAX_PROVIDER_BYTES = 256_000;
@@ -21,7 +23,7 @@ type AnalyzeRequest = {
   deviceId: string;
   requestId: string;
   timezoneOffsetMinutes: number;
-  locale: "vi" | "en";
+  locale: string;
   image: { mimeType: "image/jpeg"; data: string };
   measurements?: {
     subject?: { x: number; y: number; width: number; height: number };
@@ -87,7 +89,8 @@ export async function handleAnalyze(
             "Analyze only composition, camera position, framing, light, and simple pose.",
             "Do not identify people or infer sensitive attributes.",
             "Return one primary, one safe, and one creative plan.",
-            `Locale preference: ${input.locale}.`,
+            `Write "instruction" and "pose" in the language of BCP-47 tag ${input.locale},`,
+            "and in no other language.",
             `On-device measurements: ${JSON.stringify(input.measurements ?? {})}`,
           ].join("\n"),
         },
@@ -177,7 +180,10 @@ function validateRequest(value: unknown): AnalyzeRequest {
     throw new Error("invalid");
   }
   if (!validTimezone(value.timezoneOffsetMinutes)) throw new Error("invalid");
-  if (value.locale !== "vi" && value.locale !== "en") throw new Error("invalid");
+  // The tag reaches the provider prompt, so it stays letters plus one hyphen.
+  if (typeof value.locale !== "string" || !localePattern.test(value.locale)) {
+    throw new Error("invalid");
+  }
   if (value.image.mimeType !== "image/jpeg" || typeof value.image.data !== "string") {
     throw new Error("invalid");
   }

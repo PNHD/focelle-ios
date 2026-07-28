@@ -8,7 +8,7 @@ struct AICompositionResponse: Codable, Equatable, Sendable {
     var plans: [AICompositionPlan] { [primary] + alternatives }
 
     var isValid: Bool {
-        schemaVersion == 1
+        schemaVersion == 2
             && alternatives.count == 2
             && primary.id == "primary"
             && alternatives[0].id == "safe"
@@ -29,8 +29,9 @@ struct AICompositionPlan: Codable, Equatable, Sendable {
     }
 
     let id: String
-    let instructionVi: String
-    let instructionEn: String
+    // Schema 2 carries one instruction and one pose, already written in the
+    // language the request asked for.
+    let instruction: String
     let target: NormalizedRect
     let movement: Movement
     let angle: Angle
@@ -38,23 +39,12 @@ struct AICompositionPlan: Codable, Equatable, Sendable {
     let exposureBias: Double
     let flash: CameraFlash
     let presetIDs: [String]
-    let poseVi: String
-    let poseEn: String
-
-    var instruction: String {
-        Locale.current.language.languageCode?.identifier == "vi" ? instructionVi : instructionEn
-    }
-
-    var pose: String {
-        Locale.current.language.languageCode?.identifier == "vi" ? poseVi : poseEn
-    }
+    let pose: String
 
     fileprivate var isValid: Bool {
         let knownPresets = Set(FocelleOriginals.all.map(\.id))
-        return !instructionVi.isEmpty && instructionVi.count <= 120
-            && !instructionEn.isEmpty && instructionEn.count <= 120
-            && !poseVi.isEmpty && poseVi.count <= 160
-            && !poseEn.isEmpty && poseEn.count <= 160
+        return !instruction.isEmpty && instruction.count <= 120
+            && !pose.isEmpty && pose.count <= 160
             && target.isValid
             && (1...5).contains(zoom)
             && (-2...2).contains(exposureBias)
@@ -98,6 +88,19 @@ enum AIClientError: String, Error, Equatable, Sendable {
 }
 
 enum AIClient {
+    // The backend only accepts letters plus one hyphen, so anything unexpected
+    // falls back to English rather than being rejected on arrival.
+    static func languageTag(for locale: Locale = .current) -> String {
+        guard let code = locale.language.languageCode?.identifier,
+            (2...3).contains(code.count),
+            code.allSatisfy(\.isLetter)
+        else { return "en" }
+        guard let script = locale.language.script?.identifier, script.allSatisfy(\.isLetter) else {
+            return code.lowercased()
+        }
+        return "\(code.lowercased())-\(script)"
+    }
+
     static func analyze(_ preview: Data, measurement: SceneMeasurement?) async throws
         -> AICompositionResponse
     {
@@ -106,7 +109,7 @@ enum AIClient {
             deviceId: deviceId,
             requestId: UUID().uuidString.replacingOccurrences(of: "-", with: ""),
             timezoneOffsetMinutes: TimeZone.current.secondsFromGMT() / 60,
-            locale: Locale.current.language.languageCode?.identifier == "vi" ? "vi" : "en",
+            locale: languageTag(),
             image: .init(mimeType: "image/jpeg", data: preview.base64EncodedString()),
             measurements: measurement.map(AnalyzeRequest.Measurements.init)
         )

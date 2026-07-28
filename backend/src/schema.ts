@@ -26,10 +26,12 @@ export const presetIDs = [
   "mono-contrast",
 ] as const;
 
+// Version 2 carries one instruction and one pose, written in the locale the client
+// asked for. Version 1 hard-coded instructionVi/instructionEn, so every added
+// language cost the model three more strings per request.
 export type CompositionPlan = {
   id: "primary" | "safe" | "creative";
-  instructionVi: string;
-  instructionEn: string;
+  instruction: string;
   target: { x: number; y: number; width: number; height: number };
   movement: (typeof movements)[number];
   angle: "eye-level" | "slightly-high" | "slightly-low";
@@ -37,12 +39,11 @@ export type CompositionPlan = {
   exposureBias: number;
   flash: (typeof flashes)[number];
   presetIDs: (typeof presetIDs)[number][];
-  poseVi: string;
-  poseEn: string;
+  pose: string;
 };
 
 export type CompositionResponse = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   primary: CompositionPlan;
   alternatives: [CompositionPlan, CompositionPlan];
 };
@@ -52,8 +53,7 @@ const planSchema = {
   additionalProperties: false,
   required: [
     "id",
-    "instructionVi",
-    "instructionEn",
+    "instruction",
     "target",
     "movement",
     "angle",
@@ -61,13 +61,11 @@ const planSchema = {
     "exposureBias",
     "flash",
     "presetIDs",
-    "poseVi",
-    "poseEn",
+    "pose",
   ],
   properties: {
     id: { type: "string", enum: ["primary", "safe", "creative"] },
-    instructionVi: { type: "string" },
-    instructionEn: { type: "string" },
+    instruction: { type: "string" },
     target: {
       type: "object",
       additionalProperties: false,
@@ -93,8 +91,7 @@ const planSchema = {
       maxItems: 3,
       items: { type: "string", enum: presetIDs },
     },
-    poseVi: { type: "string" },
-    poseEn: { type: "string" },
+    pose: { type: "string" },
   },
 } as const;
 
@@ -103,7 +100,7 @@ export const compositionResponseSchema = {
   additionalProperties: false,
   required: ["schemaVersion", "primary", "alternatives"],
   properties: {
-    schemaVersion: { type: "integer", enum: [1] },
+    schemaVersion: { type: "integer", enum: [2] },
     primary: planSchema,
     alternatives: {
       type: "array",
@@ -116,7 +113,7 @@ export const compositionResponseSchema = {
 
 export function isCompositionResponse(value: unknown): value is CompositionResponse {
   if (!isExactObject(value, ["schemaVersion", "primary", "alternatives"])) return false;
-  if (value.schemaVersion !== 1 || !Array.isArray(value.alternatives)) return false;
+  if (value.schemaVersion !== 2 || !Array.isArray(value.alternatives)) return false;
   if (value.alternatives.length !== 2 || !isPlan(value.primary)) return false;
   return value.alternatives.every(isPlan)
     && value.primary.id === "primary"
@@ -126,12 +123,11 @@ export function isCompositionResponse(value: unknown): value is CompositionRespo
 
 function isPlan(value: unknown): value is CompositionPlan {
   if (!isExactObject(value, [
-    "id", "instructionVi", "instructionEn", "target", "movement", "angle",
-    "zoom", "exposureBias", "flash", "presetIDs", "poseVi", "poseEn",
+    "id", "instruction", "target", "movement", "angle",
+    "zoom", "exposureBias", "flash", "presetIDs", "pose",
   ])) return false;
   if (!["primary", "safe", "creative"].includes(String(value.id))) return false;
-  if (!shortText(value.instructionVi, 120) || !shortText(value.instructionEn, 120)) return false;
-  if (!shortText(value.poseVi, 160) || !shortText(value.poseEn, 160)) return false;
+  if (!shortText(value.instruction, 120) || !shortText(value.pose, 160)) return false;
   if (!movements.includes(value.movement as (typeof movements)[number])) return false;
   if (!["eye-level", "slightly-high", "slightly-low"].includes(String(value.angle))) return false;
   if (!flashes.includes(value.flash as (typeof flashes)[number])) return false;
