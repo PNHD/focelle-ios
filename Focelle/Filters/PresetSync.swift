@@ -51,15 +51,22 @@ enum PresetSync {
             // ponytail: unsigned CI simulators cannot use CloudKit; verify sync on signed devices.
             throw PresetSyncError.iCloudNotConfigured
         #else
+            // An empty container means this build was signed without the iCloud entitlement.
+            // CKContainer(identifier:) traps there instead of throwing, so never construct one.
             guard
-                let identifier = Bundle.main.object(
-                    forInfoDictionaryKey: containerInfoKey
-                ) as? String, !identifier.isEmpty
+                let identifier = containerIdentifier(
+                    Bundle.main.object(forInfoDictionaryKey: containerInfoKey) as? String
+                )
             else {
                 throw PresetSyncError.iCloudNotConfigured
             }
             return CKContainer(identifier: identifier).privateCloudDatabase
         #endif
+    }
+
+    static func containerIdentifier(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private static func decode(
@@ -75,6 +82,6 @@ enum PresetSync {
     }
 }
 
-private enum PresetSyncError: Error {
+enum PresetSyncError: Error {
     case iCloudNotConfigured
 }

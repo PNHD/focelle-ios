@@ -84,6 +84,30 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(UserPreset.merged(store.records, [remote]).first?.name, "Newer Name")
     }
 
+    func testCloudKitStaysOffWhenNoContainerIsConfigured() {
+        XCTAssertNil(PresetSync.containerIdentifier(nil))
+        XCTAssertNil(PresetSync.containerIdentifier(""))
+        XCTAssertNil(PresetSync.containerIdentifier("   "))
+        XCTAssertEqual(
+            PresetSync.containerIdentifier(" iCloud.com.pnhd.focelle "),
+            "iCloud.com.pnhd.focelle"
+        )
+    }
+
+    @MainActor
+    func testSyncWithoutICloudKeepsPresetsAndStaysSilent() async {
+        let file = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+            .appending(path: "presets.json")
+        let store = PresetStore(fileURL: file)
+        store.create(name: "Local", recipe: FocelleOriginals.all[0], intensity: 0.5)
+
+        await store.sync()
+
+        XCTAssertNil(store.syncError)
+        XCTAssertEqual(store.presets.count, 1)
+    }
+
     func testPresetMigratesMissingVersionAndFlags() throws {
         let preset = UserPreset(
             id: UUID(),

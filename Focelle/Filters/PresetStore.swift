@@ -76,6 +76,9 @@ final class PresetStore: ObservableObject {
             persist()
             try await PresetSync.push(records)
             syncError = nil
+        } catch PresetSyncError.iCloudNotConfigured {
+            // ponytail: iCloud is off in this build; local presets stay authoritative.
+            syncError = nil
         } catch {
             syncError = error.localizedDescription
         }

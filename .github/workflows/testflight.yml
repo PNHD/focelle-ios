@@ -66,6 +66,12 @@ jobs:
       - name: Archive
         run: |
           set -o pipefail
+          # Only a signed build carries the iCloud container in its profile, so only this
+          # workflow fills FocelleCloudKitContainer. Unsigned/sideloaded builds leave it
+          # empty and skip CloudKit, which would otherwise trap at launch.
+          CLOUDKIT_CONTAINER="$(/usr/libexec/PlistBuddy \
+            -c 'Print :com.apple.developer.icloud-container-identifiers:0' \
+            Focelle/Focelle.entitlements)"
           xcodebuild \
             -project Focelle.xcodeproj \
             -scheme Focelle \
@@ -79,6 +85,7 @@ jobs:
             CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             FOCELLE_AI_ENDPOINT="$FOCELLE_AI_ENDPOINT" \
             FOCELLE_AI_SHARED_TOKEN="$FOCELLE_AI_SHARED_TOKEN" \
+            FOCELLE_CLOUDKIT_CONTAINER="$CLOUDKIT_CONTAINER" \
             archive
 
       - name: Export signed IPA
