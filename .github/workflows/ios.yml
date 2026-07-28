@@ -65,26 +65,14 @@ jobs:
           # build below does not need the device. Wait for it after the build.
           xcrun simctl boot "$DEVICE_ID"
 
-      - name: Build for testing
+      # Run 56 measured build-for-testing + test-without-building at 448s + 69s
+      # against 393s for one combined invocation. Splitting them cost more than
+      # it saved, so this stays a single pass; xcodebuild compiles before it
+      # needs the device, which is what hides the boot started above.
+      - name: Build and test on iPhone 17e simulator
         run: |
           set -o pipefail
           mkdir -p artifacts logs
-          xcodebuild \
-            -project Focelle.xcodeproj \
-            -scheme Focelle \
-            -configuration Debug \
-            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
-            -derivedDataPath DerivedData \
-            -clonedSourcePackagesDirPath SourcePackages \
-            CODE_SIGNING_ALLOWED=NO \
-            build-for-testing | tee logs/build.log
-
-      - name: Wait for the simulator to finish booting
-        run: xcrun simctl bootstatus "$DEVICE_ID" -b
-
-      - name: Test on iPhone 17e simulator
-        run: |
-          set -o pipefail
           xcodebuild \
             -project Focelle.xcodeproj \
             -scheme Focelle \
@@ -96,7 +84,7 @@ jobs:
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 30 \
             CODE_SIGNING_ALLOWED=NO \
-            test-without-building | tee logs/test.log
+            test | tee logs/test.log
 
       - name: Capture onboarding screen
         run: |
