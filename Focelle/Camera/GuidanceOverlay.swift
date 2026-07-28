@@ -77,7 +77,7 @@ struct GuidanceOverlay: View {
                                 x: targetRect.midX * geometry.size.width,
                                 y: targetRect.midY * geometry.size.height
                             )
-                            .shadow(color: .cyan, radius: 4)
+                            .shadow(color: .orange, radius: 4)
                     }
                 }
 
