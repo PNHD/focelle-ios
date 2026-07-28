@@ -5,6 +5,8 @@ import SwiftUI
 import UIKit
 
 struct CameraView: View {
+    private static let noFilterKey = "none"
+
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var presets: PresetStore
     @EnvironmentObject private var settings: AppSettings
@@ -563,7 +565,7 @@ struct CameraView: View {
 
     private var filterPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 filterButton(recipe: nil, title: "filter.none")
                 ForEach(FocelleOriginals.all) { recipe in
                     filterButton(recipe: recipe, title: LocalizedStringKey(recipe.nameKey))
@@ -572,7 +574,75 @@ struct CameraView: View {
                     userPresetButton(preset)
                 }
             }
+            // Without this the first and last chip sit flush against the edge
+            // and read as cut off rather than scrollable.
+            .padding(.horizontal, 16)
         }
+        .onAppear(perform: refreshFilterThumbnails)
+        .onChange(of: presets.presets.map(\.id)) { _, _ in refreshFilterThumbnails() }
+    }
+
+    private func refreshFilterThumbnails() {
+        camera.setFilterThumbnailRequests(
+            [FilterThumbnailRequest(key: Self.noFilterKey, recipe: nil)]
+                + FocelleOriginals.all.map {
+                    FilterThumbnailRequest(key: $0.id, recipe: $0)
+                }
+                + presets.presets.map {
+                    FilterThumbnailRequest(
+                        key: $0.id.uuidString,
+                        recipe: $0.recipe,
+                        intensity: $0.intensity
+                    )
+                }
+        )
+    }
+
+    // Each look is rendered onto the live frame, so the strip previews the
+    // scene being shot instead of a bundled sample photo.
+    private func filterChip(
+        key: String,
+        title: Text,
+        selected: Bool,
+        favorite: Bool = false
+    ) -> some View {
+        VStack(spacing: 5) {
+            ZStack {
+                if let thumbnail = camera.filterThumbnails[key] {
+                    Image(decorative: thumbnail, scale: 1)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Color.white.opacity(0.12)
+                }
+                if favorite {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.white)
+                        .shadow(radius: 2)
+                        .padding(4)
+                        .frame(
+                            maxWidth: .infinity,
+                            maxHeight: .infinity,
+                            alignment: .topTrailing
+                        )
+                }
+            }
+            .frame(width: 54, height: 54)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(
+                        selected ? Color.orange : Color.white.opacity(0.25),
+                        lineWidth: selected ? 2.5 : 1
+                    )
+            }
+            title
+                .font(.caption2.weight(.medium))
+                .lineLimit(1)
+                .foregroundStyle(selected ? Color.orange : Color.white.opacity(0.85))
+        }
+        .frame(width: 66)
     }
 
     private func filterButton(
@@ -587,12 +657,11 @@ struct CameraView: View {
                 Analytics.record("filter_selected", enabled: settings.analyticsEnabled)
             }
         } label: {
-            Text(title)
-                .font(.caption.weight(.medium))
-                .lineLimit(1)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(selected ? Color.orange : Color.black.opacity(0.55), in: Capsule())
+            filterChip(
+                key: recipe?.id ?? Self.noFilterKey,
+                title: Text(title),
+                selected: selected
+            )
         }
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
@@ -603,16 +672,11 @@ struct CameraView: View {
             camera.applyFilter(preset.recipe, intensity: preset.intensity)
             Analytics.record("preset_selected", enabled: settings.analyticsEnabled)
         } label: {
-            HStack(spacing: 4) {
-                if preset.isFavorite { Image(systemName: "star.fill") }
-                Text(preset.name).lineLimit(1)
-            }
-            .font(.caption.weight(.medium))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                selectedPresetID == preset.id ? Color.orange : Color.black.opacity(0.55),
-                in: Capsule()
+            filterChip(
+                key: preset.id.uuidString,
+                title: Text(preset.name),
+                selected: selectedPresetID == preset.id,
+                favorite: preset.isFavorite
             )
         }
         .contextMenu {

@@ -114,6 +114,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     @Published private(set) var activeFilter: FilterRecipe?
     @Published private(set) var filterIntensity = 1.0
     @Published private(set) var filteredPreview: CGImage?
+    @Published private(set) var filterThumbnails: [String: CGImage] = [:]
     @Published private(set) var measurement: SceneMeasurement?
     @Published private(set) var guidance: Guidance?
     @Published private(set) var filterSaveSequence = 0
@@ -140,6 +141,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var previewRecipe: FilterRecipe?
     private var previewIntensity = 1.0
     private var lastPreviewTime = CMTime.zero
+    private var thumbnailRequests: [FilterThumbnailRequest] = []
+    private var lastThumbnailTime = CMTime.zero
     private var lastAnalysisTime = CMTime.zero
     private var analysisInFlight = false
     private var stabilizer = MeasurementStabilizer()
@@ -219,6 +222,14 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         queue.async { [weak self] in
             self?.previewRecipe = recipe
             self?.previewIntensity = value
+        }
+    }
+
+    func setFilterThumbnailRequests(_ requests: [FilterThumbnailRequest]) {
+        queue.async { [weak self] in
+            guard let self, self.thumbnailRequests != requests else { return }
+            self.thumbnailRequests = requests
+            self.lastThumbnailTime = .zero
         }
     }
 
@@ -714,6 +725,16 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
                     }
                 }
             }
+        }
+
+        // Ahead of the preview guard below, because the strip needs thumbnails
+        // whether or not a filter is currently applied.
+        if !thumbnailRequests.isEmpty,
+            CMTimeGetSeconds(timestamp - lastThumbnailTime) >= 2
+        {
+            lastThumbnailTime = timestamp
+            let images = filterRenderer.thumbnails(image, requests: thumbnailRequests)
+            DispatchQueue.main.async { self.filterThumbnails = images }
         }
 
         guard let recipe = previewRecipe else { return }

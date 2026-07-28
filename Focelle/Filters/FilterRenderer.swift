@@ -2,6 +2,18 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 import Foundation
 
+struct FilterThumbnailRequest: Equatable, Sendable {
+    let key: String
+    let recipe: FilterRecipe?
+    let intensity: Double
+
+    init(key: String, recipe: FilterRecipe?, intensity: Double = 1) {
+        self.key = key
+        self.recipe = recipe
+        self.intensity = intensity
+    }
+}
+
 struct FilterRenderer {
     private let context = CIContext(options: [.cacheIntermediates: false])
     private let grain = FilterRenderer.makeGrain()
@@ -123,6 +135,29 @@ struct FilterRenderer {
     ) -> CGImage? {
         let output = recipe.map { render(input, recipe: $0, intensity: intensity) } ?? input
         return context.createCGImage(output, from: output.extent)
+    }
+
+    // Thumbnails come off the live frame rather than bundled sample photos, so
+    // the strip shows each look on the scene actually being shot and the app
+    // ships no image assets for it. 96 points is the largest one is ever drawn.
+    func thumbnails(
+        _ input: CIImage,
+        requests: [FilterThumbnailRequest],
+        side: CGFloat = 96
+    ) -> [String: CGImage] {
+        let square = crop(input, to: 1)
+        guard square.extent.width > 0 else { return [:] }
+        let scale = side / square.extent.width
+        let source = square.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        var output: [String: CGImage] = [:]
+        for request in requests {
+            output[request.key] = previewImage(
+                source,
+                recipe: request.recipe,
+                intensity: request.intensity
+            )
+        }
+        return output
     }
 
     func aiPreviewData(_ input: CIImage, maxDimension: CGFloat = 1_024) -> Data? {

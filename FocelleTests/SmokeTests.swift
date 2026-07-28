@@ -72,6 +72,23 @@ final class SmokeTests: XCTestCase {
         }
     }
 
+    func testFilterThumbnailsRenderOnePerRequestAtOneSize() {
+        let renderer = FilterRenderer()
+        let input = CIImage(color: .init(red: 0.4, green: 0.5, blue: 0.6))
+            .cropped(to: CGRect(x: 0, y: 0, width: 320, height: 240))
+        let requests =
+            [FilterThumbnailRequest(key: "none", recipe: nil)]
+            + FocelleOriginals.all.map { FilterThumbnailRequest(key: $0.id, recipe: $0) }
+
+        let images = renderer.thumbnails(input, requests: requests, side: 48)
+
+        XCTAssertEqual(images.count, requests.count)
+        for request in requests {
+            XCTAssertEqual(images[request.key]?.width, 48, request.key)
+            XCTAssertEqual(images[request.key]?.height, 48, request.key)
+        }
+    }
+
     func testPresetDraftClampsToneColorAndResets() throws {
         let base = FocelleOriginals.all[0]
         var draft = PresetDraft(base: base)
