@@ -301,15 +301,18 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 self?.finishCapture()
                 return
             }
+            // capturePhoto raises NSInvalidArgumentException for any setting the output
+            // does not allow, and an ObjC exception cannot be caught in Swift, so every
+            // value below is taken from what the output itself reports.
             let settings = AVCapturePhotoSettings()
-            settings.photoQualityPrioritization = .quality
+            settings.photoQualityPrioritization = self.photoOutput.maxPhotoQualityPrioritization
             if self.photoOutput.supportedFlashModes.contains(selectedFlash.mode) {
                 settings.flashMode = selectedFlash.mode
             }
-            if let dimensions = selectedResolution == .maximum
-                ? self.maximumDimensions
-                : self.standardDimensions
-            {
+            if let dimensions = Self.photoDimensions(
+                selectedResolution == .maximum ? self.maximumDimensions : self.standardDimensions,
+                within: self.photoOutput.maxPhotoDimensions
+            ) {
                 settings.maxPhotoDimensions = dimensions
             }
             if let connection = self.photoOutput.connection(with: .video),
@@ -385,6 +388,17 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     static func canRestart(after error: AVError?) -> Bool {
         error?.code == .mediaServicesWereReset
+    }
+
+    static func photoDimensions(
+        _ requested: CMVideoDimensions?,
+        within limit: CMVideoDimensions
+    ) -> CMVideoDimensions? {
+        let allowed = Int64(limit.width) * Int64(limit.height)
+        guard allowed > 0, let requested else { return nil }
+        let wanted = Int64(requested.width) * Int64(requested.height)
+        guard wanted > 0 else { return nil }
+        return wanted <= allowed ? requested : limit
     }
 
     func requestAIPreview(_ completion: @escaping @Sendable (Data?) -> Void) {
@@ -467,6 +481,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         if let maximumDimensions {
             photoOutput.maxPhotoDimensions = maximumDimensions
         }
+        // Raise the ceiling here rather than per capture: the output defaults to
+        // .balanced and rejects a higher value on the settings object.
+        photoOutput.maxPhotoQualityPrioritization = .quality
 
         let deviceMaxZoom = min(device.activeFormat.videoMaxZoomFactor, 10)
         let supportsMaximum =

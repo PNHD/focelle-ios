@@ -15,6 +15,27 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(CameraPermission(.authorized), .allowed)
     }
 
+    func testPhotoDimensionsNeverExceedTheOutputLimit() {
+        let limit = CMVideoDimensions(width: 8_064, height: 6_048)
+        let standard = CMVideoDimensions(width: 5_712, height: 4_284)
+
+        XCTAssertEqual(CameraSession.photoDimensions(standard, within: limit)?.width, 5_712)
+        XCTAssertEqual(
+            CameraSession.photoDimensions(
+                CMVideoDimensions(width: 12_000, height: 9_000),
+                within: limit
+            )?.width,
+            8_064
+        )
+        XCTAssertNil(CameraSession.photoDimensions(nil, within: limit))
+        XCTAssertNil(
+            CameraSession.photoDimensions(
+                standard,
+                within: CMVideoDimensions(width: 0, height: 0)
+            )
+        )
+    }
+
     func testPhotoResolutionChoosesClosestTo24Megapixels() {
         let options = [
             PhotoDimensions(width: 4_032, height: 3_024),
