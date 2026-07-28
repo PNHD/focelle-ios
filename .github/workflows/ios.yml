@@ -89,6 +89,31 @@ jobs:
             rm -rf Payload
           )
 
+      # ponytail: report only; assert once a known-good device layout exists.
+      - name: Report device app linkage
+        continue-on-error: true
+        run: |
+          APP=DerivedDataDevice/Build/Products/Release-iphoneos/Focelle.app
+          {
+            echo "== embedded frameworks =="
+            ls -1 "$APP/Frameworks" 2>/dev/null || echo "(none)"
+            echo "== linked dylibs =="
+            otool -L "$APP/Focelle"
+            echo "== rpaths =="
+            otool -l "$APP/Focelle" | grep -A2 LC_RPATH || echo "(none)"
+            echo "== signed entitlements =="
+            codesign -d --entitlements :- "$APP" 2>&1 || true
+            echo "== Info.plist =="
+            for key in FocelleCloudKitContainer GADApplicationIdentifier; do
+              printf '%s = ' "$key"
+              /usr/libexec/PlistBuddy -c "Print :$key" "$APP/Info.plist" 2>/dev/null || echo "(missing)"
+            done
+            for key in FocelleAIEndpoint FocelleAISharedToken; do
+              value=$(/usr/libexec/PlistBuddy -c "Print :$key" "$APP/Info.plist" 2>/dev/null || true)
+              echo "$key = ${#value} chars"
+            done
+          } | tee logs/device-linkage.log
+
       - name: Capture onboarding screen
         run: |
           xcrun simctl install "$DEVICE_ID" DerivedData/Build/Products/Debug-iphonesimulator/Focelle.app
