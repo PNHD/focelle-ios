@@ -532,12 +532,25 @@ final class SmokeTests: XCTestCase {
         }
     }
 
-    func testLanguageTagFallsBackToEnglishAndKeepsScript() {
-        XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "en_US")), "en")
+    func testLanguageTagMatchesWhatTheBackendAccepts() {
+        // Mirrors localePattern in backend/src/analyze.ts; a tag the worker
+        // rejects would fail the whole request on arrival.
+        let accepted = try? NSRegularExpression(pattern: "^[a-z]{2,3}(-[A-Za-z]{2,8})?$")
+        for identifier in [
+            "en_US", "vi_VN", "ja_JP", "ko_KR", "zh_Hans_CN", "zh_Hant_TW", "th_TH", "",
+        ] {
+            let tag = AIClient.languageTag(for: Locale(identifier: identifier))
+            let range = NSRange(tag.startIndex..., in: tag)
+            XCTAssertEqual(
+                accepted?.numberOfMatches(in: tag, range: range),
+                1,
+                "\(identifier) produced \(tag)"
+            )
+        }
+
         XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "vi_VN")), "vi")
-        XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "ja_JP")), "ja")
-        XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "ko_KR")), "ko")
         XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "zh_Hans_CN")), "zh-Hans")
+        XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "zh_Hant_TW")), "zh-Hant")
     }
 
     private func makeAIResponse() -> AICompositionResponse {

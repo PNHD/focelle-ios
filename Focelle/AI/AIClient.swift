@@ -89,16 +89,20 @@ enum AIClientError: String, Error, Equatable, Sendable {
 
 enum AIClient {
     // The backend only accepts letters plus one hyphen, so anything unexpected
-    // falls back to English rather than being rejected on arrival.
+    // falls back to English rather than being rejected on arrival. Only Chinese
+    // carries its script: Foundation may report a likely script for any locale,
+    // and "en-Latn" would be noise the model does not need.
     static func languageTag(for locale: Locale = .current) -> String {
-        guard let code = locale.language.languageCode?.identifier,
+        guard let code = locale.language.languageCode?.identifier.lowercased(),
             (2...3).contains(code.count),
             code.allSatisfy(\.isLetter)
         else { return "en" }
-        guard let script = locale.language.script?.identifier, script.allSatisfy(\.isLetter) else {
-            return code.lowercased()
-        }
-        return "\(code.lowercased())-\(script)"
+        guard code == "zh",
+            let script = locale.language.script?.identifier,
+            (2...8).contains(script.count),
+            script.allSatisfy(\.isLetter)
+        else { return code }
+        return "\(code)-\(script)"
     }
 
     static func analyze(_ preview: Data, measurement: SceneMeasurement?) async throws
