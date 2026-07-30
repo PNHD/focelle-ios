@@ -422,24 +422,26 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     // Not `private`: regression tests simulate a capability change directly.
     func recomputeResolvedResolution() {
-        resolvedResolution = Self.resolve(
+        resolvedResolution = ResolvedResolution.resolve(
             requested: resolution,
             standard: cachedStandardDimensions,
             maximum: cachedMaximumDimensions,
             outputLimit: cachedOutputLimit
         )
-        standardModeLabel = Self.resolve(
-            requested: .standard,
-            standard: cachedStandardDimensions,
-            maximum: cachedMaximumDimensions,
-            outputLimit: cachedOutputLimit
-        ).label
-        maximumModeLabel = Self.resolve(
-            requested: .maximum,
-            standard: cachedStandardDimensions,
-            maximum: cachedMaximumDimensions,
-            outputLimit: cachedOutputLimit
-        ).label
+        standardModeLabel =
+            ResolvedResolution.resolve(
+                requested: .standard,
+                standard: cachedStandardDimensions,
+                maximum: cachedMaximumDimensions,
+                outputLimit: cachedOutputLimit
+            ).label
+        maximumModeLabel =
+            ResolvedResolution.resolve(
+                requested: .maximum,
+                standard: cachedStandardDimensions,
+                maximum: cachedMaximumDimensions,
+                outputLimit: cachedOutputLimit
+            ).label
     }
 
     // Runs on `queue`. The one place a resolved snapshot is built for an
@@ -448,7 +450,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     // reconstructed a second time for the saved record (see capture()).
     // Not `private` so regression tests can drive it directly.
     func currentCaptureSnapshot(for requested: CameraResolution) -> CaptureResolutionSnapshot {
-        let resolved = Self.resolve(
+        let resolved = ResolvedResolution.resolve(
             requested: requested,
             standard: standardDimensions,
             maximum: maximumDimensions,

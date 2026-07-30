@@ -76,7 +76,7 @@ final class SmokeTests: XCTestCase {
         let standard = PhotoDimensions(width: 4_000, height: 3_000)
         let biggerMaximum = PhotoDimensions(width: 8_000, height: 6_000)
 
-        let normalStandard = CameraSession.resolve(
+        let normalStandard = ResolvedResolution.resolve(
             requested: .standard,
             standard: standard,
             maximum: biggerMaximum,
@@ -85,7 +85,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(normalStandard.dimensions, standard)
         XCTAssertEqual(normalStandard.downgradeReason, .none)
 
-        let normalMaximum = CameraSession.resolve(
+        let normalMaximum = ResolvedResolution.resolve(
             requested: .maximum,
             standard: standard,
             maximum: biggerMaximum,
@@ -94,7 +94,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(normalMaximum.dimensions, biggerMaximum)
         XCTAssertEqual(normalMaximum.downgradeReason, .none)
 
-        let deviceCappedMaximum = CameraSession.resolve(
+        let deviceCappedMaximum = ResolvedResolution.resolve(
             requested: .maximum,
             standard: standard,
             maximum: standard,
@@ -104,7 +104,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(deviceCappedMaximum.downgradeReason, .unsupportedByActiveFormat)
         XCTAssertTrue(deviceCappedMaximum.isDowngraded)
 
-        let outputCappedMaximum = CameraSession.resolve(
+        let outputCappedMaximum = ResolvedResolution.resolve(
             requested: .maximum,
             standard: standard,
             maximum: biggerMaximum,
