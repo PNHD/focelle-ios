@@ -84,21 +84,61 @@ every future session. Check the actual branch/PR state before trusting it.
 run a device smoke test, stop. FCL-002 must not run on the documentation
 branch.
 
-### Once FCL-001B is approved and merged
+### B0 artifact source (fixed, does not move)
+
+- CI run: `64`, run ID `30368976476`
+- Artifact source SHA: `5532063cfe03bb3de65220c3e95b50265273b709`
+- Artifact names: `focelle-ios-tests`, `focelle-ios-ipa`
+
+Run 64 is the artifact of baseline B0. It was built from `5532063` and stays
+built from `5532063` forever — it is not rebuilt by later commits, docs or
+otherwise. Do not describe it as an artifact of "the integration HEAD" at any
+later point in time.
+
+### Post-merge integration state (moves on every merge)
+
+Once FCL-001B is approved and merged:
 
 - `task/FCL-001B-project-status` must **not** be reused for FCL-002.
 - The next session must open or update `feat/focelle-beta` and verify the
-  **current** integration HEAD — do not assume it is still `5532063`; the
-  merge itself moves it.
+  **current** integration HEAD by reading Git directly — do not assume it is
+  still `5532063`; the FCL-001B merge itself moves it to a new SHA.
 - Before running FCL-002, there must be a status-transition commit that marks
-  FCL-001B complete and records the new integration SHA.
+  FCL-001B complete and records, as two separate fields:
+  - `Current integration SHA: <post-merge SHA>`
+  - `Device artifact source SHA: <artifact SHA>` — `5532063` unless a fresh
+    artifact was required (see decision rule below)
+  - `Device artifact run: <run number / run ID>`
+  - `Artifact reuse decision: allowed because docs-only diff` or
+    `fresh artifact required because executable/build inputs changed`
 - Only then create a new branch from the verified integration HEAD, named
   `task/FCL-002-physical-smoke`.
 - FCL-002 is not Active until that branch/task contract actually starts. It
   is the next gate, not a started one.
 
-FCL-002 target when it starts: the artifact of CI run 64, after confirming
-that run's head SHA matches the integration HEAD in force at that time.
+**The post-merge integration SHA and the B0 artifact source SHA are two
+different SHAs by design and are never required to be equal.** The FCL-001B
+merge changes only documentation, so the integration HEAD moving does not by
+itself invalidate run 64 as a source of device evidence — but it must be
+re-checked with the rule below, not assumed.
+
+### Artifact reuse decision rule
+
+Before FCL-002 uses the run-64 IPA, diff B0 (`5532063`) against the verified
+post-merge integration HEAD:
+
+- **Run 64 remains usable** if every changed path is documentation/project
+  control only — `.ai/**`, `docs/**`, other plain Markdown not consumed by
+  the build.
+- **Run 64 must not be used**, and FCL-002 must wait for a fresh CI run built
+  from the current integration HEAD, if the diff touches any of: `Focelle/**`,
+  `FocelleTests/**`, `backend/**`, `Focelle.xcodeproj/**`,
+  `.github/workflows/**`, package/dependency configuration, or any plist,
+  entitlement, signing, or build-configuration file — anything that can change
+  binary or runtime behavior.
+
+Record the outcome of this check in the status-transition commit's
+`Artifact reuse decision` field.
 
 ## Safety warnings
 
