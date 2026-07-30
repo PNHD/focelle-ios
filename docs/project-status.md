@@ -83,24 +83,60 @@ Status as of `5532063`. Conservative by rule: when in doubt, the lower level win
 | CI | CI VERIFIED | None outstanding at baseline | Keep run number and SHA recorded on each status update |
 | Signing / TestFlight | CI VERIFIED for the **unsigned** IPA only | TestFlight BLOCKED — no Apple Developer signing material available | Signed archive produced by `testflight.yml`, then an authorized upload |
 
-## 5. Active task
+## 5. Task status
 
-- **`FCL-001B — Baseline Documentation Rebuild`**
-- Branch: `task/FCL-001B-project-status`, based on `5532063`
-- Outcome: replace the stale 460-line handoff with a short operational
-  handoff, and establish this file as the single current status source.
-- Scope exclusions: no Swift source, no backend TypeScript, no workflows, no
-  Xcode project, no spec, no plan, no completion audit, no stash, no
-  `.analysis/`. Documentation only. No push and no PR in this task.
+- **`FCL-001B — Baseline Documentation Rebuild`**: `INTEGRATED LOCALLY —
+  REVIEW PASSED`. Independent Codex review passed on commit `eac6bd2`. All
+  three FCL-001B commits (`45b1868`, `74b1109`, `eac6bd2`) were fast-forwarded
+  into the local `feat/focelle-beta` integration branch. Not pushed to
+  `origin` in this task.
+- **`FCL-001C — Integrate Baseline Documentation and Establish Transition
+  State`**: `IN REVIEW`. Branch: `task/FCL-001C-status-transition`, based on
+  the integrated FCL-001B head. Outcome: record the FCL-001B integration,
+  the artifact provenance, and the artifact reuse decision below, and put
+  FCL-002 at Next Gate without activating it.
+- **`FCL-002 — Physical Launch and Capture Smoke Check`**: `NEXT GATE — NOT
+  ACTIVE`. No branch has been created for it yet.
+
+### FCL-001C transition record
+
+| Field | Value |
+|---|---|
+| Integrated FCL-001B head | `eac6bd2e1a3469d1976d76d5be1b6f17233694fd` |
+| Device artifact source SHA | `5532063cfe03bb3de65220c3e95b50265273b709` |
+| Device artifact run | run number `64`, run ID `30368976476` |
+| Artifact names | `focelle-ios-ipa`, `focelle-ios-tests` |
+| Artifact reuse decision | `ALLOWED` — every path changed between `5532063` and this transition branch is documentation/project-control (`.ai/SESSION.md`, `docs/project-status.md`) |
+| Artifact reuse evidence | exact changed paths: `.ai/SESSION.md`, `docs/project-status.md` |
+| Transition commit | resolve with `git rev-parse HEAD` after this commit is created — not hardcoded here |
+| FCL-002 branch base | the actual `feat/focelle-beta` HEAD after this FCL-001C transition commit is reviewed and fast-forwarded into integration — read Git directly, do not assume a SHA from this document |
+
+The device artifact (run 64) was built from `5532063` and is **not** an
+artifact of `eac6bd2` or of this transition commit. It stays attributed to
+`5532063` regardless of later documentation-only commits.
 
 ## 6. Next gate
 
-**`FCL-002 — Physical Launch and Capture Smoke Check`**
+**`FCL-002 — Physical Launch and Capture Smoke Check`** — `NEXT GATE — NOT
+ACTIVE`.
 
-Verify on the real iPhone 17e, using the artifact of CI run 64 after
-confirming that run's head SHA matches the baseline commit: that the app
-launches without exiting, that the camera preview appears, that the shutter
-does not crash, and that a captured photo reaches the Photos library.
+Before starting FCL-002, the agent must:
+
+1. Wait for `FCL-001C` to be reviewed PASS.
+2. Wait for `FCL-001C` to be fast-forwarded into `feat/focelle-beta`.
+3. Open or update the integration branch and read the actual integration
+   HEAD from Git — do not trust a hardcoded SHA from this document.
+4. Create `task/FCL-002-physical-smoke` from that exact HEAD.
+5. Re-verify the artifact reuse decision above still holds against the
+   current integration HEAD.
+6. Only then install the run-64 IPA and run the physical smoke check: that
+   the app launches without exiting, that the camera preview appears, that
+   the shutter does not crash, and that a captured photo reaches the Photos
+   library.
+
+If the agent is currently on `task/FCL-001B-project-status` or
+`task/FCL-001C-status-transition`, it must stop — FCL-002 does not run on a
+documentation branch.
 
 No feature backlog is scheduled behind this gate yet. The gate result decides
 what comes next.

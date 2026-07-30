@@ -1,6 +1,6 @@
 # Focelle iOS — Agent Handoff
 
-Updated: 2026-07-30 (task FCL-001B)
+Updated: 2026-07-30 (task FCL-001C)
 
 Read `docs/project-status.md` for the full status matrix. This file is the
 short operational handoff: where you are, what is proven, what not to break.
@@ -11,7 +11,7 @@ short operational handoff: where you are, what is proven, what not to break.
 - Correct worktree (absolute):
   `C:\Users\phamn\Documents\Codex\2026-07-22\build-1-app-ch-p-h\.worktrees\focelle-beta`
 - Integration branch: `feat/focelle-beta` (tracks `origin/feat/focelle-beta`)
-- Current task branch: `task/FCL-001B-project-status`
+- Current task branch: `task/FCL-001C-status-transition`
 - Baseline commit: `5532063cfe03bb3de65220c3e95b50265273b709`
   (`fix: recolour the last target frame shadow`)
 - Pull request: <https://github.com/PNHD/focelle-ios/pull/1> (draft, do not merge)
@@ -75,14 +75,20 @@ saved to Photos on the device. Do not write or imply otherwise.
 
 ## Current gate
 
-`FCL-001B — Baseline Documentation Rebuild` is still on task branch
-`task/FCL-001B-project-status`, currently in review/revision. This is the
-state as of this document commit — it is not a permanent instruction for
-every future session. Check the actual branch/PR state before trusting it.
+`FCL-001B — Baseline Documentation Rebuild` passed independent Codex review
+on commit `eac6bd2` and its three commits (`45b1868`, `74b1109`, `eac6bd2`)
+have been fast-forwarded into the local `feat/focelle-beta` integration
+branch. Not pushed to `origin` in this task.
 
-**Stop condition:** if you are on `task/FCL-001B-project-status` and about to
-run a device smoke test, stop. FCL-002 must not run on the documentation
-branch.
+`FCL-001C — Integrate Baseline Documentation and Establish Transition State`
+is now on task branch `task/FCL-001C-status-transition`, based on the
+integrated FCL-001B head, currently in review. This is the state as of this
+document commit — it is not a permanent instruction for every future
+session. Check the actual branch/PR state before trusting it.
+
+**Stop condition:** if you are on `task/FCL-001B-project-status` or
+`task/FCL-001C-status-transition` and about to run a device smoke test,
+stop. FCL-002 must not run on a documentation branch.
 
 ### B0 artifact source (fixed, does not move)
 
@@ -92,25 +98,30 @@ branch.
 
 Run 64 is the artifact of baseline B0. It was built from `5532063` and stays
 built from `5532063` forever — it is not rebuilt by later commits, docs or
-otherwise. Do not describe it as an artifact of "the integration HEAD" at any
-later point in time.
+otherwise. Do not describe it as an artifact of "the integration HEAD" or of
+this transition commit at any later point in time.
 
-### Post-merge integration state (moves on every merge)
+### Post-FCL-001C integration state (moves on every merge)
 
-Once FCL-001B is approved and merged:
+Once `FCL-001C` is approved and fast-forwarded into `feat/focelle-beta`:
 
-- `task/FCL-001B-project-status` must **not** be reused for FCL-002.
-- The next session must open or update `feat/focelle-beta` and verify the
+- `task/FCL-001B-project-status` and `task/FCL-001C-status-transition` must
+  **not** be reused for FCL-002.
+- The FCL-002 session must open or update `feat/focelle-beta` and verify the
   **current** integration HEAD by reading Git directly — do not assume it is
-  still `5532063`; the FCL-001B merge itself moves it to a new SHA.
-- Before running FCL-002, there must be a status-transition commit that marks
-  FCL-001B complete and records, as two separate fields:
-  - `Current integration SHA: <post-merge SHA>`
-  - `Device artifact source SHA: <artifact SHA>` — `5532063` unless a fresh
-    artifact was required (see decision rule below)
-  - `Device artifact run: <run number / run ID>`
-  - `Artifact reuse decision: allowed because docs-only diff` or
-    `fresh artifact required because executable/build inputs changed`
+  still `eac6bd2` or any SHA named in this document; the FCL-001C merge
+  itself moves it to a new SHA.
+- The transition record in `docs/project-status.md` §5 already records:
+  - `Integrated FCL-001B head: eac6bd2…`
+  - `Device artifact source SHA: 5532063…`
+  - `Device artifact run: 64 / 30368976476`
+  - `Artifact reuse decision: ALLOWED` (docs-only diff)
+  - `Transition commit:` and `FCL-002 branch base:` — both intentionally
+    left to be resolved from Git, not hardcoded, since a commit cannot
+    reliably contain its own final SHA.
+- Before running FCL-002, re-verify the artifact reuse decision against the
+  actual diff from `5532063` to the current integration HEAD — do not trust
+  the recorded decision without re-checking the changed paths.
 - Only then create a new branch from the verified integration HEAD, named
   `task/FCL-002-physical-smoke`.
 - FCL-002 is not Active until that branch/task contract actually starts. It
