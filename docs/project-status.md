@@ -129,11 +129,16 @@ Before starting FCL-002, the agent must:
 4. Re-verify the artifact reuse decision above against the actual diff from
    `5532063` to the current integration HEAD. If the decision is no longer
    `ALLOWED` — any changed path touches an executable/build-input location —
-   stop here: do not create the FCL-002 branch, and wait for a fresh CI
-   artifact built from the current integration HEAD before proceeding.
-5. Only if the reuse decision is confirmed `ALLOWED`, create
+   do not create or use the FCL-002 smoke branch with the run-64 IPA. Wait for
+   a fresh CI run built from the actual integration HEAD. Before creating or
+   using the smoke branch/artifact, verify its CI run number, CI run ID,
+   artifact name, and artifact source SHA; the source SHA must exactly equal
+   that verified integration HEAD. If the run metadata, artifact provenance,
+   or source SHA does not match, stop and do not install the IPA.
+5. Only if reuse is confirmed `ALLOWED`, or the fresh-artifact provenance gate
+   above passes, create
    `task/FCL-002-physical-smoke` from that exact verified integration HEAD.
-6. Only then install the run-64 IPA and run the physical smoke check: that
+6. Only then install the eligible IPA and run the physical smoke check: that
    the app launches without exiting, that the camera preview appears, that
    the shutter does not crash, and that a captured photo reaches the Photos
    library.
