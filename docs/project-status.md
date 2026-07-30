@@ -129,6 +129,22 @@ Status as of `5532063`. Conservative by rule: when in doubt, the lower level win
     HEAD, and **no claim is made that 24 MP or 48 MP physically works** —
     only a real device capture, inspected via the new saved-output record,
     can prove that.
+  - **Correction batch**: independent review of the first FCL-004 pass found
+    the test target no longer compiled (a leftover `maximumResolution`
+    reference), no migration path for installs with only the legacy Bool
+    persisted, `configureCapabilities` still mutating the requested tier
+    itself (not just the mirror) whenever the active camera lacked a
+    distinct maximum — so "changeable only through `setRequestedResolution(_:)`"
+    was not yet true in every internal path — and capture settings/record
+    dimensions that could be independently re-derived rather than sharing
+    one snapshot. All four are fixed as of this HEAD: `AppSettings`
+    migrates a legacy `maximumResolution` Bool once and persists the mapped
+    value; `configureCapabilities` no longer touches `resolution` at all,
+    only the resolved/downgrade state; and `capture()` takes one
+    `CaptureResolutionSnapshot` on the camera queue that both configures
+    `AVCapturePhotoSettings` and becomes the saved record. This is still
+    **not** CI-run or physically verified — the claim above is about what
+    the code now does, not about a device having proven it.
 - **`FCL-005`**: a separate, later AI-product milestone. Not started, not
   scoped by FCL-M1, and not to begin before FCL-M1 closes.
 
@@ -165,10 +181,10 @@ execution gates — they are both carried inside this single milestone, on
 branch `task/FCL-M1-camera-core-stabilization` (from `feat/focelle-beta` at
 `fd08ed2f24662b9439245b7e7fe541ff6cb9c4ef`).
 
-- Implementation and regression tests for both tickets are in place. FCL-003
-  has already been through one round of independent review with follow-up
-  fixes applied; FCL-004 has not yet been independently reviewed. Neither
-  has run in CI at this HEAD, and neither is claimed as physically verified.
+- Implementation and regression tests for both tickets are in place. Both
+  have now been through one round of independent review with follow-up
+  fixes applied (see the FCL-004 correction batch in §5). Neither has run
+  in CI at this HEAD, and neither is claimed as physically verified.
 - Before this gate can close, a physical pass on the iPhone 17e must confirm:
   - FCL-003 — local guidance/target overlay resumes after a Settings round
     trip (repeated, no frozen rectangles, no duplicate overlays) and after

@@ -172,6 +172,16 @@ struct CaptureResolutionRecord: Equatable, Sendable {
     var requestedLabel: String { requested.rawValue }
 }
 
+// A single immutable snapshot taken on `queue` at the moment of an actual
+// capture. Both the AVCapturePhotoSettings sent to the output and the
+// eventual CaptureResolutionRecord are built from this one value, so they
+// can never disagree — and `capabilityGeneration` ties it to the exact
+// capability set (device/format) it was resolved against.
+struct CaptureResolutionSnapshot: Equatable, Sendable {
+    let resolved: ResolvedResolution
+    let capabilityGeneration: Int
+}
+
 enum CameraRotation {
     static func angle(for orientation: UIInterfaceOrientation) -> CGFloat {
         switch orientation {
@@ -247,19 +257,27 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var pendingFilterIntensity = 1.0
     private var pendingSaveOriginal = false
     private var pendingLocation: CLLocation?
-    private var pendingResolvedResolution = ResolvedResolution(
-        requested: .standard,
-        dimensions: nil,
-        downgradeReason: .none
+    private var pendingCaptureSnapshot = CaptureResolutionSnapshot(
+        resolved: ResolvedResolution(requested: .standard, dimensions: nil, downgradeReason: .none),
+        capabilityGeneration: 0
     )
-    private var standardDimensions: CMVideoDimensions?
-    private var maximumDimensions: CMVideoDimensions?
-    // Main-thread mirrors of the two dimensions above plus the output's own
-    // ceiling, so resolution's didSet can recompute resolvedResolution
-    // without reaching across queue-owned state.
-    private var cachedStandardDimensions: PhotoDimensions?
-    private var cachedMaximumDimensions: PhotoDimensions?
-    private var cachedOutputLimit: PhotoDimensions?
+    // Queue-owned canonical capability state — currentCaptureSnapshot(for:)
+    // reads these directly so a capture is never configured from stale or
+    // independently-drifted dimensions. Not `private`: regression tests
+    // simulate a capability change without a real device.
+    var standardDimensions: PhotoDimensions?
+    var maximumDimensions: PhotoDimensions?
+    var outputLimitDimensions: PhotoDimensions?
+    // Bumped every time configureCapabilities(for:) runs (initial configure,
+    // camera switch); ties a snapshot to the exact capability set it came from.
+    var capabilityGeneration = 0
+    // Main-thread mirrors of the three dimensions above, so resolution's
+    // didSet can recompute the UI-facing resolvedResolution without reaching
+    // across queue-owned state. Never used to configure an actual capture.
+    // Not `private`: regression tests simulate a capability change.
+    var cachedStandardDimensions: PhotoDimensions?
+    var cachedMaximumDimensions: PhotoDimensions?
+    var cachedOutputLimit: PhotoDimensions?
     private var previewRecipe: FilterRecipe?
     private var previewIntensity = 1.0
     private var lastPreviewTime = CMTime.zero
@@ -402,7 +420,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         resolution = mode
     }
 
-    private func recomputeResolvedResolution() {
+    // Not `private`: regression tests simulate a capability change directly.
+    func recomputeResolvedResolution() {
         resolvedResolution = Self.resolve(
             requested: resolution,
             standard: cachedStandardDimensions,
@@ -421,6 +440,21 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             maximum: cachedMaximumDimensions,
             outputLimit: cachedOutputLimit
         ).label
+    }
+
+    // Runs on `queue`. The one place a resolved snapshot is built for an
+    // actual capture, from the queue-owned capability state current at this
+    // exact moment — never the main-thread cache used for UI, and never
+    // reconstructed a second time for the saved record (see capture()).
+    // Not `private` so regression tests can drive it directly.
+    func currentCaptureSnapshot(for requested: CameraResolution) -> CaptureResolutionSnapshot {
+        let resolved = Self.resolve(
+            requested: requested,
+            standard: standardDimensions,
+            maximum: maximumDimensions,
+            outputLimit: outputLimitDimensions
+        )
+        return CaptureResolutionSnapshot(resolved: resolved, capabilityGeneration: capabilityGeneration)
     }
 
     func setZoom(_ requested: CGFloat) {
@@ -459,7 +493,6 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         let selectedFlash = flash
         let selectedRatio = ratio
         let selectedResolution = resolution
-        let selectedResolvedResolution = resolvedResolution
         let selectedFilter = activeFilter
         let selectedFilterIntensity = filterIntensity
         isCapturing = true
@@ -469,6 +502,11 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 self?.finishCapture()
                 return
             }
+            // Taken on `queue` right now, from queue-owned capability state —
+            // not a main-thread cache — so this exact snapshot is what both
+            // configures the output below and becomes the saved record; a
+            // concurrent camera switch can't leave the two disagreeing.
+            let snapshot = self.currentCaptureSnapshot(for: selectedResolution)
             // capturePhoto raises NSInvalidArgumentException for any setting the output
             // does not allow, and an ObjC exception cannot be caught in Swift, so every
             // value below is taken from what the output itself reports.
@@ -477,11 +515,11 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             if self.photoOutput.supportedFlashModes.contains(selectedFlash.mode) {
                 settings.flashMode = selectedFlash.mode
             }
-            if let dimensions = Self.photoDimensions(
-                selectedResolution == .maximum ? self.maximumDimensions : self.standardDimensions,
-                within: self.photoOutput.maxPhotoDimensions
-            ) {
-                settings.maxPhotoDimensions = dimensions
+            if let dimensions = snapshot.resolved.dimensions {
+                settings.maxPhotoDimensions = CMVideoDimensions(
+                    width: dimensions.width,
+                    height: dimensions.height
+                )
             }
             if let connection = self.photoOutput.connection(with: .video),
                 connection.isVideoRotationAngleSupported(self.rotationAngle)
@@ -493,7 +531,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             self.pendingFilterIntensity = selectedFilterIntensity
             self.pendingSaveOriginal = self.savesOriginal
             self.pendingLocation = self.photoLocation
-            self.pendingResolvedResolution = selectedResolvedResolution
+            self.pendingCaptureSnapshot = snapshot
             self.photoOutput.capturePhoto(with: settings, delegate: self)
         }
     }
@@ -723,13 +761,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
         let mapped = sorted.map { PhotoDimensions(width: $0.width, height: $0.height) }
         let standardPhoto = PhotoDimensions.standard(in: mapped)
-        standardDimensions = sorted.first {
-            $0.width == standardPhoto?.width && $0.height == standardPhoto?.height
-        }
         let maximumPhoto = mapped.last
-        maximumDimensions = sorted.last
-        if let maximumDimensions {
-            photoOutput.maxPhotoDimensions = maximumDimensions
+        if let maximumCMDimensions = sorted.last {
+            photoOutput.maxPhotoDimensions = maximumCMDimensions
         }
         // Raise the ceiling here rather than per capture: the output defaults to
         // .balanced and rejects a higher value on the settings object.
@@ -738,6 +772,15 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             width: photoOutput.maxPhotoDimensions.width,
             height: photoOutput.maxPhotoDimensions.height
         )
+
+        // The queue-owned truth a capture snapshot is built from. Bumping the
+        // generation here — rather than only replacing the values — is what
+        // lets a snapshot be tied to (and a stale one told apart from) the
+        // exact capability set it was resolved against.
+        standardDimensions = standardPhoto
+        maximumDimensions = maximumPhoto
+        outputLimitDimensions = outputLimitPhoto
+        capabilityGeneration += 1
 
         let deviceMaxZoom = min(device.activeFormat.videoMaxZoomFactor, 10)
         // Whether the device/format genuinely has more to offer than standard —
@@ -749,7 +792,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             self.zoom = 1
             self.exposure = 0
             self.supportsMaximumResolution = supportsMaximum
-            if !supportsMaximum { self.resolution = .standard }
+            // The requested tier is the user's intent (AppSettings.requestedResolution)
+            // and survives a temporarily-incapable camera unchanged; only the
+            // resolved dimensions/downgrade reason reflect this camera's limits.
             self.cachedStandardDimensions = standardPhoto
             self.cachedMaximumDimensions = maximumPhoto
             self.cachedOutputLimit = outputLimitPhoto
@@ -852,11 +897,14 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         if pendingSaveOriginal, pendingFilter != nil {
             save(data, countsFilter: false, showsThumbnail: false)
         }
+        // Built from the exact snapshot capture() used to configure the
+        // output — never re-derived — plus the one thing that can only be
+        // known now: what ImageIO reports the saved bytes actually contain.
         let record = CaptureResolutionRecord(
-            requested: pendingResolvedResolution.requested,
-            resolvedDimensions: pendingResolvedResolution.dimensions,
+            requested: pendingCaptureSnapshot.resolved.requested,
+            resolvedDimensions: pendingCaptureSnapshot.resolved.dimensions,
             savedDimensions: Self.pixelDimensions(of: outputData),
-            downgradeReason: pendingResolvedResolution.downgradeReason
+            downgradeReason: pendingCaptureSnapshot.resolved.downgradeReason
         )
         DispatchQueue.main.async { self.lastCaptureResolution = record }
         save(outputData, countsFilter: pendingFilter != nil, showsThumbnail: true)

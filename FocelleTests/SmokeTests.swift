@@ -171,6 +171,174 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(camera.exposure, 0.6, accuracy: 0.0001)
     }
 
+    // MARK: - AppSettings.requestedResolution migration (Finding 2)
+
+    @MainActor
+    func testLegacyMaximumResolutionTrueMigratesToMaximum() {
+        let suite = "FocelleTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "maximumResolution")
+
+        XCTAssertEqual(AppSettings(defaults: defaults).requestedResolution, .maximum)
+    }
+
+    @MainActor
+    func testLegacyMaximumResolutionFalseMigratesToStandard() {
+        let suite = "FocelleTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(false, forKey: "maximumResolution")
+
+        XCTAssertEqual(AppSettings(defaults: defaults).requestedResolution, .standard)
+    }
+
+    @MainActor
+    func testNewFormatResolutionValueTakesPrecedenceOverLegacyBool() {
+        let suite = "FocelleTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "maximumResolution")
+        defaults.set(CameraResolution.standard.rawValue, forKey: "requestedResolution")
+
+        XCTAssertEqual(AppSettings(defaults: defaults).requestedResolution, .standard)
+    }
+
+    @MainActor
+    func testMigratedResolutionPersistsAndDropsTheLegacyKey() {
+        let suite = "FocelleTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "maximumResolution")
+
+        _ = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(defaults.string(forKey: "requestedResolution"), CameraResolution.maximum.rawValue)
+        XCTAssertNil(defaults.object(forKey: "maximumResolution"))
+        // Idempotent: a second instantiation reads the already-migrated value.
+        XCTAssertEqual(AppSettings(defaults: defaults).requestedResolution, .maximum)
+    }
+
+    // MARK: - Requested tier survives camera-capability changes (Finding 3)
+
+    @MainActor
+    func testRequestedMaximumSurvivesACapableToUnsupportedToCapableCameraSwitch() {
+        let camera = CameraSession()
+        let standard = PhotoDimensions(width: 4_000, height: 3_000)
+        let genuineMaximum = PhotoDimensions(width: 8_000, height: 6_000)
+
+        // Start on a capable camera and request maximum.
+        camera.cachedStandardDimensions = standard
+        camera.cachedMaximumDimensions = genuineMaximum
+        camera.cachedOutputLimit = genuineMaximum
+        camera.recomputeResolvedResolution()
+        camera.setRequestedResolution(.maximum)
+        XCTAssertEqual(camera.resolvedResolution.dimensions, genuineMaximum)
+        XCTAssertFalse(camera.resolvedResolution.isDowngraded)
+
+        // Switch to a camera whose only tier is "standard" — no distinct maximum.
+        camera.cachedStandardDimensions = standard
+        camera.cachedMaximumDimensions = standard
+        camera.cachedOutputLimit = standard
+        camera.recomputeResolvedResolution()
+
+        XCTAssertEqual(camera.resolution, .maximum, "the requested tier must survive an incapable camera")
+        XCTAssertEqual(camera.resolvedResolution.dimensions, standard)
+        XCTAssertEqual(camera.resolvedResolution.downgradeReason, .unsupportedByActiveFormat)
+
+        // Switch back to a capable camera: resolves to maximum again with no
+        // further Settings/toolbar action required.
+        camera.cachedStandardDimensions = standard
+        camera.cachedMaximumDimensions = genuineMaximum
+        camera.cachedOutputLimit = genuineMaximum
+        camera.recomputeResolvedResolution()
+
+        XCTAssertEqual(camera.resolution, .maximum)
+        XCTAssertEqual(camera.resolvedResolution.dimensions, genuineMaximum)
+        XCTAssertFalse(camera.resolvedResolution.isDowngraded)
+    }
+
+    @MainActor
+    func testCapabilityRecomputeNeverTouchesZoomOrExposure() {
+        let camera = CameraSession()
+        camera.zoom = 2.5
+        camera.exposure = -0.3
+        camera.setRequestedResolution(.maximum)
+
+        camera.cachedStandardDimensions = PhotoDimensions(width: 4_000, height: 3_000)
+        camera.cachedMaximumDimensions = PhotoDimensions(width: 4_000, height: 3_000)
+        camera.cachedOutputLimit = PhotoDimensions(width: 4_000, height: 3_000)
+        camera.recomputeResolvedResolution()
+
+        XCTAssertEqual(camera.zoom, 2.5)
+        XCTAssertEqual(camera.exposure, -0.3, accuracy: 0.0001)
+    }
+
+    // MARK: - One immutable capture snapshot (Finding 4)
+
+    @MainActor
+    func testCaptureSnapshotReflectsCapabilitiesAsOfCaptureTimeNotAnOlderGeneration() {
+        let camera = CameraSession()
+        let oldStandard = PhotoDimensions(width: 3_000, height: 2_250)
+        let oldMaximum = PhotoDimensions(width: 6_000, height: 4_500)
+        camera.standardDimensions = oldStandard
+        camera.maximumDimensions = oldMaximum
+        camera.outputLimitDimensions = oldMaximum
+        camera.capabilityGeneration = 1
+
+        let oldSnapshot = camera.currentCaptureSnapshot(for: .maximum)
+        XCTAssertEqual(oldSnapshot.resolved.dimensions, oldMaximum)
+        XCTAssertEqual(oldSnapshot.capabilityGeneration, 1)
+
+        // A camera switch replaces the queue-owned capability state and bumps
+        // the generation before the next capture is taken.
+        let newStandard = PhotoDimensions(width: 4_000, height: 3_000)
+        let newMaximum = PhotoDimensions(width: 8_000, height: 6_000)
+        camera.standardDimensions = newStandard
+        camera.maximumDimensions = newMaximum
+        camera.outputLimitDimensions = newMaximum
+        camera.capabilityGeneration = 2
+
+        let newSnapshot = camera.currentCaptureSnapshot(for: .maximum)
+        XCTAssertEqual(newSnapshot.resolved.dimensions, newMaximum)
+        XCTAssertEqual(newSnapshot.capabilityGeneration, 2)
+        XCTAssertNotEqual(
+            newSnapshot,
+            oldSnapshot,
+            "a later capture must not resolve against the previous camera's dimensions"
+        )
+    }
+
+    @MainActor
+    func testCaptureSettingsAndSavedRecordShareTheExactResolvedDimensions() {
+        let camera = CameraSession()
+        let resolved = PhotoDimensions(width: 8_000, height: 6_000)
+        camera.standardDimensions = PhotoDimensions(width: 4_000, height: 3_000)
+        camera.maximumDimensions = resolved
+        camera.outputLimitDimensions = resolved
+        camera.capabilityGeneration = 5
+        camera.setRequestedResolution(.maximum)
+
+        let snapshot = camera.currentCaptureSnapshot(for: camera.resolution)
+
+        // Mirrors exactly what capture() does with the snapshot.
+        let configuredDimensions = snapshot.resolved.dimensions.map {
+            CMVideoDimensions(width: $0.width, height: $0.height)
+        }
+        // Mirrors exactly what photoOutput(_:didFinishProcessingPhoto:) does with it.
+        let record = CaptureResolutionRecord(
+            requested: snapshot.resolved.requested,
+            resolvedDimensions: snapshot.resolved.dimensions,
+            savedDimensions: nil,
+            downgradeReason: snapshot.resolved.downgradeReason
+        )
+
+        XCTAssertEqual(configuredDimensions?.width, resolved.width)
+        XCTAssertEqual(configuredDimensions?.height, resolved.height)
+        XCTAssertEqual(record.resolvedDimensions, resolved)
+        XCTAssertEqual(snapshot.capabilityGeneration, 5)
+    }
+
     func testCameraRotationMatchesInterfaceOrientation() {
         XCTAssertEqual(CameraRotation.angle(for: .portrait), 90)
         XCTAssertEqual(CameraRotation.angle(for: .landscapeLeft), 0)
@@ -656,7 +824,7 @@ final class SmokeTests: XCTestCase {
         settings.analyticsEnabled = false
         settings.voiceGuidance = true
         settings.autoCapture = true
-        settings.maximumResolution = true
+        settings.requestedResolution = .maximum
         XCTAssertTrue(settings.guidanceEnabled)
 
         // Simulates a Settings sheet round trip: a fresh AppSettings read from

@@ -30,8 +30,11 @@ final class AppSettings: ObservableObject {
     // CameraSession.resolution is only ever a mirror of this value (see
     // CameraView), so Settings and the camera toolbar can't drift apart.
     @Published var requestedResolution: CameraResolution {
-        didSet { defaults.set(requestedResolution.rawValue, forKey: "requestedResolution") }
+        didSet { defaults.set(requestedResolution.rawValue, forKey: Self.requestedResolutionKey) }
     }
+
+    private static let requestedResolutionKey = "requestedResolution"
+    private static let legacyMaximumResolutionKey = "maximumResolution"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -42,8 +45,29 @@ final class AppSettings: ObservableObject {
         autoCapture = defaults.bool(forKey: "autoCapture")
         saveOriginal = defaults.bool(forKey: "saveOriginal")
         saveLocation = defaults.bool(forKey: "saveLocation")
-        requestedResolution =
-            defaults.string(forKey: "requestedResolution").flatMap(CameraResolution.init(rawValue:))
-            ?? .standard
+
+        let newRawValue = defaults.string(forKey: Self.requestedResolutionKey)
+        let legacyValue = defaults.object(forKey: Self.legacyMaximumResolutionKey) as? Bool
+        requestedResolution = Self.migratedResolution(newRawValue: newRawValue, legacyValue: legacyValue)
+        if newRawValue == nil {
+            // First read since upgrading: persist the migrated value immediately
+            // so it — not the legacy Bool — is authoritative from here on, and
+            // this branch never runs again (idempotent). Only drop the legacy
+            // key once its value has actually been carried across.
+            defaults.set(requestedResolution.rawValue, forKey: Self.requestedResolutionKey)
+            defaults.removeObject(forKey: Self.legacyMaximumResolutionKey)
+        }
+    }
+
+    // A genuine new-format value always wins; otherwise the legacy Bool (if
+    // it was ever set) maps across; a clean install defaults to standard.
+    static func migratedResolution(newRawValue: String?, legacyValue: Bool?) -> CameraResolution {
+        if let newRawValue, let resolution = CameraResolution(rawValue: newRawValue) {
+            return resolution
+        }
+        if let legacyValue {
+            return legacyValue ? .maximum : .standard
+        }
+        return .standard
     }
 }
