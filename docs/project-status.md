@@ -31,7 +31,7 @@ They are left intact as history.
 | Pull request | [#1](https://github.com/PNHD/focelle-ios/pull/1) — draft, not merged |
 | CI run | workflow `iOS`, run number 64, run ID `30368976476`, conclusion success |
 | CI jobs | `backend`, `simulator-test`, `device-package` — 3/3 success |
-| Working tree at baseline | clean |
+| Working-tree observation | Recorded clean by the read-only FCL-001A audit; historical local-state evidence, not reconstructible from the commit alone |
 | Highest evidence level | CI VERIFIED |
 | Physical device evidence | none at this commit |
 

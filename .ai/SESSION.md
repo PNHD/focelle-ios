@@ -75,14 +75,30 @@ saved to Photos on the device. Do not write or imply otherwise.
 
 ## Current gate
 
-`FCL-001B — Baseline Documentation Rebuild` is the active task (docs only).
+`FCL-001B — Baseline Documentation Rebuild` is still on task branch
+`task/FCL-001B-project-status`, currently in review/revision. This is the
+state as of this document commit — it is not a permanent instruction for
+every future session. Check the actual branch/PR state before trusting it.
 
-The next gate after it is:
+**Stop condition:** if you are on `task/FCL-001B-project-status` and about to
+run a device smoke test, stop. FCL-002 must not run on the documentation
+branch.
 
-> **FCL-002 — Physical Launch and Capture Smoke Check**
+### Once FCL-001B is approved and merged
 
-Run it against the artifact of CI run 64, after confirming that run's head SHA
-matches HEAD. Nothing downstream of that gate should start first.
+- `task/FCL-001B-project-status` must **not** be reused for FCL-002.
+- The next session must open or update `feat/focelle-beta` and verify the
+  **current** integration HEAD — do not assume it is still `5532063`; the
+  merge itself moves it.
+- Before running FCL-002, there must be a status-transition commit that marks
+  FCL-001B complete and records the new integration SHA.
+- Only then create a new branch from the verified integration HEAD, named
+  `task/FCL-002-physical-smoke`.
+- FCL-002 is not Active until that branch/task contract actually starts. It
+  is the next gate, not a started one.
+
+FCL-002 target when it starts: the artifact of CI run 64, after confirming
+that run's head SHA matches the integration HEAD in force at that time.
 
 ## Safety warnings
 
