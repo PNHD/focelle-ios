@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 @preconcurrency import CoreLocation
+import ImageIO
 import Photos
 import SwiftUI
 import UIKit
@@ -64,12 +65,16 @@ enum CameraTimer: Int, CaseIterable {
     case ten = 10
 }
 
-enum CameraResolution: String, CaseIterable {
+// The requested tier. `.maximum` means "the highest this active camera and
+// format can deliver" — never a promise of a specific pixel count, since
+// that varies by device and format. See ResolvedResolution for the
+// truthful, dimension-based value this resolves to.
+enum CameraResolution: String, CaseIterable, Sendable {
     case standard
     case maximum
 }
 
-struct PhotoDimensions: Equatable {
+struct PhotoDimensions: Equatable, Sendable {
     let width: Int32
     let height: Int32
 
@@ -78,6 +83,93 @@ struct PhotoDimensions: Equatable {
     static func standard(in options: [PhotoDimensions]) -> PhotoDimensions? {
         options.min { abs($0.pixels - 24_000_000) < abs($1.pixels - 24_000_000) }
     }
+}
+
+// Why a requested resolution did not resolve to a distinctly higher tier.
+enum ResolutionDowngradeReason: String, Equatable, Sendable {
+    case none
+    // The active device/format offers nothing distinctly larger than standard.
+    case unsupportedByActiveFormat
+    // AVCapturePhotoOutput's own ceiling capped the request further.
+    case outputLimited
+}
+
+// The truthful three-way split this feature is built on: what the user
+// asked for (`requested`), and what AVFoundation will actually be asked to
+// capture (`dimensions`) — kept separate from what a finished photo turns
+// out to contain (see CaptureResolutionRecord). A pure value type so the
+// resolution rule is testable without any camera hardware.
+struct ResolvedResolution: Equatable, Sendable {
+    var requested: CameraResolution
+    var dimensions: PhotoDimensions?
+    var downgradeReason: ResolutionDowngradeReason
+
+    var isDowngraded: Bool { downgradeReason != .none }
+
+    var label: String { Self.label(for: dimensions) }
+
+    // A known megapixel bucket when the dimensions land close to one;
+    // otherwise the literal pixel dimensions. Never a borrowed "24"/"48"
+    // the hardware didn't actually deliver.
+    static func label(for dimensions: PhotoDimensions?) -> String {
+        guard let dimensions, dimensions.pixels > 0 else { return "—" }
+        let megapixels = Double(dimensions.pixels) / 1_000_000
+        let knownBuckets: [Double] = [12, 24, 48]
+        if let nearest = knownBuckets.min(by: { abs($0 - megapixels) < abs($1 - megapixels) }),
+            abs(nearest - megapixels) <= 2
+        {
+            return "\(Int(nearest))"
+        }
+        return "\(dimensions.width)×\(dimensions.height)"
+    }
+
+    // Whether the active format actually offers a maximum tier distinctly
+    // larger than standard — the only truthful basis for exposing a
+    // "maximum" choice at all.
+    static func hasDistinctMaximum(standard: PhotoDimensions?, maximum: PhotoDimensions?) -> Bool {
+        guard let standard, let maximum else { return false }
+        return maximum.pixels > standard.pixels
+    }
+
+    // The explicit, deterministic resolution rule: standard always maps to
+    // the standard tier; maximum maps to the distinct larger tier when one
+    // exists, else falls back to standard rather than silently claiming a
+    // capability that isn't there. The output's own ceiling is applied last.
+    static func resolve(
+        requested: CameraResolution,
+        standard: PhotoDimensions?,
+        maximum: PhotoDimensions?,
+        outputLimit: PhotoDimensions?
+    ) -> ResolvedResolution {
+        guard let standard else {
+            return ResolvedResolution(requested: requested, dimensions: nil, downgradeReason: .none)
+        }
+        let distinctMaximum = hasDistinctMaximum(standard: standard, maximum: maximum)
+        var ideal = requested == .maximum ? (maximum ?? standard) : standard
+        var reason = ResolutionDowngradeReason.none
+        if requested == .maximum, !distinctMaximum {
+            reason = .unsupportedByActiveFormat
+        }
+        if let outputLimit, outputLimit.pixels > 0, ideal.pixels > outputLimit.pixels {
+            ideal = outputLimit
+            reason = .outputLimited
+        }
+        return ResolvedResolution(requested: requested, dimensions: ideal, downgradeReason: reason)
+    }
+}
+
+// Privacy-safe record of what actually happened at capture: the requested
+// tier, what was resolved ahead of the shot, and what the saved photo turned
+// out to contain. Dimensions and enum labels only — never image bytes,
+// scene content, or identifiers.
+struct CaptureResolutionRecord: Equatable, Sendable {
+    let requested: CameraResolution
+    let resolvedDimensions: PhotoDimensions?
+    let savedDimensions: PhotoDimensions?
+    let downgradeReason: ResolutionDowngradeReason
+
+    var isDowngraded: Bool { downgradeReason != .none }
+    var requestedLabel: String { requested.rawValue }
 }
 
 enum CameraRotation {
@@ -110,7 +202,23 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     @Published var flash: CameraFlash = .off
     @Published var ratio: CameraRatio = .fourThree
     @Published var timer: CameraTimer = .off
-    @Published var resolution: CameraResolution = .standard
+    // Not directly settable from outside — setRequestedResolution(_:) is the
+    // one path in, so this can no longer drift from AppSettings the way a
+    // freely-writable property could.
+    @Published private(set) var resolution: CameraResolution = .standard {
+        didSet {
+            guard resolution != oldValue else { return }
+            recomputeResolvedResolution()
+        }
+    }
+    @Published private(set) var resolvedResolution = ResolvedResolution(
+        requested: .standard,
+        dimensions: nil,
+        downgradeReason: .none
+    )
+    @Published private(set) var standardModeLabel = "—"
+    @Published private(set) var maximumModeLabel = "—"
+    @Published private(set) var lastCaptureResolution: CaptureResolutionRecord?
     @Published var showsGrid = true
     @Published var savesOriginal = false
     var photoLocation: CLLocation?
@@ -139,8 +247,19 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var pendingFilterIntensity = 1.0
     private var pendingSaveOriginal = false
     private var pendingLocation: CLLocation?
+    private var pendingResolvedResolution = ResolvedResolution(
+        requested: .standard,
+        dimensions: nil,
+        downgradeReason: .none
+    )
     private var standardDimensions: CMVideoDimensions?
     private var maximumDimensions: CMVideoDimensions?
+    // Main-thread mirrors of the two dimensions above plus the output's own
+    // ceiling, so resolution's didSet can recompute resolvedResolution
+    // without reaching across queue-owned state.
+    private var cachedStandardDimensions: PhotoDimensions?
+    private var cachedMaximumDimensions: PhotoDimensions?
+    private var cachedOutputLimit: PhotoDimensions?
     private var previewRecipe: FilterRecipe?
     private var previewIntensity = 1.0
     private var lastPreviewTime = CMTime.zero
@@ -275,6 +394,35 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
+    // The one path that may change `resolution` — AppSettings.requestedResolution
+    // is the persisted single source of truth; CameraView mirrors it in here on
+    // appear/change instead of writing `resolution` directly, so the toolbar and
+    // Settings can no longer drift apart. Does not touch zoom or exposure.
+    func setRequestedResolution(_ mode: CameraResolution) {
+        resolution = mode
+    }
+
+    private func recomputeResolvedResolution() {
+        resolvedResolution = Self.resolve(
+            requested: resolution,
+            standard: cachedStandardDimensions,
+            maximum: cachedMaximumDimensions,
+            outputLimit: cachedOutputLimit
+        )
+        standardModeLabel = Self.resolve(
+            requested: .standard,
+            standard: cachedStandardDimensions,
+            maximum: cachedMaximumDimensions,
+            outputLimit: cachedOutputLimit
+        ).label
+        maximumModeLabel = Self.resolve(
+            requested: .maximum,
+            standard: cachedStandardDimensions,
+            maximum: cachedMaximumDimensions,
+            outputLimit: cachedOutputLimit
+        ).label
+    }
+
     func setZoom(_ requested: CGFloat) {
         let clamped = min(max(requested, 1), maxZoom)
         DispatchQueue.main.async { self.zoom = clamped }
@@ -311,6 +459,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         let selectedFlash = flash
         let selectedRatio = ratio
         let selectedResolution = resolution
+        let selectedResolvedResolution = resolvedResolution
         let selectedFilter = activeFilter
         let selectedFilterIntensity = filterIntensity
         isCapturing = true
@@ -344,6 +493,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             self.pendingFilterIntensity = selectedFilterIntensity
             self.pendingSaveOriginal = self.savesOriginal
             self.pendingLocation = self.photoLocation
+            self.pendingResolvedResolution = selectedResolvedResolution
             self.photoOutput.capturePhoto(with: settings, delegate: self)
         }
     }
@@ -489,6 +639,17 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         return wanted <= allowed ? requested : limit
     }
 
+    // Reads the pixel dimensions actually saved, without decoding image
+    // content — this is what proves or disproves a resolution claim.
+    static func pixelDimensions(of data: Data) -> PhotoDimensions? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+            let width = properties[kCGImagePropertyPixelWidth] as? Int,
+            let height = properties[kCGImagePropertyPixelHeight] as? Int
+        else { return nil }
+        return PhotoDimensions(width: Int32(width), height: Int32(height))
+    }
+
     func requestAIPreview(_ completion: @escaping @Sendable (Data?) -> Void) {
         queue.async { [weak self] in
             self?.pendingAIPreview = completion
@@ -561,10 +722,11 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             Int64($0.width) * Int64($0.height) < Int64($1.width) * Int64($1.height)
         }
         let mapped = sorted.map { PhotoDimensions(width: $0.width, height: $0.height) }
-        let standard = PhotoDimensions.standard(in: mapped)
+        let standardPhoto = PhotoDimensions.standard(in: mapped)
         standardDimensions = sorted.first {
-            $0.width == standard?.width && $0.height == standard?.height
+            $0.width == standardPhoto?.width && $0.height == standardPhoto?.height
         }
+        let maximumPhoto = mapped.last
         maximumDimensions = sorted.last
         if let maximumDimensions {
             photoOutput.maxPhotoDimensions = maximumDimensions
@@ -572,16 +734,26 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         // Raise the ceiling here rather than per capture: the output defaults to
         // .balanced and rejects a higher value on the settings object.
         photoOutput.maxPhotoQualityPrioritization = .quality
+        let outputLimitPhoto = PhotoDimensions(
+            width: photoOutput.maxPhotoDimensions.width,
+            height: photoOutput.maxPhotoDimensions.height
+        )
 
         let deviceMaxZoom = min(device.activeFormat.videoMaxZoomFactor, 10)
-        let supportsMaximum =
-            (maximumDimensions.map { Int64($0.width) * Int64($0.height) } ?? 0) > 30_000_000
+        // Whether the device/format genuinely has more to offer than standard —
+        // not an arbitrary pixel-count threshold, so a modest-but-real jump
+        // (or a hardware ceiling below any "48 MP" claim) is represented truthfully.
+        let supportsMaximum = ResolvedResolution.hasDistinctMaximum(standard: standardPhoto, maximum: maximumPhoto)
         DispatchQueue.main.async {
             self.maxZoom = max(deviceMaxZoom, 1)
             self.zoom = 1
             self.exposure = 0
             self.supportsMaximumResolution = supportsMaximum
-            if !self.supportsMaximumResolution { self.resolution = .standard }
+            if !supportsMaximum { self.resolution = .standard }
+            self.cachedStandardDimensions = standardPhoto
+            self.cachedMaximumDimensions = maximumPhoto
+            self.cachedOutputLimit = outputLimitPhoto
+            self.recomputeResolvedResolution()
         }
     }
 
@@ -680,6 +852,13 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         if pendingSaveOriginal, pendingFilter != nil {
             save(data, countsFilter: false, showsThumbnail: false)
         }
+        let record = CaptureResolutionRecord(
+            requested: pendingResolvedResolution.requested,
+            resolvedDimensions: pendingResolvedResolution.dimensions,
+            savedDimensions: Self.pixelDimensions(of: outputData),
+            downgradeReason: pendingResolvedResolution.downgradeReason
+        )
+        DispatchQueue.main.async { self.lastCaptureResolution = record }
         save(outputData, countsFilter: pendingFilter != nil, showsThumbnail: true)
     }
 

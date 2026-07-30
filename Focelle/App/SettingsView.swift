@@ -34,7 +34,13 @@ struct SettingsView: View {
                     Toggle("settings.saveOriginal", isOn: $settings.saveOriginal)
                     Toggle("settings.saveLocation", isOn: $settings.saveLocation)
                     if supportsMaximumResolution {
-                        Toggle("settings.maximumResolution", isOn: $settings.maximumResolution)
+                        Toggle(
+                            "settings.maximumResolution",
+                            isOn: Binding(
+                                get: { settings.requestedResolution == .maximum },
+                                set: { settings.requestedResolution = $0 ? .maximum : .standard }
+                            )
+                        )
                     }
                 }
 

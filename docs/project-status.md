@@ -105,14 +105,32 @@ Status as of `5532063`. Conservative by rule: when in doubt, the lower level win
   was found during this check — local guidance/target overlay disappears
   after a Settings round-trip and after force-close/relaunch — tracked as
   `FCL-003` below; it does not reopen FCL-002.
-- **`FCL-003 — Restore Local Guidance After Settings and Relaunch`**: `IN
-  REVIEW`. Branch: `task/FCL-003-guidance-restore`, based on the exact
-  `feat/focelle-beta` HEAD at `fd08ed2f24662b9439245b7e7fe541ff6cb9c4ef`.
-  Implementation and regression tests are complete and ready for independent
-  review. **Physical verification of the fix is still pending** — nothing
-  here may be recorded as PHYSICAL DEVICE VERIFIED until a real device pass
-  confirms the acceptance criteria in the FCL-003 task brief.
-- **`FCL-004` and `FCL-005`**: not started, not scoped by this task.
+- **`FCL-M1 — Camera Core Stabilization`**: `IN REVIEW — NOT PHYSICALLY
+  VERIFIED`. Branch: `task/FCL-M1-camera-core-stabilization`, created from the
+  exact `feat/focelle-beta` HEAD at `fd08ed2f24662b9439245b7e7fe541ff6cb9c4ef`.
+  This single milestone now carries both tickets that were previously tracked
+  as separate gates:
+  - **FCL-003 (guidance lifecycle restoration)** — already implemented and
+    independently reviewed on branch `task/FCL-003-guidance-restore`
+    (commits `76b11e1`, `50ef10a`); cherry-picked into FCL-M1 unchanged, and
+    included here rather than re-litigated on its own.
+  - **FCL-004 (truthful, persistent, verifiable camera resolution)** —
+    implemented within FCL-M1: a single persisted `AppSettings.requestedResolution`
+    replaces the old competing `AppSettings.maximumResolution` /
+    `CameraSession.resolution` pair; `CameraSession.resolution` is now
+    `private(set)`, changeable only through `setRequestedResolution(_:)`;
+    the displayed resolution label, the two menu choices, and a downgrade
+    indicator are all derived from actual resolved `PhotoDimensions` (via
+    `ResolvedResolution`/`CaptureResolutionRecord`), never a hardcoded
+    "24"/"48"; a privacy-safe `lastCaptureResolution` record captures
+    requested vs. resolved vs. saved pixel dimensions after every capture.
+  - Both are covered by regression tests (pure resolution-rule tests plus
+    the retained FCL-003 lifecycle tests). Neither has run in CI at this
+    HEAD, and **no claim is made that 24 MP or 48 MP physically works** —
+    only a real device capture, inspected via the new saved-output record,
+    can prove that.
+- **`FCL-005`**: a separate, later AI-product milestone. Not started, not
+  scoped by FCL-M1, and not to begin before FCL-M1 closes.
 
 ### FCL-001C transition record
 
@@ -141,23 +159,31 @@ evidence contradicts it. This gate note previously still described FCL-002
 as inactive after FCL-002 had already passed; that was a documentation
 contradiction and is corrected here.
 
-**`FCL-003 — Restore Local Guidance After Settings and Relaunch`** is the
-active gate: `IN REVIEW — NOT PHYSICALLY VERIFIED`.
+**`FCL-M1 — Camera Core Stabilization`** is the one active gate: `IN REVIEW —
+NOT PHYSICALLY VERIFIED`. FCL-003 and FCL-004 are no longer separate
+execution gates — they are both carried inside this single milestone, on
+branch `task/FCL-M1-camera-core-stabilization` (from `feat/focelle-beta` at
+`fd08ed2f24662b9439245b7e7fe541ff6cb9c4ef`).
 
-- Branch: `task/FCL-003-guidance-restore`, based on `feat/focelle-beta` at
-  `fd08ed2f24662b9439245b7e7fe541ff6cb9c4ef`.
-- Implementation and regression tests are in place and have been through one
-  round of independent review with follow-up fixes applied. This is **not**
-  a claim of CI success or physical verification — neither has happened yet.
-- Before this gate can close, a physical pass on the iPhone 17e must confirm
-  the FCL-003 acceptance criteria: local guidance/target overlay resumes
-  after a Settings round trip (repeated, no frozen rectangles, no duplicate
-  overlays), resumes after force-close/relaunch, an explicit
-  `guidanceEnabled = false` stays off across both, cloud AI stays
-  unnecessary for local guidance, and the shutter/preview remain usable
-  throughout.
-- `FCL-004` and `FCL-005` remain unscheduled behind this gate and must not
-  be started until FCL-003 closes.
+- Implementation and regression tests for both tickets are in place. FCL-003
+  has already been through one round of independent review with follow-up
+  fixes applied; FCL-004 has not yet been independently reviewed. Neither
+  has run in CI at this HEAD, and neither is claimed as physically verified.
+- Before this gate can close, a physical pass on the iPhone 17e must confirm:
+  - FCL-003 — local guidance/target overlay resumes after a Settings round
+    trip (repeated, no frozen rectangles, no duplicate overlays) and after
+    force-close/relaunch; an explicit `guidanceEnabled = false` stays off
+    across both; cloud AI stays unnecessary for local guidance.
+  - FCL-004 — the displayed resolution label matches what a saved photo
+    actually contains (checked via the new capture-resolution record, not
+    just the toolbar label); Settings and the toolbar agree on the same
+    selection immediately, after a Settings round trip, after a camera
+    switch, and after relaunch; a genuine downgrade shows the actionable
+    inline indicator rather than silently keeping the old label; **24 MP
+    and 48 MP are not to be recorded as physically working until this pass
+    proves it** — this HEAD makes no such claim.
+- `FCL-005` remains a separate, later AI-product milestone: unscheduled
+  behind this gate, not started, and not to begin until FCL-M1 closes.
 
 If the agent is on a documentation-only branch, it must stop before running
 any physical check — a gate does not close from a documentation branch.

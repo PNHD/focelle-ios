@@ -74,6 +74,7 @@
     "camera.permissionDenied" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Camera access is off." } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Quyền camera đang tắt." } } } },
     "camera.ratio" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Photo ratio" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tỉ lệ ảnh" } } } },
     "camera.resolution" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Resolution" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Độ phân giải" } } } },
+    "camera.resolution.downgraded" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Lower than requested" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Thấp hơn yêu cầu" } } } },
     "camera.saved" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Saved to Photos" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đã lưu vào Ảnh" } } } },
     "camera.starting" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Starting camera…" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đang mở camera…" } } } },
     "camera.switch" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Switch camera" } }, "vi" : { "stringUnit" : { "state" : "translated", "value" : "Đổi camera" } } } },

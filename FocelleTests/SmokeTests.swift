@@ -46,6 +46,131 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(PhotoDimensions.standard(in: options), options[1])
     }
 
+    func testResolutionLabelBucketsToKnownMegapixelCountsOrFallsBackToDimensions() {
+        let twelveMP = PhotoDimensions(width: 4_000, height: 3_000)
+        let twentyFourMP = PhotoDimensions(width: 6_000, height: 4_000)
+        let fortyEightMP = PhotoDimensions(width: 8_000, height: 6_000)
+        let offBucket = PhotoDimensions(width: 2_000, height: 1_500)
+
+        XCTAssertEqual(ResolvedResolution.label(for: twelveMP), "12")
+        XCTAssertEqual(ResolvedResolution.label(for: twentyFourMP), "24")
+        XCTAssertEqual(ResolvedResolution.label(for: fortyEightMP), "48")
+        XCTAssertEqual(ResolvedResolution.label(for: offBucket), "2000×1500")
+        XCTAssertEqual(ResolvedResolution.label(for: nil), "—")
+    }
+
+    func testHasDistinctMaximumRequiresAGenuinelyLargerTier() {
+        let standard = PhotoDimensions(width: 4_000, height: 3_000)
+        let sameAsStandard = PhotoDimensions(width: 4_000, height: 3_000)
+        let genuineMaximum = PhotoDimensions(width: 8_000, height: 6_000)
+
+        XCTAssertFalse(ResolvedResolution.hasDistinctMaximum(standard: standard, maximum: sameAsStandard))
+        XCTAssertTrue(ResolvedResolution.hasDistinctMaximum(standard: standard, maximum: genuineMaximum))
+        XCTAssertFalse(ResolvedResolution.hasDistinctMaximum(standard: nil, maximum: genuineMaximum))
+    }
+
+    // This is the exact shape of the physical bug: a device whose "maximum"
+    // tier is no bigger than "standard" must not silently claim a 48 MP
+    // capability it doesn't have — resolve() has to say so, not the caller.
+    func testResolveFlagsADowngradeWhenMaximumIsNoBiggerThanStandardOrOutputCapsIt() {
+        let standard = PhotoDimensions(width: 4_000, height: 3_000)
+        let biggerMaximum = PhotoDimensions(width: 8_000, height: 6_000)
+
+        let normalStandard = CameraSession.resolve(
+            requested: .standard,
+            standard: standard,
+            maximum: biggerMaximum,
+            outputLimit: nil
+        )
+        XCTAssertEqual(normalStandard.dimensions, standard)
+        XCTAssertEqual(normalStandard.downgradeReason, .none)
+
+        let normalMaximum = CameraSession.resolve(
+            requested: .maximum,
+            standard: standard,
+            maximum: biggerMaximum,
+            outputLimit: nil
+        )
+        XCTAssertEqual(normalMaximum.dimensions, biggerMaximum)
+        XCTAssertEqual(normalMaximum.downgradeReason, .none)
+
+        let deviceCappedMaximum = CameraSession.resolve(
+            requested: .maximum,
+            standard: standard,
+            maximum: standard,
+            outputLimit: nil
+        )
+        XCTAssertEqual(deviceCappedMaximum.dimensions, standard)
+        XCTAssertEqual(deviceCappedMaximum.downgradeReason, .unsupportedByActiveFormat)
+        XCTAssertTrue(deviceCappedMaximum.isDowngraded)
+
+        let outputCappedMaximum = CameraSession.resolve(
+            requested: .maximum,
+            standard: standard,
+            maximum: biggerMaximum,
+            outputLimit: standard
+        )
+        XCTAssertEqual(outputCappedMaximum.dimensions, standard)
+        XCTAssertEqual(outputCappedMaximum.downgradeReason, .outputLimited)
+    }
+
+    func testCaptureResolutionRecordReportsSavedDimensionsEvenWhenTheyContradictTheRequest() {
+        let requested = PhotoDimensions(width: 8_000, height: 6_000)
+        let actuallySaved = PhotoDimensions(width: 4_032, height: 3_024)
+
+        let record = CaptureResolutionRecord(
+            requested: .maximum,
+            resolvedDimensions: requested,
+            savedDimensions: actuallySaved,
+            downgradeReason: .none
+        )
+
+        XCTAssertEqual(record.requestedLabel, "maximum")
+        XCTAssertEqual(record.resolvedDimensions, requested)
+        XCTAssertEqual(record.savedDimensions, actuallySaved)
+        XCTAssertNotEqual(record.resolvedDimensions, record.savedDimensions)
+    }
+
+    @MainActor
+    func testRequestedResolutionDefaultsToStandardAndPersistsAcrossRecreation() {
+        let suite = "FocelleTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertEqual(AppSettings(defaults: defaults).requestedResolution, .standard)
+
+        let settings = AppSettings(defaults: defaults)
+        settings.requestedResolution = .maximum
+
+        // Simulates a Settings round trip and a full relaunch: a fresh
+        // AppSettings reading the same defaults must see the same selection.
+        XCTAssertEqual(AppSettings(defaults: defaults).requestedResolution, .maximum)
+    }
+
+    @MainActor
+    func testCameraResolutionOnlyChangesThroughSetRequestedResolution() {
+        let camera = CameraSession()
+
+        XCTAssertEqual(camera.resolution, .standard)
+        camera.setRequestedResolution(.maximum)
+        XCTAssertEqual(camera.resolution, .maximum)
+        XCTAssertEqual(camera.resolvedResolution.requested, .maximum)
+    }
+
+    @MainActor
+    func testResolutionAndGuidanceRefreshNeverTouchZoomOrExposure() async throws {
+        let camera = CameraSession()
+        camera.zoom = 3.4
+        camera.exposure = 0.6
+
+        camera.setRequestedResolution(.maximum)
+        camera.refreshLocalGuidanceAfterSettings()
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(camera.zoom, 3.4)
+        XCTAssertEqual(camera.exposure, 0.6, accuracy: 0.0001)
+    }
+
     func testCameraRotationMatchesInterfaceOrientation() {
         XCTAssertEqual(CameraRotation.angle(for: .portrait), 90)
         XCTAssertEqual(CameraRotation.angle(for: .landscapeLeft), 0)
@@ -70,6 +195,36 @@ final class SmokeTests: XCTestCase {
         for recipe in FocelleOriginals.all {
             XCTAssertEqual(renderer.render(input, recipe: recipe).extent, input.extent)
         }
+    }
+
+    // FCL-004: the saved-output pipeline must not be a hidden source of a
+    // resolution downgrade. A filter changes pixel values, not pixel count.
+    func testFilterRenderingPreservesPixelDimensionsWithoutAnAspectCrop() throws {
+        let renderer = FilterRenderer()
+        let width = 320
+        let height = 240
+        let input = CIImage(color: .init(red: 0.4, green: 0.5, blue: 0.6))
+            .cropped(to: CGRect(x: 0, y: 0, width: width, height: height))
+        let colorSpace = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
+        let sourceData = try XCTUnwrap(CIContext().jpegRepresentation(of: input, colorSpace: colorSpace))
+        let sourceDimensions = try XCTUnwrap(CameraSession.pixelDimensions(of: sourceData))
+        XCTAssertEqual(sourceDimensions, PhotoDimensions(width: Int32(width), height: Int32(height)))
+
+        let filteredData = try XCTUnwrap(
+            renderer.renderedData(
+                from: sourceData,
+                recipe: FocelleOriginals.all[0],
+                intensity: 1,
+                aspectRatio: nil
+            )
+        )
+        let filteredDimensions = try XCTUnwrap(CameraSession.pixelDimensions(of: filteredData))
+
+        XCTAssertEqual(
+            filteredDimensions,
+            sourceDimensions,
+            "a filter must not silently shrink the saved output"
+        )
     }
 
     func testFilterThumbnailsRenderOnePerRequestAtOneSize() {

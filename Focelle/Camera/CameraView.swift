@@ -94,7 +94,7 @@ struct CameraView: View {
             camera.savesOriginal = settings.saveOriginal
             location.setEnabled(settings.saveLocation)
             camera.photoLocation = settings.saveLocation ? location.latest : nil
-            camera.resolution = settings.maximumResolution ? .maximum : .standard
+            camera.setRequestedResolution(settings.requestedResolution)
             camera.start()
         }
         .onDisappear {
@@ -250,8 +250,8 @@ struct CameraView: View {
         .onChange(of: location.latest) { _, value in
             camera.photoLocation = settings.saveLocation ? value : nil
         }
-        .onChange(of: settings.maximumResolution) { _, enabled in
-            camera.resolution = enabled ? .maximum : .standard
+        .onChange(of: settings.requestedResolution) { _, mode in
+            camera.setRequestedResolution(mode)
         }
         .onChange(of: camera.filterSaveSequence) { oldValue, newValue in
             guard newValue > oldValue else { return }
@@ -401,14 +401,28 @@ struct CameraView: View {
                 .accessibilityLabel(Text("camera.ratio"))
 
                 if camera.supportsMaximumResolution {
-                    Menu {
-                        Button("24 MP") { camera.resolution = .standard }
-                        Button("48 MP") { camera.resolution = .maximum }
-                    } label: {
-                        Text(camera.resolution == .maximum ? "48" : "24")
-                            .font(.caption.weight(.semibold))
+                    VStack(spacing: 2) {
+                        Menu {
+                            Button("\(camera.standardModeLabel) MP") {
+                                settings.requestedResolution = .standard
+                            }
+                            Button("\(camera.maximumModeLabel) MP") {
+                                settings.requestedResolution = .maximum
+                            }
+                        } label: {
+                            Text(camera.resolvedResolution.label)
+                                .font(.caption.weight(.semibold))
+                        }
+                        .accessibilityLabel(Text("camera.resolution"))
+
+                        // A downgrade is only worth calling out inline — no alert,
+                        // since it isn't an error and shouldn't interrupt shooting.
+                        if camera.resolvedResolution.isDowngraded {
+                            Text("camera.resolution.downgraded")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.orange)
+                        }
                     }
-                    .accessibilityLabel(Text("camera.resolution"))
                 }
 
                 Spacer()

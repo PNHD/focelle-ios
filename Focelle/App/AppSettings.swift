@@ -26,8 +26,11 @@ final class AppSettings: ObservableObject {
     @Published var saveLocation: Bool {
         didSet { defaults.set(saveLocation, forKey: "saveLocation") }
     }
-    @Published var maximumResolution: Bool {
-        didSet { defaults.set(maximumResolution, forKey: "maximumResolution") }
+    // The single persisted source of truth for the requested resolution tier.
+    // CameraSession.resolution is only ever a mirror of this value (see
+    // CameraView), so Settings and the camera toolbar can't drift apart.
+    @Published var requestedResolution: CameraResolution {
+        didSet { defaults.set(requestedResolution.rawValue, forKey: "requestedResolution") }
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -39,6 +42,8 @@ final class AppSettings: ObservableObject {
         autoCapture = defaults.bool(forKey: "autoCapture")
         saveOriginal = defaults.bool(forKey: "saveOriginal")
         saveLocation = defaults.bool(forKey: "saveLocation")
-        maximumResolution = defaults.bool(forKey: "maximumResolution")
+        requestedResolution =
+            defaults.string(forKey: "requestedResolution").flatMap(CameraResolution.init(rawValue:))
+            ?? .standard
     }
 }
