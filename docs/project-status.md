@@ -95,8 +95,24 @@ Status as of `5532063`. Conservative by rule: when in doubt, the lower level win
   the integrated FCL-001B head. Outcome: record the FCL-001B integration,
   the artifact provenance, and the artifact reuse decision below, and put
   FCL-002 at Next Gate without activating it.
-- **`FCL-002 — Physical Launch and Capture Smoke Check`**: `NEXT GATE — NOT
-  ACTIVE`. No branch has been created for it yet.
+- **`FCL-002 — Physical Launch and Capture Smoke Check`**: `COMPLETED —
+  PHYSICAL DEVICE VERIFIED`. Branch: `task/FCL-002-physical-smoke`. Confirmed
+  on iPhone 17e / iOS 26 via Sideloadly, CI run 65 artifact, bundle
+  `com.pnhd.focelle`: install succeeds, app opens, camera preview works,
+  shutter works, a captured photo saves and opens, force-close/relaunch
+  works, no crash across roughly one minute of camera use. Onboarding
+  physical re-test was waived / not observed in this pass. A separate defect
+  was found during this check — local guidance/target overlay disappears
+  after a Settings round-trip and after force-close/relaunch — tracked as
+  `FCL-003` below; it does not reopen FCL-002.
+- **`FCL-003 — Restore Local Guidance After Settings and Relaunch`**: `IN
+  REVIEW`. Branch: `task/FCL-003-guidance-restore`, based on the exact
+  `feat/focelle-beta` HEAD at `fd08ed2f24662b9439245b7e7fe541ff6cb9c4ef`.
+  Implementation and regression tests are complete and ready for independent
+  review. **Physical verification of the fix is still pending** — nothing
+  here may be recorded as PHYSICAL DEVICE VERIFIED until a real device pass
+  confirms the acceptance criteria in the FCL-003 task brief.
+- **`FCL-004` and `FCL-005`**: not started, not scoped by this task.
 
 ### FCL-001C transition record
 

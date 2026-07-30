@@ -3,6 +3,9 @@
 import Photos
 import SwiftUI
 import UIKit
+#if DEBUG
+    import os
+#endif
 
 enum CameraPermission: Equatable {
     case undecided
@@ -144,13 +147,18 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var thumbnailRequests: [FilterThumbnailRequest] = []
     private var lastThumbnailTime = CMTime.zero
     private var lastAnalysisTime = CMTime.zero
-    private var analysisInFlight = false
     private var stabilizer = MeasurementStabilizer()
     private var guidanceEngine = GuidanceEngine()
     private var pendingAIPreview: (@Sendable (Data?) -> Void)?
     private var cloudPlan: AICompositionPlan?
     private var selectedSubjectPoint: CGPoint?
-    private var analysisGeneration = 0
+    // Not `private`: regression tests confirm a resume can't leave this wedged.
+    var analysisInFlight = false
+    var analysisGeneration = 0
+
+    #if DEBUG
+        private let lifecycleLog = Logger(subsystem: "com.pnhd.focelle", category: "camera.lifecycle")
+    #endif
 
     override init() {
         super.init()
@@ -182,7 +190,11 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         #if targetEnvironment(simulator)
             state = .unavailable
         #else
-            switch CameraPermission(AVCaptureDevice.authorizationStatus(for: .video)) {
+            let permission = CameraPermission(AVCaptureDevice.authorizationStatus(for: .video))
+            #if DEBUG
+                lifecycleLog.debug("start requested (permission=\(String(describing: permission), privacy: .public))")
+            #endif
+            switch permission {
             case .allowed:
                 configureAndStart()
             case .undecided:
@@ -198,6 +210,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     func stop() {
         queue.async { [weak self] in
             guard let self, self.session.isRunning else { return }
+            #if DEBUG
+                self.lifecycleLog.debug("session stop")
+            #endif
             self.session.stopRunning()
         }
     }
@@ -250,16 +265,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 self.session.addInput(newInput)
                 self.input = newInput
                 self.selectedSubjectPoint = nil
-                self.analysisGeneration += 1
-                self.analyzer.resetTracking()
-                self.stabilizer = MeasurementStabilizer()
-                self.guidanceEngine = GuidanceEngine()
+                self.resetAnalysisForResume()
                 self.configureCapabilities(for: device)
                 self.updateVideoConnection(for: device)
-                DispatchQueue.main.async {
-                    self.measurement = nil
-                    self.guidance = nil
-                }
             } else {
                 self.session.addInput(oldInput)
             }
@@ -347,10 +355,45 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 self.publish(state: .unavailable)
                 return
             }
-            if !self.session.isRunning { self.session.startRunning() }
+            let wasRunning = self.session.isRunning
+            if !wasRunning { self.session.startRunning() }
+            #if DEBUG
+                self.lifecycleLog.debug("session start (wasRunning=\(wasRunning, privacy: .public))")
+            #endif
+            // A session that was not already running just resumed (first launch,
+            // Settings dismissal, interruption recovery, ...). Whatever the analyzer
+            // was doing before is stale, so give it a clean slate rather than trust
+            // in-flight/generation state that predates the pause.
+            if !wasRunning { self.resetAnalysisForResume() }
             self.publish(state: .running)
         }
     }
+
+    // Runs on `queue`. Also used by switchCamera(), which needs the same clean
+    // slate. Not `private` so regression tests can drive it directly.
+    func resetAnalysisForResume() {
+        analysisInFlight = false
+        analysisGeneration += 1
+        analyzer.resetTracking()
+        stabilizer = MeasurementStabilizer()
+        guidanceEngine = GuidanceEngine()
+        #if DEBUG
+            lifecycleLog.debug("analyzer reset for resume (generation=\(self.analysisGeneration, privacy: .public))")
+        #endif
+        DispatchQueue.main.async {
+            self.measurement = nil
+            self.guidance = nil
+        }
+    }
+
+    #if DEBUG
+        // Lets regression tests dirty published state before asserting that a
+        // resume clears it; production code never needs to set these directly.
+        func debugSeedGuidanceForTesting(measurement: SceneMeasurement?, guidance: Guidance?) {
+            self.measurement = measurement
+            self.guidance = guidance
+        }
+    #endif
 
     private func configure() -> Bool {
         guard let device = Self.device(position: .back),
@@ -399,6 +442,12 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     static func canRestart(after error: AVError?) -> Bool {
         error?.code == .mediaServicesWereReset
+    }
+
+    // A result that started before the most recent reset (camera switch, resume
+    // from a stopped session) belongs to a scene that no longer applies.
+    static func shouldAcceptAnalysis(requestGeneration: Int, currentGeneration: Int) -> Bool {
+        requestGeneration == currentGeneration
     }
 
     static func photoDimensions(
@@ -568,6 +617,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     private func publish(state: State) {
+        #if DEBUG
+            lifecycleLog.debug("session state -> \(String(describing: state), privacy: .public)")
+        #endif
         DispatchQueue.main.async { self.state = state }
     }
 
@@ -690,6 +742,9 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
             lastAnalysisTime = timestamp
             let generation = analysisGeneration
             let preferredPoint = selectedSubjectPoint
+            #if DEBUG
+                lifecycleLog.debug("analysis started (generation=\(generation, privacy: .public))")
+            #endif
             analyzer.analyze(
                 buffer,
                 preferredSubjectPoint: preferredPoint
@@ -697,9 +752,24 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
                 guard let self else { return }
                 self.queue.async {
                     self.analysisInFlight = false
-                    guard generation == self.analysisGeneration,
-                        var measurement
-                    else { return }
+                    guard Self.shouldAcceptAnalysis(
+                        requestGeneration: generation,
+                        currentGeneration: self.analysisGeneration
+                    ) else {
+                        #if DEBUG
+                            let current = self.analysisGeneration
+                            self.lifecycleLog.debug(
+                                "analysis dropped, gen \(generation, privacy: .public) != \(current, privacy: .public)"
+                            )
+                        #endif
+                        return
+                    }
+                    guard var measurement else {
+                        #if DEBUG
+                            self.lifecycleLog.debug("analysis completed: no measurement")
+                        #endif
+                        return
+                    }
                     if let currentPoint = self.selectedSubjectPoint {
                         if currentPoint != preferredPoint,
                             let selected = measurement.subject(near: currentPoint)
@@ -719,6 +789,12 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
                         self.cloudPlan.map {
                             Self.cloudGuidance($0, measurement: stable)
                         } ?? self.guidanceEngine.update(stable)
+                    #if DEBUG
+                        let directionName = String(describing: guidance.direction)
+                        self.lifecycleLog.debug(
+                            "analysis ok, gen \(generation, privacy: .public) dir \(directionName, privacy: .public)"
+                        )
+                    #endif
                     DispatchQueue.main.async {
                         self.measurement = stable
                         self.guidance = guidance

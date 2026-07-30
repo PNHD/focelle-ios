@@ -3,9 +3,15 @@ import AVKit
 import PhotosUI
 import SwiftUI
 import UIKit
+#if DEBUG
+    import os
+#endif
 
 struct CameraView: View {
     private static let noFilterKey = "none"
+    #if DEBUG
+        private static let lifecycleLog = Logger(subsystem: "com.pnhd.focelle", category: "camera.view")
+    #endif
 
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var presets: PresetStore
@@ -81,6 +87,10 @@ struct CameraView: View {
         }
         .preferredColorScheme(.dark)
         .onAppear {
+            #if DEBUG
+                let enabled = settings.guidanceEnabled
+                Self.lifecycleLog.debug("CameraView appeared, guidanceEnabled \(enabled, privacy: .public)")
+            #endif
             camera.savesOriginal = settings.saveOriginal
             location.setEnabled(settings.saveLocation)
             camera.photoLocation = settings.saveLocation ? location.latest : nil
@@ -88,12 +98,18 @@ struct CameraView: View {
             camera.start()
         }
         .onDisappear {
+            #if DEBUG
+                Self.lifecycleLog.debug("CameraView disappeared")
+            #endif
             countdownTask?.cancel()
             cancelAI()
             voice.stop()
             camera.stop()
         }
         .onChange(of: scenePhase) { _, phase in
+            #if DEBUG
+                Self.lifecycleLog.debug("scenePhase -> \(String(describing: phase), privacy: .public)")
+            #endif
             if phase == .active {
                 camera.start()
             } else {
@@ -256,7 +272,18 @@ struct CameraView: View {
                     .environmentObject(presets)
             }
         }
-        .sheet(isPresented: $showsSettings) {
+        .sheet(
+            isPresented: $showsSettings,
+            onDismiss: {
+                #if DEBUG
+                    let enabled = settings.guidanceEnabled
+                    let hasGuidance = camera.guidance != nil
+                    Self.lifecycleLog.debug(
+                        "Settings closed, enabled=\(enabled, privacy: .public) has=\(hasGuidance, privacy: .public)"
+                    )
+                #endif
+            }
+        ) {
             SettingsView(supportsMaximumResolution: camera.supportsMaximumResolution)
                 .environmentObject(settings)
                 .environmentObject(location)

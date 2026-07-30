@@ -475,6 +475,78 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
+    func testGuidanceEnabledDefaultsTrueAndPersistsExplicitFalse() {
+        let suite = "FocelleTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertTrue(AppSettings(defaults: defaults).guidanceEnabled)
+
+        let settings = AppSettings(defaults: defaults)
+        settings.guidanceEnabled = false
+        XCTAssertFalse(AppSettings(defaults: defaults).guidanceEnabled)
+    }
+
+    @MainActor
+    func testTogglingUnrelatedSettingsDoesNotAffectGuidancePreference() {
+        let suite = "FocelleTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertTrue(settings.guidanceEnabled)
+        settings.onDeviceOnly = true
+        settings.saveOriginal = true
+        settings.saveLocation = true
+        settings.analyticsEnabled = false
+        settings.voiceGuidance = true
+        settings.autoCapture = true
+        settings.maximumResolution = true
+        XCTAssertTrue(settings.guidanceEnabled)
+
+        // Simulates a Settings sheet round trip: a fresh AppSettings read from
+        // the same defaults must still see the untouched guidance preference.
+        XCTAssertTrue(AppSettings(defaults: defaults).guidanceEnabled)
+    }
+
+    func testStaleAnalysisGenerationIsRejectedCurrentIsAccepted() {
+        XCTAssertFalse(
+            CameraSession.shouldAcceptAnalysis(requestGeneration: 1, currentGeneration: 2)
+        )
+        XCTAssertTrue(
+            CameraSession.shouldAcceptAnalysis(requestGeneration: 2, currentGeneration: 2)
+        )
+    }
+
+    @MainActor
+    func testResumeClearsInFlightAnalysisBumpsGenerationAndRepublishesGuidance() async {
+        let camera = CameraSession()
+        let stale = SceneMeasurement(
+            subjectRect: CGRect(x: 0.1, y: 0.1, width: 0.2, height: 0.3),
+            faceRects: [],
+            salientRect: nil,
+            horizonAngle: 0,
+            exposure: 0.5,
+            timestamp: 1
+        )
+        camera.debugSeedGuidanceForTesting(
+            measurement: stale,
+            guidance: GuidanceEngine.propose(stale)
+        )
+        camera.analysisInFlight = true
+        camera.analysisGeneration = 5
+
+        camera.resetAnalysisForResume()
+        await Task.yield()
+        await Task.yield()
+
+        XCTAssertFalse(camera.analysisInFlight)
+        XCTAssertEqual(camera.analysisGeneration, 6)
+        XCTAssertNil(camera.measurement)
+        XCTAssertNil(camera.guidance)
+    }
+
+    @MainActor
     func testSettingsPersistPrivacyAndCameraChoices() {
         let suite = "FocelleTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
