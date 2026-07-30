@@ -126,9 +126,13 @@ Before starting FCL-002, the agent must:
 2. Wait for `FCL-001C` to be fast-forwarded into `feat/focelle-beta`.
 3. Open or update the integration branch and read the actual integration
    HEAD from Git — do not trust a hardcoded SHA from this document.
-4. Create `task/FCL-002-physical-smoke` from that exact HEAD.
-5. Re-verify the artifact reuse decision above still holds against the
-   current integration HEAD.
+4. Re-verify the artifact reuse decision above against the actual diff from
+   `5532063` to the current integration HEAD. If the decision is no longer
+   `ALLOWED` — any changed path touches an executable/build-input location —
+   stop here: do not create the FCL-002 branch, and wait for a fresh CI
+   artifact built from the current integration HEAD before proceeding.
+5. Only if the reuse decision is confirmed `ALLOWED`, create
+   `task/FCL-002-physical-smoke` from that exact verified integration HEAD.
 6. Only then install the run-64 IPA and run the physical smoke check: that
    the app launches without exiting, that the camera preview appears, that
    the shutter does not crash, and that a captured photo reaches the Photos
