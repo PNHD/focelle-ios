@@ -369,8 +369,20 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
-    // Runs on `queue`. Also used by switchCamera(), which needs the same clean
-    // slate. Not `private` so regression tests can drive it directly.
+    // Settings is a sheet over a still-running session — nothing here stops
+    // or reconfigures the capture session, camera settings (zoom, exposure,
+    // ratio, filter, flash, timer) are untouched, and no cloud AI state is
+    // involved. Safe to call repeatedly; each call just invalidates whatever
+    // analysis was in flight and lets the next frame start clean.
+    func refreshLocalGuidanceAfterSettings() {
+        queue.async { [weak self] in
+            self?.resetAnalysisForResume()
+        }
+    }
+
+    // Runs on `queue`. Also used by switchCamera() and
+    // refreshLocalGuidanceAfterSettings(), which need the same clean slate.
+    // Not `private` so regression tests can drive it directly.
     func resetAnalysisForResume() {
         analysisInFlight = false
         analysisGeneration += 1
@@ -445,9 +457,25 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     // A result that started before the most recent reset (camera switch, resume
-    // from a stopped session) belongs to a scene that no longer applies.
+    // from a stopped session, Settings dismissal) belongs to a scene that no
+    // longer applies.
     static func shouldAcceptAnalysis(requestGeneration: Int, currentGeneration: Int) -> Bool {
         requestGeneration == currentGeneration
+    }
+
+    // Runs on `queue`. A reset (resume, camera switch, Settings dismissal) can
+    // fire while an older request is still processing in the analyzer's own
+    // queue; that request's generation is now stale, and ownership of
+    // `analysisInFlight` has already passed to whichever request matches the
+    // current generation. A stale completion must not clear a flag it no
+    // longer owns, so the generation check gates the clear rather than
+    // following it. Returns whether this completion owns the in-flight slot
+    // and should have its result processed.
+    func acceptAnalysisCompletion(requestGeneration: Int) -> Bool {
+        guard Self.shouldAcceptAnalysis(requestGeneration: requestGeneration, currentGeneration: analysisGeneration)
+        else { return false }
+        analysisInFlight = false
+        return true
     }
 
     static func photoDimensions(
@@ -751,11 +779,7 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
             ) { [weak self] measurement in
                 guard let self else { return }
                 self.queue.async {
-                    self.analysisInFlight = false
-                    guard Self.shouldAcceptAnalysis(
-                        requestGeneration: generation,
-                        currentGeneration: self.analysisGeneration
-                    ) else {
+                    guard self.acceptAnalysisCompletion(requestGeneration: generation) else {
                         #if DEBUG
                             let current = self.analysisGeneration
                             self.lifecycleLog.debug(

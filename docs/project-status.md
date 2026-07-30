@@ -133,38 +133,34 @@ artifact of `eac6bd2` or of this transition commit. It stays attributed to
 
 ## 6. Next gate
 
-**`FCL-002 — Physical Launch and Capture Smoke Check`** — `NEXT GATE — NOT
-ACTIVE`.
+`FCL-002 — Physical Launch and Capture Smoke Check` is **CLOSED — PASSED**.
+It ran on `task/FCL-002-physical-smoke` against iPhone 17e / iOS 26 via
+Sideloadly, installing the CI run 65 artifact (`com.pnhd.focelle`); the
+recorded observations are in §5. It does not need to run again unless new
+evidence contradicts it. This gate note previously still described FCL-002
+as inactive after FCL-002 had already passed; that was a documentation
+contradiction and is corrected here.
 
-Before starting FCL-002, the agent must:
+**`FCL-003 — Restore Local Guidance After Settings and Relaunch`** is the
+active gate: `IN REVIEW — NOT PHYSICALLY VERIFIED`.
 
-1. Wait for `FCL-001C` to be reviewed PASS.
-2. Wait for `FCL-001C` to be fast-forwarded into `feat/focelle-beta`.
-3. Open or update the integration branch and read the actual integration
-   HEAD from Git — do not trust a hardcoded SHA from this document.
-4. Re-verify the artifact reuse decision above against the actual diff from
-   `5532063` to the current integration HEAD. If the decision is no longer
-   `ALLOWED` — any changed path touches an executable/build-input location —
-   do not create or use the FCL-002 smoke branch with the run-64 IPA. Wait for
-   a fresh CI run built from the actual integration HEAD. Before creating or
-   using the smoke branch/artifact, verify its CI run number, CI run ID,
-   artifact name, and artifact source SHA; the source SHA must exactly equal
-   that verified integration HEAD. If the run metadata, artifact provenance,
-   or source SHA does not match, stop and do not install the IPA.
-5. Only if reuse is confirmed `ALLOWED`, or the fresh-artifact provenance gate
-   above passes, create
-   `task/FCL-002-physical-smoke` from that exact verified integration HEAD.
-6. Only then install the eligible IPA and run the physical smoke check: that
-   the app launches without exiting, that the camera preview appears, that
-   the shutter does not crash, and that a captured photo reaches the Photos
-   library.
+- Branch: `task/FCL-003-guidance-restore`, based on `feat/focelle-beta` at
+  `fd08ed2f24662b9439245b7e7fe541ff6cb9c4ef`.
+- Implementation and regression tests are in place and have been through one
+  round of independent review with follow-up fixes applied. This is **not**
+  a claim of CI success or physical verification — neither has happened yet.
+- Before this gate can close, a physical pass on the iPhone 17e must confirm
+  the FCL-003 acceptance criteria: local guidance/target overlay resumes
+  after a Settings round trip (repeated, no frozen rectangles, no duplicate
+  overlays), resumes after force-close/relaunch, an explicit
+  `guidanceEnabled = false` stays off across both, cloud AI stays
+  unnecessary for local guidance, and the shutter/preview remain usable
+  throughout.
+- `FCL-004` and `FCL-005` remain unscheduled behind this gate and must not
+  be started until FCL-003 closes.
 
-If the agent is currently on `task/FCL-001B-project-status` or
-`task/FCL-001C-status-transition`, it must stop — FCL-002 does not run on a
-documentation branch.
-
-No feature backlog is scheduled behind this gate yet. The gate result decides
-what comes next.
+If the agent is on a documentation-only branch, it must stop before running
+any physical check — a gate does not close from a documentation branch.
 
 ## 7. External blockers
 

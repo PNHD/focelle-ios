@@ -282,6 +282,10 @@ struct CameraView: View {
                         "Settings closed, enabled=\(enabled, privacy: .public) has=\(hasGuidance, privacy: .public)"
                     )
                 #endif
+                // The session never stopped while Settings was up; give local
+                // analysis a clean slate instead of relying on scenePhase
+                // (a sheet presentation doesn't reliably change it).
+                camera.refreshLocalGuidanceAfterSettings()
             }
         ) {
             SettingsView(supportsMaximumResolution: camera.supportsMaximumResolution)

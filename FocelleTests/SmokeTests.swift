@@ -518,8 +518,10 @@ final class SmokeTests: XCTestCase {
         )
     }
 
+    // Exercises the exact method CameraView's Settings sheet `onDismiss` calls,
+    // not just the internal reset it forwards to.
     @MainActor
-    func testResumeClearsInFlightAnalysisBumpsGenerationAndRepublishesGuidance() async {
+    func testSettingsDismissalRefreshClearsStaleStateAndAllowsNewAnalysis() async throws {
         let camera = CameraSession()
         let stale = SceneMeasurement(
             subjectRect: CGRect(x: 0.1, y: 0.1, width: 0.2, height: 0.3),
@@ -534,16 +536,55 @@ final class SmokeTests: XCTestCase {
             guidance: GuidanceEngine.propose(stale)
         )
         camera.analysisInFlight = true
-        camera.analysisGeneration = 5
+        let priorGeneration = camera.analysisGeneration
 
-        camera.resetAnalysisForResume()
-        await Task.yield()
-        await Task.yield()
+        camera.refreshLocalGuidanceAfterSettings()
+        try await Task.sleep(for: .milliseconds(50))
 
         XCTAssertFalse(camera.analysisInFlight)
-        XCTAssertEqual(camera.analysisGeneration, 6)
+        XCTAssertGreaterThan(camera.analysisGeneration, priorGeneration)
         XCTAssertNil(camera.measurement)
         XCTAssertNil(camera.guidance)
+
+        // A result carrying the now-current generation is still accepted, so
+        // the very next frame's analysis can publish fresh guidance.
+        XCTAssertTrue(camera.acceptAnalysisCompletion(requestGeneration: camera.analysisGeneration))
+    }
+
+    @MainActor
+    func testRefreshLocalGuidanceAfterSettingsIsIdempotentAcrossRepeatedDismissals() async throws {
+        let camera = CameraSession()
+        let startGeneration = camera.analysisGeneration
+
+        camera.refreshLocalGuidanceAfterSettings()
+        camera.refreshLocalGuidanceAfterSettings()
+        camera.refreshLocalGuidanceAfterSettings()
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertFalse(camera.analysisInFlight)
+        XCTAssertGreaterThan(camera.analysisGeneration, startGeneration)
+        XCTAssertNil(camera.measurement)
+        XCTAssertNil(camera.guidance)
+    }
+
+    // A reset (e.g. a Settings dismissal) can land while an older request is
+    // still processing off-queue. Its eventual stale completion must not
+    // clear the in-flight flag a newer request now owns.
+    func testStaleCompletionLeavesNewerInFlightRequestUntouched() {
+        let camera = CameraSession()
+        let requestAGeneration = camera.analysisGeneration
+        camera.analysisInFlight = true
+
+        camera.analysisGeneration += 1
+        camera.analysisInFlight = false
+        camera.analysisInFlight = true
+        let requestBGeneration = camera.analysisGeneration
+
+        XCTAssertFalse(camera.acceptAnalysisCompletion(requestGeneration: requestAGeneration))
+        XCTAssertTrue(camera.analysisInFlight)
+
+        XCTAssertTrue(camera.acceptAnalysisCompletion(requestGeneration: requestBGeneration))
+        XCTAssertFalse(camera.analysisInFlight)
     }
 
     @MainActor
