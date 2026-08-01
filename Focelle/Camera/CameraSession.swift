@@ -608,6 +608,18 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         balancedModeLabel = balancedResolution.label
         supportsBalancedResolution =
             !balancedResolution.isDowngraded && balancedResolution.dimensions != nil
+        let maximumResolution = ResolvedResolution.resolve(
+            requested: .maximum,
+            standard: cachedStandardDimensions,
+            balanced: cachedBalancedDimensions,
+            maximum: cachedMaximumDimensions,
+            outputLimit: cachedOutputLimit,
+            deferredSupported: cachedDeferredDeliverySupported
+        )
+        maximumModeLabel = maximumResolution.label
+        supportsMaximumResolution =
+            !maximumResolution.isDowngraded
+            && maximumResolution.dimensions != nil
         resolvedResolution = ResolvedResolution.resolve(
             requested: resolution,
             standard: cachedStandardDimensions,
@@ -619,15 +631,6 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         standardModeLabel =
             ResolvedResolution.resolve(
                 requested: .standard,
-                standard: cachedStandardDimensions,
-                balanced: cachedBalancedDimensions,
-                maximum: cachedMaximumDimensions,
-                outputLimit: cachedOutputLimit,
-                deferredSupported: cachedDeferredDeliverySupported
-            ).label
-        maximumModeLabel =
-            ResolvedResolution.resolve(
-                requested: .maximum,
                 standard: cachedStandardDimensions,
                 balanced: cachedBalancedDimensions,
                 maximum: cachedMaximumDimensions,
@@ -1243,18 +1246,10 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
         let deviceMaxZoom = min(device.activeFormat.videoMaxZoomFactor, 10)
         let generation = capabilityGeneration
-        // Whether the device/format genuinely has more to offer than standard —
-        // not an arbitrary pixel-count threshold, so a modest-but-real jump
-        // (or a hardware ceiling below any "48 MP" claim) is represented truthfully.
-        let supportsMaximum = ResolvedResolution.hasDistinctMaximum(
-            standard: tiers.standard,
-            maximum: tiers.maximum
-        )
         DispatchQueue.main.async {
             self.maxZoom = max(deviceMaxZoom, 1)
             self.zoom = 1
             self.exposure = 0
-            self.supportsMaximumResolution = supportsMaximum
             // The requested tier is the user's intent (AppSettings.requestedResolution)
             // and survives a temporarily-incapable camera unchanged; only the
             // resolved dimensions/downgrade reason reflect this camera's limits.

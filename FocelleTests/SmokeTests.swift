@@ -493,6 +493,11 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(camera.resolvedResolution.dimensions, twelve)
         XCTAssertEqual(camera.resolvedResolution.downgradeReason, .unsupportedByActiveFormat)
 
+        // A distinct maximum remains unavailable when output is capped at standard.
+        camera.cachedMaximumDimensions = fortyEight
+        camera.cachedOutputLimit = twelve
+        camera.recomputeResolvedResolution()
+        XCTAssertFalse(camera.supportsMaximumResolution)
         // Back to the rear camera: 24 MP resolves again without user action.
         camera.cachedBalancedDimensions = twentyFour
         camera.cachedMaximumDimensions = fortyEight
