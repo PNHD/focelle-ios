@@ -14,6 +14,15 @@ final class AppSettings: ObservableObject {
     @Published var guidanceEnabled: Bool {
         didSet { defaults.set(guidanceEnabled, forKey: "guidanceEnabled") }
     }
+    // Experimental local Coach V2; default OFF so FCL-M1 behavior is the
+    // fallback until the batch is physically validated.
+    @Published var coachV2Enabled: Bool {
+        didSet { defaults.set(coachV2Enabled, forKey: "coachV2Enabled") }
+    }
+    // Benchmark-first aesthetics experiments; no production effect in Batch A.
+    @Published var aestheticsEnabled: Bool {
+        didSet { defaults.set(aestheticsEnabled, forKey: "aestheticsEnabled") }
+    }
     @Published var voiceGuidance: Bool {
         didSet { defaults.set(voiceGuidance, forKey: "voiceGuidance") }
     }
@@ -41,6 +50,8 @@ final class AppSettings: ObservableObject {
         onDeviceOnly = defaults.bool(forKey: "onDeviceOnly")
         analyticsEnabled = defaults.object(forKey: "analyticsEnabled") as? Bool ?? true
         guidanceEnabled = defaults.object(forKey: "guidanceEnabled") as? Bool ?? true
+        coachV2Enabled = defaults.bool(forKey: "coachV2Enabled")
+        aestheticsEnabled = defaults.bool(forKey: "aestheticsEnabled")
         voiceGuidance = defaults.bool(forKey: "voiceGuidance")
         autoCapture = defaults.bool(forKey: "autoCapture")
         saveOriginal = defaults.bool(forKey: "saveOriginal")
