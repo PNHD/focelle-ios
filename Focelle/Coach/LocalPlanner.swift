@@ -68,7 +68,8 @@ enum LocalPlanner {
         let primary =
             scored.max { $0.score < $1.score }!
         var selected = [primary]
-        if let safe = scored
+        if let safe =
+            scored
             .filter({ $0.template.id != primary.template.id })
             .min(by: { $0.plan.motion < $1.plan.motion })
         {

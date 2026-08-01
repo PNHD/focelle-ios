@@ -230,9 +230,11 @@ extension PoseTemplate {
             return name
         }
         let mirroredLandmarks =
-            Dictionary(uniqueKeysWithValues: landmarks.map { key, value in
-                (mirror(key), NormalizedPoint(x: 1 - value.x, y: value.y))
-            })
+            Dictionary(
+                uniqueKeysWithValues: landmarks.map { key, value in
+                    (mirror(key), NormalizedPoint(x: 1 - value.x, y: value.y))
+                }
+            )
         return PoseTemplate(
             schemaVersion: schemaVersion,
             id: id + "-mirror",

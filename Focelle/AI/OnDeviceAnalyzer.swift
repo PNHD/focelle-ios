@@ -286,7 +286,7 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
                 // it into input-image geometry; only transform Z is retained
                 // as root-relative depth, never absolute camera distance.
                 guard let imagePoint = try? observation.pointInImage(joint) else { return nil }
-                return pose3DLandmark(
+                return Self.pose3DLandmark(
                     name: joint.rawValue.rawValue,
                     projected: imagePoint.location,
                     transform: point.position,
