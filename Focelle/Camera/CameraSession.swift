@@ -228,8 +228,8 @@ struct CaptureResolutionRecord: Equatable, Sendable {
     // instead of the full photo (nil for the normal immediate path).
     let proxyResolvedDimensions: PhotoDimensions?
     // What the finished photo actually contains: the saved JPEG for the
-    // normal path, or Photos' completed asset dimensions for the deferred
-    // path. Nil while a deferred photo is still being fused by Photos.
+    // normal path, or Photos' completed asset dimensions when read access is
+    // already available. Nil for an unconfirmed deferred photo.
     let savedDimensions: PhotoDimensions?
     let downgradeReason: ResolutionDowngradeReason
 
@@ -252,10 +252,8 @@ struct CaptureResolutionRecord: Equatable, Sendable {
         self.downgradeReason = downgradeReason
     }
 
-    // Pure transition used by the Photos change observer: a deferred record
-    // is finalized only once Photos reports asset dimensions that are no
-    // longer the proxy's (ideally the requested 24 MP size). Until then the
-    // capture must not be reported as a completed 24 MP photo.
+    // Pure transition used only when existing Photos read access can observe
+    // a deferred asset. Until then the capture must not be reported as final.
     static func deferredConfirmation(
         for pending: CaptureResolutionRecord,
         assetDimensions: PhotoDimensions?
@@ -284,6 +282,46 @@ struct CaptureResolutionSnapshot: Equatable, Sendable {
     let capabilityGeneration: Int
 }
 
+// Bounded ownership of deferred Photos confirmations. Add-only permission can
+// create an asset but cannot reliably read it back, so production inserts only
+// when read access already exists; it never prompts for broader access merely
+// to fill telemetry.
+struct DeferredConfirmationTracker: Equatable, Sendable {
+    struct Entry: Equatable, Sendable {
+        let record: CaptureResolutionRecord
+        let deadline: TimeInterval
+    }
+
+    private(set) var entries: [String: Entry] = [:]
+
+    mutating func insert(identifier: String, record: CaptureResolutionRecord, deadline: TimeInterval) {
+        entries[identifier] = Entry(record: record, deadline: deadline)
+    }
+
+    mutating func confirm(identifier: String, dimensions: PhotoDimensions?) -> CaptureResolutionRecord? {
+        guard let entry = entries[identifier],
+            let finalized = CaptureResolutionRecord.deferredConfirmation(
+                for: entry.record,
+                assetDimensions: dimensions
+            )
+        else { return nil }
+        entries[identifier] = nil
+        return finalized
+    }
+
+    mutating func cancel(identifier: String) {
+        entries[identifier] = nil
+    }
+
+    mutating func cancelAll() {
+        entries.removeAll()
+    }
+
+    mutating func expire(now: TimeInterval) {
+        entries = entries.filter { $0.value.deadline > now }
+    }
+}
+
 enum CameraRotation {
     static func angle(for orientation: UIInterfaceOrientation) -> CGFloat {
         switch orientation {
@@ -303,6 +341,16 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         case interrupted
         case permissionDenied
         case unavailable
+    }
+
+    private struct PendingCapture {
+        let snapshot: CaptureResolutionSnapshot
+        let ratio: CameraRatio
+        let filter: FilterRecipe?
+        let filterIntensity: Double
+        let saveOriginal: Bool
+        let location: CLLocation?
+        let expectsDeferred: Bool
     }
 
     @Published private(set) var state: State = .starting
@@ -360,20 +408,12 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private let analyzer = OnDeviceAnalyzer()
     private var input: AVCaptureDeviceInput?
     private let deferredObserver = DeferredCompletionObserver()
-    // Main-thread only: deferred proxy captures waiting for Photos to finish
-    // fusing the full photo, keyed by the created asset's local identifier.
-    private var pendingDeferredConfirmations: [String: CaptureResolutionRecord] = [:]
+    private var deferredConfirmationTracker = DeferredConfirmationTracker()
+    private let captureStateLock = NSLock()
+    private var pendingCaptures: [Int64: PendingCapture] = [:]
+    private var captureTimeouts: [Int64: DispatchWorkItem] = [:]
     private var configured = false
     private var rotationAngle: CGFloat = 90
-    private var pendingRatio: CameraRatio = .fourThree
-    private var pendingFilter: FilterRecipe?
-    private var pendingFilterIntensity = 1.0
-    private var pendingSaveOriginal = false
-    private var pendingLocation: CLLocation?
-    private var pendingCaptureSnapshot = CaptureResolutionSnapshot(
-        resolved: ResolvedResolution(requested: .balanced, dimensions: nil, downgradeReason: .none),
-        capabilityGeneration: 0
-    )
     // Queue-owned canonical capability state — currentCaptureSnapshot(for:)
     // reads these directly so a capture is never configured from stale or
     // independently-drifted dimensions. Not `private`: regression tests
@@ -445,6 +485,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     deinit {
+        cancelPendingCaptureState()
         PHPhotoLibrary.shared().unregisterChangeObserver(deferredObserver)
         NotificationCenter.default.removeObserver(self)
     }
@@ -512,6 +553,15 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     func switchCamera() {
+        // This runs before queuing reconfiguration, so an immediately
+        // following Apply sees no valid PlanSession for the old camera.
+        coachPlans = []
+        selectedCoachPlan = nil
+        coachSession = nil
+        coachPlanApplied = false
+        guidance = nil
+        deferredConfirmationTracker.cancelAll()
+        cancelPendingCaptureState()
         queue.async { [weak self] in
             guard let self, let oldInput = self.input else { return }
             let newPosition: AVCaptureDevice.Position = oldInput.device.position == .back ? .front : .back
@@ -689,6 +739,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         let selectedResolution = resolution
         let selectedFilter = activeFilter
         let selectedFilterIntensity = filterIntensity
+        let selectedSaveOriginal = savesOriginal
+        let selectedLocation = photoLocation
         isCapturing = true
 
         queue.async { [weak self] in
@@ -732,12 +784,22 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             {
                 connection.videoRotationAngle = self.rotationAngle
             }
-            self.pendingRatio = selectedRatio
-            self.pendingFilter = selectedFilter
-            self.pendingFilterIntensity = selectedFilterIntensity
-            self.pendingSaveOriginal = self.savesOriginal
-            self.pendingLocation = self.photoLocation
-            self.pendingCaptureSnapshot = snapshot
+            let expectsDeferred =
+                snapshot.resolved.requested == .balanced
+                && snapshot.resolved.downgradeReason == .none
+                && self.deferredDeliverySupported
+            self.registerPendingCapture(
+                id: settings.uniqueID,
+                context: PendingCapture(
+                    snapshot: snapshot,
+                    ratio: selectedRatio,
+                    filter: selectedFilter,
+                    filterIntensity: selectedFilterIntensity,
+                    saveOriginal: selectedSaveOriginal,
+                    location: selectedLocation,
+                    expectsDeferred: expectsDeferred
+                )
+            )
             self.photoOutput.capturePhoto(with: settings, delegate: self)
         }
     }
@@ -778,6 +840,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     // refreshLocalGuidanceAfterSettings(), which need the same clean slate.
     // Not `private` so regression tests can drive it directly.
     func resetAnalysisForResume() {
+        cancelPendingCaptureState()
         analysisInFlight = false
         analysisGeneration += 1
         analyzer.resetTracking()
@@ -788,6 +851,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             lifecycleLog.debug("analyzer reset for resume (generation=\(self.analysisGeneration, privacy: .public))")
         #endif
         DispatchQueue.main.async {
+            self.deferredConfirmationTracker.cancelAll()
             self.measurement = nil
             self.sceneDescriptor = nil
             self.guidance = nil
@@ -800,6 +864,13 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         func debugSeedGuidanceForTesting(measurement: SceneMeasurement?, guidance: Guidance?) {
             self.measurement = measurement
             self.guidance = guidance
+        }
+
+        func debugSeedCoachForTesting(plan: CoachPlan, session: PlanSession, applied: Bool) {
+            coachPlans = [plan]
+            selectedCoachPlan = plan
+            coachSession = session
+            coachPlanApplied = applied
         }
     #endif
 
@@ -928,6 +999,50 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
+    private func registerPendingCapture(id: Int64, context: PendingCapture) {
+        captureStateLock.lock()
+        pendingCaptures[id] = context
+        captureTimeouts[id]?.cancel()
+        let timeout = DispatchWorkItem { [weak self] in
+            self?.cancelPendingCapture(id: id, notice: "camera.error.capture")
+        }
+        captureTimeouts[id] = timeout
+        captureStateLock.unlock()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: timeout)
+    }
+
+    private func claimPendingCapture(id: Int64, deferred: Bool) -> PendingCapture? {
+        captureStateLock.lock()
+        defer { captureStateLock.unlock() }
+        guard let context = pendingCaptures[id], context.expectsDeferred == deferred else { return nil }
+        pendingCaptures[id] = nil
+        captureTimeouts[id]?.cancel()
+        captureTimeouts[id] = nil
+        return context
+    }
+
+    private func cancelPendingCapture(id: Int64, notice: String? = nil) {
+        captureStateLock.lock()
+        let existed = pendingCaptures.removeValue(forKey: id) != nil
+        captureTimeouts[id]?.cancel()
+        captureTimeouts[id] = nil
+        captureStateLock.unlock()
+        guard existed else { return }
+        if let notice { publish(notice: notice) }
+        finishCapture()
+    }
+
+    private func cancelPendingCaptureState() {
+        captureStateLock.lock()
+        let hadPending = !pendingCaptures.isEmpty
+        pendingCaptures.removeAll()
+        let timeouts = Array(captureTimeouts.values)
+        captureTimeouts.removeAll()
+        captureStateLock.unlock()
+        timeouts.forEach { $0.cancel() }
+        if hadPending { finishCapture() }
+    }
+
     // Coach V2 local planning. Analyze only snapshots the zoom/exposure
     // baseline and creates plans — it never mutates the camera.
     func analyzeSceneV2() {
@@ -995,6 +1110,26 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         setExposure(Float(undo.exposureBias))
         coachPlanApplied = false
         refreshLocalGuidanceAfterSettings()
+    }
+
+    // The one production transition for Settings turning Coach V2 off. Clear
+    // caller-visible V2 state first so Apply cannot race a camera switch or a
+    // stale analysis result; restore the captured baseline at most once.
+    func coachV2DidChange(from oldValue: Bool, to newValue: Bool) {
+        guard oldValue, !newValue else { return }
+        let baseline = coachPlanApplied ? coachSession?.undo : nil
+        coachPlans = []
+        selectedCoachPlan = nil
+        coachSession = nil
+        coachPlanApplied = false
+        guidance = nil
+        if let baseline {
+            setZoom(CGFloat(baseline.zoom))
+            setExposure(Float(baseline.exposureBias))
+        }
+        queue.async { [weak self] in
+            self?.resetAnalysisForResume()
+        }
     }
 
     static func framingIntent(for descriptor: SceneDescriptor) -> FramingIntent {
@@ -1164,8 +1299,12 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
-    private func save(_ data: Data, countsFilter: Bool, showsThumbnail: Bool) {
-        let location = pendingLocation
+    private func save(
+        _ data: Data,
+        location: CLLocation?,
+        countsFilter: Bool,
+        showsThumbnail: Bool
+    ) {
         let performSave: @Sendable () -> Void = {
             PHPhotoLibrary.shared().performChanges {
                 let creation = PHAssetCreationRequest.forAsset()
@@ -1200,14 +1339,14 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     // The 24 MP tier arrives only as a deferred proxy; Photos fuses the full
     // photo in the background. Save the proxy bytes verbatim — Photos expects
-    // the unmodified proxy — and keep the capture pending until the change
-    // observer confirms the completed asset's dimensions.
+    // the unmodified proxy. Final dimensions remain unconfirmed under add-only
+    // authorization and are observed only when read access already exists.
     private func saveDeferredProxy(
         _ data: Data,
         record: CaptureResolutionRecord,
+        location: CLLocation?,
         showsThumbnail: Bool
     ) {
-        let location = pendingLocation
         let placeholder = PlaceholderBox()
         let performSave: @Sendable () -> Void = {
             PHPhotoLibrary.shared().performChanges {
@@ -1220,8 +1359,15 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                     guard let self else { return }
                     self.publish(notice: saved ? "camera.savedDeferred" : "camera.error.save")
                     guard saved else { return }
-                    if let identifier = placeholder.value?.localIdentifier {
-                        self.pendingDeferredConfirmations[identifier] = record
+                    if let identifier = placeholder.value?.localIdentifier,
+                        Self.canReadPhotoLibrary()
+                    {
+                        self.deferredConfirmationTracker.insert(
+                            identifier: identifier,
+                            record: record,
+                            deadline: ProcessInfo.processInfo.systemUptime + 30
+                        )
+                        self.expireDeferredConfirmation(identifier: identifier)
                     }
                     if showsThumbnail, let thumbnail = UIImage(data: data)?.cgImage {
                         self.latestThumbnail = thumbnail
@@ -1246,11 +1392,30 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
+    // Add-only authorization supports creation, not a reliable asset fetch.
+    // Never request read-write permission only to claim a deferred final size.
+    static func canReadPhotoLibrary() -> Bool {
+        switch PHPhotoLibrary.authorizationStatus(for: .readWrite) {
+        case .authorized, .limited: true
+        default: false
+        }
+    }
+
+    private func expireDeferredConfirmation(identifier: String) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            guard let self else { return }
+            self.deferredConfirmationTracker.expire(now: ProcessInfo.processInfo.systemUptime)
+            // The identifier may have been finalized or cancelled already.
+            self.deferredConfirmationTracker.cancel(identifier: identifier)
+        }
+    }
+
     private func handlePhotoLibraryChange(_ change: PHChange) {
         DispatchQueue.main.async { [weak self] in
-            guard let self, !self.pendingDeferredConfirmations.isEmpty else { return }
-            let pending = self.pendingDeferredConfirmations
-            for (identifier, record) in pending {
+            guard let self, !self.deferredConfirmationTracker.entries.isEmpty else { return }
+            self.deferredConfirmationTracker.expire(now: ProcessInfo.processInfo.systemUptime)
+            let pending = self.deferredConfirmationTracker.entries
+            for identifier in pending.keys {
                 guard let asset = PHAsset.fetchAssets(
                     withLocalIdentifiers: [identifier], options: nil
                 ).firstObject
@@ -1259,10 +1424,10 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                     width: Int32(asset.pixelWidth),
                     height: Int32(asset.pixelHeight)
                 )
-                guard let finalized = CaptureResolutionRecord.deferredConfirmation(
-                    for: record, assetDimensions: dimensions
+                guard let finalized = self.deferredConfirmationTracker.confirm(
+                    identifier: identifier,
+                    dimensions: dimensions
                 ) else { continue }
-                self.pendingDeferredConfirmations[identifier] = nil
                 self.lastCaptureResolution = finalized
             }
         }
@@ -1308,19 +1473,26 @@ private final class DeferredCompletionObserver: NSObject, PHPhotoLibraryChangeOb
 extension CameraSession: AVCapturePhotoCaptureDelegate {
     // With automatic deferred photo delivery enabled, a 24 MP capture arrives
     // as a proxy instead of the full photo. The proxy is saved verbatim so
-    // Photos can fuse the final image; final dimensions are confirmed later
-    // through the change observer, never claimed here.
+    // Photos can fuse the final image; its final dimensions are never claimed
+    // here and may remain unconfirmed under add-only authorization.
     func photoOutput(
         _ output: AVCapturePhotoOutput,
-        didFinishCapturingDeferredPhotoProxy proxy: AVCapturePhoto,
+        didFinishCapturingDeferredPhotoProxy proxy: AVCaptureDeferredPhotoProxy?,
         error: Error?
     ) {
         defer { finishCapture() }
-        guard error == nil, let data = proxy.fileDataRepresentation() else {
+        guard let proxy else {
+            cancelPendingCaptureState()
             publish(notice: "camera.error.capture")
             return
         }
-        let snapshot = pendingCaptureSnapshot
+        let captureID = proxy.resolvedSettings.uniqueID
+        guard error == nil, let data = proxy.fileDataRepresentation() else {
+            cancelPendingCapture(id: captureID, notice: "camera.error.capture")
+            return
+        }
+        guard let context = claimPendingCapture(id: captureID, deferred: true) else { return }
+        let snapshot = context.snapshot
         let record = CaptureResolutionRecord(
             requested: snapshot.resolved.requested,
             resolvedDimensions: snapshot.resolved.dimensions,
@@ -1329,7 +1501,7 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
             downgradeReason: snapshot.resolved.downgradeReason
         )
         DispatchQueue.main.async { self.lastCaptureResolution = record }
-        saveDeferredProxy(data, record: record, showsThumbnail: true)
+        saveDeferredProxy(data, record: record, location: context.location, showsThumbnail: true)
     }
 
     func photoOutput(
@@ -1338,31 +1510,47 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         error: Error?
     ) {
         defer { finishCapture() }
+        let captureID = photo.resolvedSettings.uniqueID
         guard error == nil, let data = photo.fileDataRepresentation() else {
-            publish(notice: "camera.error.capture")
+            cancelPendingCapture(id: captureID, notice: "camera.error.capture")
             return
         }
+        guard let context = claimPendingCapture(id: captureID, deferred: false) else { return }
         let outputData =
             filterRenderer.renderedData(
                 from: data,
-                recipe: pendingFilter,
-                intensity: pendingFilterIntensity,
-                aspectRatio: pendingRatio == .fourThree ? nil : pendingRatio.value
+                recipe: context.filter,
+                intensity: context.filterIntensity,
+                aspectRatio: context.ratio == .fourThree ? nil : context.ratio.value
             ) ?? data
-        if pendingSaveOriginal, pendingFilter != nil {
-            save(data, countsFilter: false, showsThumbnail: false)
+        if context.saveOriginal, context.filter != nil {
+            save(data, location: context.location, countsFilter: false, showsThumbnail: false)
         }
         // Built from the exact snapshot capture() used to configure the
         // output — never re-derived — plus the one thing that can only be
         // known now: what ImageIO reports the saved bytes actually contain.
         let record = CaptureResolutionRecord(
-            requested: pendingCaptureSnapshot.resolved.requested,
-            resolvedDimensions: pendingCaptureSnapshot.resolved.dimensions,
+            requested: context.snapshot.resolved.requested,
+            resolvedDimensions: context.snapshot.resolved.dimensions,
             savedDimensions: Self.pixelDimensions(of: outputData),
-            downgradeReason: pendingCaptureSnapshot.resolved.downgradeReason
+            downgradeReason: context.snapshot.resolved.downgradeReason
         )
         DispatchQueue.main.async { self.lastCaptureResolution = record }
-        save(outputData, countsFilter: pendingFilter != nil, showsThumbnail: true)
+        save(
+            outputData,
+            location: context.location,
+            countsFilter: context.filter != nil,
+            showsThumbnail: true
+        )
+    }
+
+    func photoOutput(
+        _ output: AVCapturePhotoOutput,
+        didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings,
+        error: Error?
+    ) {
+        guard error != nil else { return }
+        cancelPendingCapture(id: resolvedSettings.uniqueID, notice: "camera.error.capture")
     }
 
     static func cloudGuidance(

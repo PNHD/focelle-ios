@@ -1,5 +1,7 @@
 @preconcurrency import CoreVideo
+@preconcurrency import CoreImage
 import Foundation
+import simd
 @preconcurrency import Vision
 
 final class OnDeviceAnalyzer: @unchecked Sendable {
@@ -163,8 +165,9 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
         hasMeasurement && elapsed < (thermallyConstrained ? 1.4 : 0.7)
     }
 
-    // Selected-subject association with box-overlap and feature-print
-    // evidence; never jumps to an unrelated object while identity is lost.
+    // Selected-subject association with box-overlap and real Vision
+    // feature-print evidence; never jumps to an unrelated object while
+    // identity is lost.
     private func associateSubject(
         buffer: CVPixelBuffer,
         measurement: inout SceneMeasurement,
@@ -176,12 +179,19 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
         }
         let candidates = measurement.humanRects.isEmpty ? measurement.faceRects : measurement.humanRects
         guard !candidates.isEmpty else {
-            _ = identityTracker.update(candidates: [], featurePrints: [], now: now)
+            _ = identityTracker.update(
+                candidates: [],
+                selectedCandidate: nil,
+                featurePrints: [],
+                now: now
+            )
             return identityTracker.identity
         }
+        let selectedCandidate = identityTracker.identity == nil ? measurement.subjectRect : nil
         let prints = candidates.map { Self.featurePrint(buffer, rect: $0) }
         let identity = identityTracker.update(
             candidates: candidates,
+            selectedCandidate: selectedCandidate,
             featurePrints: prints,
             now: now
         )
@@ -234,14 +244,18 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
         do {
             try handler.perform([request])
             guard let observation = request.results?.first else { return nil }
+            guard Double(observation.confidence) > 0.2 else { return nil }
             let points = try observation.recognizedPoints(.all)
             return points.compactMap { joint, point in
-                guard point.confidence > 0.2 else { return nil }
-                return PoseLandmark(
+                // `position` is a simd_float4x4 transform. Vision projects
+                // it into input-image geometry; only transform Z is retained
+                // as metric depth, never misread as a simple x/y/z vector.
+                guard let imagePoint = try? observation.pointInImage(joint) else { return nil }
+                return pose3DLandmark(
                     name: joint.rawValue,
-                    point: NormalizedPoint(x: point.position.x, y: point.position.y),
-                    confidence: point.confidence,
-                    depth: point.position.z
+                    projected: imagePoint.location,
+                    transform: point.position,
+                    confidence: observation.confidence
                 )
             }
         } catch {
@@ -278,37 +292,72 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
             guard point.confidence > 0.15 else { return nil }
             return PoseLandmark(
                 name: joint.rawValue,
-                point: NormalizedPoint(x: point.location.x, y: point.location.y),
-                confidence: point.confidence
+                point: NormalizedPoint(
+                    x: Double(point.location.x),
+                    y: Double(point.location.y)
+                ),
+                confidence: Double(point.confidence)
             )
         }
     }
 
+    static func pose3DLandmark(
+        name: String,
+        projected: CGPoint,
+        transform: simd_float4x4,
+        confidence: VNConfidence
+    ) -> PoseLandmark {
+        PoseLandmark(
+            name: name,
+            point: NormalizedPoint(x: Double(projected.x), y: Double(projected.y)),
+            confidence: Double(confidence),
+            depth: Double(transform.columns.3.z)
+        )
+    }
+
     static func faceLandmarks(_ observations: [VNFaceObservation]?) -> [FaceLandmark] {
-        guard let observations else { return [] }
+        guard let face = observations?.first else { return [] }
         let names: [(VNFaceLandmarkRegion2D?, String)] = [
-            (observations.first?.landmarks?.leftEye, "left_eye"),
-            (observations.first?.landmarks?.rightEye, "right_eye"),
-            (observations.first?.landmarks?.nose, "nose"),
-            (observations.first?.landmarks?.outerLips, "outer_lips"),
+            (face.landmarks?.leftEye, "left_eye"),
+            (face.landmarks?.rightEye, "right_eye"),
+            (face.landmarks?.nose, "nose"),
+            (face.landmarks?.outerLips, "outer_lips"),
         ]
-        let confidence = observations.first?.confidence ?? 0
+        let confidence = Double(face.confidence)
         return names.compactMap { region, name in
             guard let point = region?.normalizedPoints.first else { return nil }
             return FaceLandmark(
                 name: name,
-                point: NormalizedPoint(x: point.x, y: point.y),
+                point: fullImagePoint(point, faceBounds: face.boundingBox),
                 confidence: confidence
             )
         }
     }
 
-    // A tiny luma histogram of the subject region — association evidence
-    // only, computed only for a selected subject, never logged.
-    static func featurePrint(_ buffer: CVPixelBuffer, rect: CGRect) -> FeaturePrint? {
-        let samples = sampledLuma(in: buffer, rect: rect)
-        guard !samples.isEmpty else { return nil }
-        return FeaturePrint(buckets: LightingInfo.histogram(fromLumaSamples: samples))
+    // Face-relative Vision coordinates become descriptor-wide normalized
+    // coordinates before planner and overlay consumers see them.
+    static func fullImagePoint(_ point: CGPoint, faceBounds: CGRect) -> NormalizedPoint {
+        NormalizedPoint(
+            x: Double(faceBounds.minX + point.x * faceBounds.width),
+            y: Double(faceBounds.minY + point.y * faceBounds.height)
+        )
+    }
+
+    static func featurePrint(_ buffer: CVPixelBuffer, rect: CGRect) -> SubjectFeaturePrint? {
+        let image = CIImage(cvPixelBuffer: buffer)
+        let pixelRect = CGRect(
+            x: rect.minX * image.extent.width,
+            y: rect.minY * image.extent.height,
+            width: rect.width * image.extent.width,
+            height: rect.height * image.extent.height
+        ).intersection(image.extent)
+        guard !pixelRect.isNull, !pixelRect.isEmpty else { return nil }
+        let request = VNGenerateImageFeaturePrintRequest()
+        let handler = VNImageRequestHandler(ciImage: image.cropped(to: pixelRect), orientation: .up)
+        guard (try? handler.perform([request])) != nil,
+            let observation = request.results?.first
+        else { return nil }
+        return SubjectFeaturePrint(observation)
     }
 
     static func lightingInfo(_ buffer: CVPixelBuffer, subjectRect: CGRect?) -> LightingInfo {

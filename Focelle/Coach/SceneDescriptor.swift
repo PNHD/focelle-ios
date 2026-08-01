@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+@preconcurrency import Vision
 
 // A normalized point inside the frame. Vision's normalized coordinates are
 // bottom-left origin; every consumer that draws them converts once at the
@@ -95,32 +96,40 @@ struct SceneDescriptor: Equatable, Sendable {
     }
 }
 
-// A tiny deterministic luma fingerprint of the selected subject's region.
-// Used only for subject association, never stored or logged.
-struct FeaturePrint: Equatable, Sendable {
-    let buckets: [Double]
+// In-memory Vision feature print for selected-subject association only. The
+// observation is neither serialized nor logged; its documented distance is
+// lower for more-similar images.
+final class SubjectFeaturePrint: @unchecked Sendable {
+    static let adoptionDistance = 0.30
 
-    static func cosineSimilarity(_ a: FeaturePrint, _ b: FeaturePrint) -> Double {
-        let count = min(a.buckets.count, b.buckets.count)
-        guard count > 0 else { return 0 }
-        var dot = 0.0
-        var normA = 0.0
-        var normB = 0.0
-        for index in 0..<count {
-            dot += a.buckets[index] * b.buckets[index]
-            normA += a.buckets[index] * a.buckets[index]
-            normB += b.buckets[index] * b.buckets[index]
+    private let observation: VNFeaturePrintObservation
+
+    init(_ observation: VNFeaturePrintObservation) {
+        self.observation = observation
+    }
+
+    func distance(to other: SubjectFeaturePrint) -> Double? {
+        var distance: Float = 0
+        guard (try? observation.computeDistance(&distance, to: other.observation)) != nil else {
+            return nil
         }
-        guard normA > 0, normB > 0 else { return 0 }
-        return dot / (normA.squareRoot() * normB.squareRoot())
+        return Double(distance)
+    }
+
+    static func canAdopt(distance: Double) -> Bool {
+        distance >= 0 && distance <= adoptionDistance
     }
 }
 
 struct SubjectIdentity: Equatable, Sendable {
     let id: Int
     let rect: CGRect
-    let featurePrint: FeaturePrint?
+    let featurePrint: SubjectFeaturePrint?
     let lastSeen: TimeInterval
+
+    static func == (lhs: SubjectIdentity, rhs: SubjectIdentity) -> Bool {
+        lhs.id == rhs.id && lhs.rect == rhs.rect && lhs.lastSeen == rhs.lastSeen
+    }
 }
 
 // Deterministic selected-subject association across full detections and
@@ -138,15 +147,20 @@ struct SubjectIdentityTracker: Equatable, Sendable {
 
     mutating func update(
         candidates: [CGRect],
-        featurePrints: [FeaturePrint?],
+        selectedCandidate: CGRect?,
+        featurePrints: [SubjectFeaturePrint?],
         now: TimeInterval
     ) -> SubjectIdentity? {
         guard let identity else {
-            guard let first = candidates.first else { return nil }
+            // A user action owns the initial identity. A detector's ordering
+            // is not an identity signal, so never fall back to candidates.first.
+            guard let selectedCandidate,
+                let index = candidates.firstIndex(of: selectedCandidate)
+            else { return nil }
             let adopted = SubjectIdentity(
                 id: 1,
-                rect: first,
-                featurePrint: featurePrints.first ?? nil,
+                rect: selectedCandidate,
+                featurePrint: index < featurePrints.count ? featurePrints[index] : nil,
                 lastSeen: now
             )
             self.identity = adopted
@@ -180,29 +194,32 @@ struct SubjectIdentityTracker: Equatable, Sendable {
     static func bestMatch(
         identity: SubjectIdentity,
         candidates: [CGRect],
-        featurePrints: [FeaturePrint?]
-    ) -> (rect: CGRect, featurePrint: FeaturePrint?)? {
+        featurePrints: [SubjectFeaturePrint?]
+    ) -> (rect: CGRect, featurePrint: SubjectFeaturePrint?)? {
         let prints =
             featurePrints
-            + [FeaturePrint?](
+            + [SubjectFeaturePrint?](
                 repeating: nil,
                 count: max(candidates.count - featurePrints.count, 0)
             )
         let indexed = zip(candidates, prints)
-        var best: (rect: CGRect, featurePrint: FeaturePrint?, overlap: Double, similarity: Double)?
+        var best: (rect: CGRect, featurePrint: SubjectFeaturePrint?, overlap: Double, distance: Double?)?
         for (rect, featurePrint) in indexed {
             let overlap = Self.intersectionOverUnion(identity.rect, rect)
-            let similarity =
+            let distance =
                 (identity.featurePrint).flatMap { a in
-                    featurePrint.map { FeaturePrint.cosineSimilarity(a, $0) }
-                } ?? 0
-            guard overlap >= 0.35 || (identity.featurePrint != nil && similarity >= 0.92) else { continue }
-            if best == nil || overlap > best!.overlap {
+                    featurePrint.flatMap { a.distance(to: $0) }
+                }
+            guard overlap >= 0.35 || distance.map(SubjectFeaturePrint.canAdopt) == true else { continue }
+            if best == nil
+                || (distance ?? .infinity) < (best!.distance ?? .infinity)
+                || (distance == best!.distance && overlap > best!.overlap)
+            {
                 best = (
                     rect: rect,
                     featurePrint: featurePrint,
                     overlap: overlap,
-                    similarity: similarity
+                    distance: distance
                 )
             }
         }
