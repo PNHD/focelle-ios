@@ -1413,23 +1413,25 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             self.deferredConfirmationTracker.expire(now: ProcessInfo.processInfo.systemUptime)
             let pending = self.deferredConfirmationTracker.entries
             for identifier in pending.keys {
-                guard let asset =
-                    PHAsset
-                        .fetchAssets(
-                            withLocalIdentifiers: [identifier], options: nil
-                        )
-                        .firstObject
+                guard
+                    let asset =
+                        PHAsset
+                            .fetchAssets(
+                                withLocalIdentifiers: [identifier], options: nil
+                            )
+                            .firstObject
                 else { continue }
                 let dimensions = PhotoDimensions(
                     width: Int32(asset.pixelWidth),
                     height: Int32(asset.pixelHeight)
                 )
-                guard let finalized =
-                    self.deferredConfirmationTracker
-                        .confirm(
-                            identifier: identifier,
-                            dimensions: dimensions
-                        )
+                guard
+                    let finalized =
+                        self.deferredConfirmationTracker
+                            .confirm(
+                                identifier: identifier,
+                                dimensions: dimensions
+                            )
                 else { continue }
                 self.lastCaptureResolution = finalized
             }
