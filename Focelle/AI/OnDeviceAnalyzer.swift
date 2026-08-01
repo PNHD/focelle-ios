@@ -18,10 +18,10 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
     private var lastClassificationTime = -Double.infinity
     private var lastClassifications: [String] = []
     private var identityTracker = SubjectIdentityTracker()
+    private var pendingSelection: PendingSubjectSelection?
 
     func analyze(
         _ buffer: CVPixelBuffer,
-        preferredSubjectPoint: CGPoint?,
         generation: Int,
         completion: @escaping @Sendable (SceneMeasurement?, SceneDescriptor?) -> Void
     ) {
@@ -81,16 +81,10 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
                     },
                     timestamp: now
                 )
-                if let point = preferredSubjectPoint,
-                    let selected = measurement.subject(near: point)
-                {
-                    measurement.subjectRect = selected
-                }
-
                 let identity = self.associateSubject(
                     buffer: pixelBuffer,
                     measurement: &measurement,
-                    preferredSubjectPoint: preferredSubjectPoint,
+                    generation: generation,
                     now: now
                 )
 
@@ -122,7 +116,9 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
                 self.lastMeasurement = measurement
                 self.lastDescriptor = descriptor
                 self.sequenceHandler = VNSequenceRequestHandler()
-                self.tracker = measurement.primaryRect.map(Self.makeTracker)
+                self.tracker = self.pendingSelection?.state == .lost
+                    ? nil
+                    : measurement.primaryRect.map(Self.makeTracker)
                 completion(measurement, descriptor)
             } catch {
                 completion(self.lastMeasurement, self.lastDescriptor)
@@ -130,11 +126,20 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
         }
     }
 
-    func track(_ rect: CGRect) {
+    func selectSubject(_ rect: CGRect, generation: Int) {
         queue.async {
+            // A tap has geometry but no reliable source-frame crop, so initial
+            // feature-print adoption is deliberately disabled.
             self.sequenceHandler = VNSequenceRequestHandler()
-            self.tracker = Self.makeTracker(rect)
+            self.tracker = nil
+            self.identityTracker = SubjectIdentityTracker()
+            self.pendingSelection = PendingSubjectSelection(
+                rect: rect,
+                generation: generation,
+                timestamp: ProcessInfo.processInfo.systemUptime
+            )
             self.lastMeasurement?.subjectRect = rect
+            self.lastDetectionTime = -.infinity
         }
     }
 
@@ -149,6 +154,7 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
             self.lastClassificationTime = -.infinity
             self.lastClassifications = []
             self.identityTracker = SubjectIdentityTracker()
+            self.pendingSelection = nil
         }
     }
 
@@ -171,13 +177,41 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
     private func associateSubject(
         buffer: CVPixelBuffer,
         measurement: inout SceneMeasurement,
-        preferredSubjectPoint: CGPoint?,
+        generation: Int,
         now: TimeInterval
     ) -> SubjectIdentity? {
-        guard preferredSubjectPoint != nil || identityTracker.identity != nil else {
-            return nil
-        }
         let candidates = measurement.humanRects.isEmpty ? measurement.faceRects : measurement.humanRects
+        if var pending = pendingSelection, identityTracker.identity == nil {
+            let prints = pending.featurePrint == nil
+                ? []
+                : candidates.map { Self.featurePrint(buffer, rect: $0) }
+            let distances = candidates.indices.map { index in
+                pending.featurePrint.flatMap { reference in
+                    index < prints.count ? prints[index].flatMap { reference.distance(to: $0) } : nil
+                }
+            }
+            let selected = pending.confirm(
+                candidates: candidates,
+                featureDistances: distances,
+                generation: generation,
+                now: now
+            )
+            pendingSelection = pending
+            guard let selected else {
+                measurement.subjectRect = nil
+                return nil
+            }
+            let selectedPrint = Self.featurePrint(buffer, rect: selected)
+            let identity = identityTracker.update(
+                candidates: [selected],
+                selectedCandidate: selected,
+                featurePrints: [selectedPrint],
+                now: now
+            )
+            measurement.subjectRect = identity?.rect
+            return identity
+        }
+        guard identityTracker.identity != nil else { return nil }
         guard !candidates.isEmpty else {
             _ = identityTracker.update(
                 candidates: [],
@@ -187,11 +221,10 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
             )
             return identityTracker.identity
         }
-        let selectedCandidate = identityTracker.identity == nil ? measurement.subjectRect : nil
         let prints = candidates.map { Self.featurePrint(buffer, rect: $0) }
         let identity = identityTracker.update(
             candidates: candidates,
-            selectedCandidate: selectedCandidate,
+            selectedCandidate: nil,
             featurePrints: prints,
             now: now
         )
@@ -249,7 +282,7 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
             return points.compactMap { joint, point in
                 // `position` is a simd_float4x4 transform. Vision projects
                 // it into input-image geometry; only transform Z is retained
-                // as metric depth, never misread as a simple x/y/z vector.
+                // as root-relative depth, never absolute camera distance.
                 guard let imagePoint = try? observation.pointInImage(joint) else { return nil }
                 return pose3DLandmark(
                     name: joint.rawValue,

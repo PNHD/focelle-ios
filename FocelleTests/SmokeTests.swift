@@ -1423,6 +1423,73 @@ final class SmokeTests: XCTestCase {
         XCTAssertNil(lost)
     }
 
+    func testPendingTapRejectsNearbyReplacementBeforeInitialIdentityConfirmation() {
+        let selected = CGRect(x: 0.2, y: 0.2, width: 0.25, height: 0.55)
+        let nearbyReplacement = CGRect(x: 0.48, y: 0.2, width: 0.25, height: 0.55)
+        var pending = PendingSubjectSelection(rect: selected, generation: 4, timestamp: 10)
+
+        XCTAssertNil(
+            pending.confirm(
+                candidates: [nearbyReplacement],
+                featureDistances: [],
+                generation: 4,
+                now: 10.1
+            )
+        )
+        XCTAssertEqual(pending.state, .lost)
+
+        // A lost tap cannot later adopt an unrelated detector result.
+        XCTAssertNil(
+            pending.confirm(
+                candidates: [selected],
+                featureDistances: [],
+                generation: 4,
+                now: 10.2
+            )
+        )
+    }
+
+    func testPendingTapRequiresSameGenerationAndExpiresBeforeLateConfirmation() {
+        let selected = CGRect(x: 0.2, y: 0.2, width: 0.25, height: 0.55)
+        var invalidated = PendingSubjectSelection(rect: selected, generation: 4, timestamp: 10)
+        XCTAssertNil(
+            invalidated.confirm(
+                candidates: [selected],
+                featureDistances: [],
+                generation: 5,
+                now: 10.1
+            )
+        )
+        XCTAssertEqual(invalidated.state, .lost)
+
+        var expired = PendingSubjectSelection(rect: selected, generation: 4, timestamp: 10)
+        XCTAssertNil(
+            expired.confirm(
+                candidates: [selected],
+                featureDistances: [],
+                generation: 4,
+                now: 10.9
+            )
+        )
+        XCTAssertEqual(expired.state, .lost)
+    }
+
+    func testPendingTapConfirmsOnlyTheTappedCandidateByGeometry() {
+        let selected = CGRect(x: 0.2, y: 0.2, width: 0.25, height: 0.55)
+        let unrelated = CGRect(x: 0.65, y: 0.2, width: 0.2, height: 0.5)
+        var pending = PendingSubjectSelection(rect: selected, generation: 4, timestamp: 10)
+
+        let confirmed = pending.confirm(
+            candidates: [unrelated, selected],
+            featureDistances: [],
+            generation: 4,
+            now: 10.1
+        )
+
+        XCTAssertEqual(confirmed, selected)
+        XCTAssertEqual(pending.state, .confirmed)
+    }
+
     func testFeaturePrintDistanceUsesLowerValuesForAdoption() {
         XCTAssertTrue(SubjectFeaturePrint.canAdopt(distance: 0.1))
         XCTAssertFalse(SubjectFeaturePrint.canAdopt(distance: 0.5))

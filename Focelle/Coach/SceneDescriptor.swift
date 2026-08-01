@@ -14,7 +14,8 @@ struct PoseLandmark: Equatable, Sendable {
     let name: String
     let point: NormalizedPoint
     let confidence: Double
-    // Depth from availability-gated 3D pose; nil for 2D landmarks.
+    // Root-relative transform depth from availability-gated 3D pose; nil for
+    // 2D landmarks. It is not an absolute camera-distance measurement.
     let depth: Double?
 
     init(
@@ -118,6 +119,78 @@ final class SubjectFeaturePrint: @unchecked Sendable {
 
     static func canAdopt(distance: Double) -> Bool {
         distance >= 0 && distance <= adoptionDistance
+    }
+}
+
+// A tap is only a claim of ownership until the next full detection confirms
+// it. This state remains in memory on the analyzer queue and is never logged
+// or persisted, including its optional Vision feature print.
+struct PendingSubjectSelection: @unchecked Sendable, Equatable {
+    enum State: Equatable, Sendable {
+        case pending
+        case confirmed
+        case lost
+    }
+
+    static let confirmationInterval: TimeInterval = 0.8
+    static let minimumOverlap = 0.35
+
+    let rect: CGRect
+    let generation: Int
+    let timestamp: TimeInterval
+    let featurePrint: SubjectFeaturePrint?
+    private(set) var state: State = .pending
+
+    init(
+        rect: CGRect,
+        generation: Int,
+        timestamp: TimeInterval,
+        featurePrint: SubjectFeaturePrint? = nil
+    ) {
+        self.rect = rect
+        self.generation = generation
+        self.timestamp = timestamp
+        self.featurePrint = featurePrint
+    }
+
+    static func == (lhs: PendingSubjectSelection, rhs: PendingSubjectSelection) -> Bool {
+        lhs.rect == rhs.rect
+            && lhs.generation == rhs.generation
+            && lhs.timestamp == rhs.timestamp
+            && lhs.state == rhs.state
+    }
+
+    // This is the production first-detection gate. A reference print, when
+    // available, is mandatory evidence; otherwise overlap is the only
+    // permitted continuity signal. Ambiguous candidates are deliberately lost.
+    mutating func confirm(
+        candidates: [CGRect],
+        featureDistances: [Double?],
+        generation: Int,
+        now: TimeInterval
+    ) -> CGRect? {
+        guard state == .pending,
+            generation == self.generation,
+            now >= timestamp,
+            now - timestamp <= Self.confirmationInterval
+        else {
+            state = .lost
+            return nil
+        }
+
+        let matches = candidates.enumerated().filter { index, candidate in
+            if featurePrint != nil {
+                return index < featureDistances.count
+                    && featureDistances[index].map(SubjectFeaturePrint.canAdopt) == true
+            }
+            return SubjectIdentityTracker.intersectionOverUnion(rect, candidate) >= Self.minimumOverlap
+        }
+        guard matches.count == 1 else {
+            state = .lost
+            return nil
+        }
+        state = .confirmed
+        return matches[0].element
     }
 }
 

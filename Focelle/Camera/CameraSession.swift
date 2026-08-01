@@ -449,7 +449,6 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var guidanceEngine = GuidanceEngine()
     private var pendingAIPreview: (@Sendable (Data?) -> Void)?
     private var cloudPlan: AICompositionPlan?
-    private var selectedSubjectPoint: CGPoint?
     // Not `private`: regression tests confirm a resume can't leave this wedged.
     var analysisInFlight = false
     var analysisGeneration = 0
@@ -577,7 +576,6 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             if self.session.canAddInput(newInput) {
                 self.session.addInput(newInput)
                 self.input = newInput
-                self.selectedSubjectPoint = nil
                 self.resetAnalysisForResume()
                 self.configureCapabilities(for: device)
                 self.updateVideoConnection(for: device)
@@ -1174,13 +1172,11 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         queue.async { [weak self] in
             guard let self else { return }
             let visionPoint = CGPoint(x: point.x, y: 1 - point.y)
-            self.selectedSubjectPoint = visionPoint
             guard var measurement = self.measurement,
                 let selected = measurement.subject(near: visionPoint)
             else { return }
             measurement.subjectRect = selected
-            self.selectedSubjectPoint = CGPoint(x: selected.midX, y: selected.midY)
-            self.analyzer.track(selected)
+            self.analyzer.selectSubject(selected, generation: self.analysisGeneration)
             self.stabilizer = MeasurementStabilizer()
             let guidance =
                 self.cloudPlan.map {
@@ -1639,13 +1635,11 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
             analysisInFlight = true
             lastAnalysisTime = timestamp
             let generation = analysisGeneration
-            let preferredPoint = selectedSubjectPoint
             #if DEBUG
                 lifecycleLog.debug("analysis started (generation=\(generation, privacy: .public))")
             #endif
             analyzer.analyze(
                 buffer,
-                preferredSubjectPoint: preferredPoint,
                 generation: generation
             ) { [weak self] measurement, descriptor in
                 guard let self else { return }
@@ -1659,25 +1653,11 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
                         #endif
                         return
                     }
-                    guard var measurement else {
+                    guard let measurement else {
                         #if DEBUG
                             self.lifecycleLog.debug("analysis completed: no measurement")
                         #endif
                         return
-                    }
-                    if let currentPoint = self.selectedSubjectPoint {
-                        if currentPoint != preferredPoint,
-                            let selected = measurement.subject(near: currentPoint)
-                        {
-                            measurement.subjectRect = selected
-                            self.analyzer.track(selected)
-                        }
-                        if let selected = measurement.subjectRect {
-                            self.selectedSubjectPoint = CGPoint(
-                                x: selected.midX,
-                                y: selected.midY
-                            )
-                        }
                     }
                     let stable = self.stabilizer.update(measurement)
                     let stableDescriptor = descriptor.map { self.descriptorStabilizer.update($0) }
