@@ -449,6 +449,7 @@ struct CameraView: View {
             }
 
             VStack(spacing: 8) {
+                coachV2Panel
                 aiResult
                 filterPicker
 
@@ -547,11 +548,58 @@ struct CameraView: View {
                     .background(.orange.opacity(0.85), in: Circle())
                 }
                 .accessibilityLabel(Text("ai.analyze"))
-                .disabled(camera.state != .running || settings.onDeviceOnly)
+                .disabled(
+                    camera.state != .running
+                        || (settings.onDeviceOnly && !settings.coachV2Enabled)
+                )
             }
         }
         .foregroundStyle(.white)
         .padding(24)
+    }
+
+    @ViewBuilder
+    private var coachV2Panel: some View {
+        if settings.coachV2Enabled, !camera.coachPlans.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("coach.v2.title")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    if let plan = camera.selectedCoachPlan {
+                        Text(coachPlanTitle(plan.id))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
+                    }
+                }
+                HStack {
+                    ForEach(camera.coachPlans) { plan in
+                        Button(coachPlanTitle(plan.id)) {
+                            camera.selectCoachPlan(plan.id)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(camera.selectedCoachPlan?.id == plan.id ? .orange : .white)
+                    }
+                }
+                HStack {
+                    Button("coach.v2.apply") {
+                        if let id = camera.selectedCoachPlan?.id {
+                            camera.applyCoachPlan(id)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .disabled(camera.coachPlanApplied)
+                    if camera.coachPlanApplied {
+                        Button("coach.v2.undo", action: camera.undoCoachPlan)
+                            .buttonStyle(.bordered)
+                    }
+                }
+            }
+            .font(.caption.weight(.medium))
+            .padding(12)
+            .background(.black.opacity(0.76), in: RoundedRectangle(cornerRadius: 14))
+        }
     }
 
     @ViewBuilder
@@ -907,6 +955,10 @@ struct CameraView: View {
     }
 
     private func analyzeScene() {
+        if settings.coachV2Enabled {
+            camera.analyzeSceneV2()
+            return
+        }
         if aiPreviewRequestID != nil {
             cancelAI()
             return
@@ -971,6 +1023,14 @@ struct CameraView: View {
         switch index {
         case 0: "ai.plan.primary"
         case 1: "ai.plan.safe"
+        default: "ai.plan.creative"
+        }
+    }
+
+    private func coachPlanTitle(_ id: String) -> LocalizedStringKey {
+        switch id {
+        case "primary": "ai.plan.primary"
+        case "safe": "ai.plan.safe"
         default: "ai.plan.creative"
         }
     }

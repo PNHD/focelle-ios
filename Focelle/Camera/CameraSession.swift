@@ -341,7 +341,12 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     @Published private(set) var filteredPreview: CGImage?
     @Published private(set) var filterThumbnails: [String: CGImage] = [:]
     @Published private(set) var measurement: SceneMeasurement?
+    @Published private(set) var sceneDescriptor: SceneDescriptor?
     @Published private(set) var guidance: Guidance?
+    @Published private(set) var coachPlans: [CoachPlan] = []
+    @Published private(set) var selectedCoachPlan: CoachPlan?
+    @Published private(set) var coachSession: PlanSession?
+    @Published private(set) var coachPlanApplied = false
     @Published private(set) var filterSaveSequence = 0
     @Published private(set) var latestThumbnail: CGImage?
     @Published var notice: String?
@@ -392,6 +397,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     var cachedMaximumDimensions: PhotoDimensions?
     var cachedOutputLimit: PhotoDimensions?
     var cachedDeferredDeliverySupported = false
+    private var cachedCapabilityGeneration = 0
     private var previewRecipe: FilterRecipe?
     private var previewIntensity = 1.0
     private var lastPreviewTime = CMTime.zero
@@ -399,6 +405,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var lastThumbnailTime = CMTime.zero
     private var lastAnalysisTime = CMTime.zero
     private var stabilizer = MeasurementStabilizer()
+    private var descriptorStabilizer = DescriptorStabilizer()
     private var guidanceEngine = GuidanceEngine()
     private var pendingAIPreview: (@Sendable (Data?) -> Void)?
     private var cloudPlan: AICompositionPlan?
@@ -775,12 +782,14 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         analysisGeneration += 1
         analyzer.resetTracking()
         stabilizer = MeasurementStabilizer()
+        descriptorStabilizer = DescriptorStabilizer()
         guidanceEngine = GuidanceEngine()
         #if DEBUG
             lifecycleLog.debug("analyzer reset for resume (generation=\(self.analysisGeneration, privacy: .public))")
         #endif
         DispatchQueue.main.async {
             self.measurement = nil
+            self.sceneDescriptor = nil
             self.guidance = nil
         }
     }
@@ -919,6 +928,113 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
+    // Coach V2 local planning. Analyze only snapshots the zoom/exposure
+    // baseline and creates plans — it never mutates the camera.
+    func analyzeSceneV2() {
+        guard let descriptor = sceneDescriptor else {
+            publish(notice: "coach.error.noScene")
+            return
+        }
+        let templates = PoseTemplateStore.shared.templates
+        let capabilities = LocalPlanner.Capabilities(
+            maxZoom: Double(maxZoom),
+            aspectRatio: Double(ratio.value)
+        )
+        let plans = LocalPlanner.plan(
+            scene: descriptor,
+            intent: Self.framingIntent(for: descriptor),
+            templates: templates,
+            capabilities: capabilities,
+            selectedSubject: descriptor.subjectRect
+        )
+        guard !plans.isEmpty else {
+            publish(notice: "coach.error.noPlans")
+            return
+        }
+        coachSession = PlanSession(
+            baselineZoom: Double(zoom),
+            baselineExposureBias: Double(exposure),
+            capabilityGeneration: cachedCapabilityGeneration
+        )
+        coachPlans = plans
+        coachPlanApplied = false
+        selectCoachPlan(plans[0].id)
+    }
+
+    func selectCoachPlan(_ id: String) {
+        guard let plan = coachPlans.first(where: { $0.id == id }) else { return }
+        selectedCoachPlan = plan
+        coachPlanApplied = false
+        updateCoachGuidance(for: plan, descriptor: sceneDescriptor)
+    }
+
+    // Explicit Apply uses absolute zoom/exposure values from the plan —
+    // never relative to the current value, so repeated cycles cannot drift.
+    func applyCoachPlan(_ id: String) {
+        guard let plan = coachPlans.first(where: { $0.id == id }),
+            let session = coachSession,
+            session.isValid(for: cachedCapabilityGeneration)
+        else { return }
+        coachSession = session.applying(
+            zoom: plan.recommendedZoom,
+            exposureBias: plan.recommendedExposureBias
+        )
+        setZoom(CGFloat(plan.recommendedZoom))
+        setExposure(Float(plan.recommendedExposureBias))
+        coachPlanApplied = true
+        selectedCoachPlan = plan
+        updateCoachGuidance(for: plan, descriptor: sceneDescriptor)
+    }
+
+    // Undo restores the exact pre-Analyze baseline.
+    func undoCoachPlan() {
+        guard let session = coachSession, coachPlanApplied else { return }
+        let undo = session.undo
+        coachSession = session.undoing()
+        setZoom(CGFloat(undo.zoom))
+        setExposure(Float(undo.exposureBias))
+        coachPlanApplied = false
+        refreshLocalGuidanceAfterSettings()
+    }
+
+    static func framingIntent(for descriptor: SceneDescriptor) -> FramingIntent {
+        if descriptor.classifications.contains("group") { return .group }
+        if descriptor.classifications.contains("onePerson") {
+            let subject = descriptor.subjectRect ?? .zero
+            return subject.height > 0.65 ? .fullBody : .portrait
+        }
+        if descriptor.horizonAngle != nil, descriptor.saliencyRect == nil { return .scenery }
+        if descriptor.saliencyRect != nil { return .product }
+        return .portrait
+    }
+
+    private func updateCoachGuidance(for plan: CoachPlan, descriptor: SceneDescriptor?) {
+        guard let descriptor, let subject = descriptor.subjectRect else {
+            guidance = nil
+            return
+        }
+        let frame = plan.targetFraming
+        let targetRect = CGRect(
+            x: frame.centerX - frame.subjectWidth / 2,
+            y: 1 - frame.centerY - frame.subjectHeight / 2,
+            width: frame.subjectWidth,
+            height: frame.subjectHeight
+        )
+        let target = CGPoint(x: frame.centerX, y: 1 - frame.centerY)
+        let instruction =
+            Locale.current.language.languageCode?.identifier == "vi"
+            ? plan.instructionVI : plan.instructionEN
+        guidance = Guidance(
+            subjectRect: subject,
+            target: target,
+            targetRect: targetRect,
+            direction: .none,
+            instructionKey: "coach.v2.aligned",
+            instruction: instruction,
+            aligned: true
+        )
+    }
+
     func selectSubject(at point: CGPoint) {
         queue.async { [weak self] in
             guard let self else { return }
@@ -994,6 +1110,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         capabilityGeneration += 1
 
         let deviceMaxZoom = min(device.activeFormat.videoMaxZoomFactor, 10)
+        let generation = capabilityGeneration
         // Whether the device/format genuinely has more to offer than standard —
         // not an arbitrary pixel-count threshold, so a modest-but-real jump
         // (or a hardware ceiling below any "48 MP" claim) is represented truthfully.
@@ -1014,6 +1131,14 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             self.cachedMaximumDimensions = tiers.maximum
             self.cachedOutputLimit = outputLimitPhoto
             self.cachedDeferredDeliverySupported = deferredSupported
+            self.cachedCapabilityGeneration = generation
+            // A camera switch or capability-generation change invalidates any
+            // active PlanSession: its baseline and plans belong to the old
+            // camera/capability set.
+            self.coachPlans = []
+            self.selectedCoachPlan = nil
+            self.coachSession = nil
+            self.coachPlanApplied = false
             self.recomputeResolvedResolution()
         }
     }
@@ -1332,8 +1457,9 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
             #endif
             analyzer.analyze(
                 buffer,
-                preferredSubjectPoint: preferredPoint
-            ) { [weak self] measurement in
+                preferredSubjectPoint: preferredPoint,
+                generation: generation
+            ) { [weak self] measurement, descriptor in
                 guard let self else { return }
                 self.queue.async {
                     guard self.acceptAnalysisCompletion(requestGeneration: generation) else {
@@ -1366,6 +1492,7 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
                         }
                     }
                     let stable = self.stabilizer.update(measurement)
+                    let stableDescriptor = descriptor.map { self.descriptorStabilizer.update($0) }
                     let guidance =
                         self.cloudPlan.map {
                             Self.cloudGuidance($0, measurement: stable)
@@ -1378,6 +1505,7 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
                     #endif
                     DispatchQueue.main.async {
                         self.measurement = stable
+                        self.sceneDescriptor = stableDescriptor
                         self.guidance = guidance
                     }
                 }
