@@ -36,14 +36,31 @@ final class SmokeTests: XCTestCase {
         )
     }
 
-    func testPhotoResolutionChoosesClosestTo24Megapixels() {
-        let options = [
-            PhotoDimensions(width: 4_032, height: 3_024),
-            PhotoDimensions(width: 5_712, height: 4_284),
-            PhotoDimensions(width: 8_064, height: 6_048),
-        ]
+    func testPhotoCapabilityTiersMapTwelveTwentyFourAndFortyEightWithoutOmittingTheMiddle() {
+        let twelve = PhotoDimensions(width: 4_032, height: 3_024)
+        let twentyFour = PhotoDimensions(width: 5_712, height: 4_284)
+        let fortyEight = PhotoDimensions(width: 8_064, height: 6_048)
 
-        XCTAssertEqual(PhotoDimensions.standard(in: options), options[1])
+        let tiers = PhotoCapabilityTiers.resolve(from: [twelve, fortyEight, twentyFour])
+
+        XCTAssertEqual(tiers.supported, [twelve, twentyFour, fortyEight])
+        XCTAssertEqual(tiers.standard, twelve)
+        XCTAssertEqual(tiers.balanced, twentyFour, "24 MP must not be silently omitted as a middle tier")
+        XCTAssertEqual(tiers.maximum, fortyEight)
+    }
+
+    func testCapabilityTiersNeverInventABalancedOrMaximumTier() {
+        let twelve = PhotoDimensions(width: 4_032, height: 3_024)
+        let fortyEight = PhotoDimensions(width: 8_064, height: 6_048)
+
+        let noMiddle = PhotoCapabilityTiers.resolve(from: [twelve, fortyEight])
+        XCTAssertNil(noMiddle.balanced)
+        XCTAssertEqual(noMiddle.supported, [twelve, fortyEight])
+
+        let onlyStandard = PhotoCapabilityTiers.resolve(from: [twelve])
+        XCTAssertNil(onlyStandard.balanced)
+        XCTAssertEqual(onlyStandard.maximum, twelve)
+        XCTAssertEqual(onlyStandard.supported, [twelve])
     }
 
     func testResolutionLabelBucketsToKnownMegapixelCountsOrFallsBackToDimensions() {
@@ -79,8 +96,10 @@ final class SmokeTests: XCTestCase {
         let normalStandard = ResolvedResolution.resolve(
             requested: .standard,
             standard: standard,
+            balanced: nil,
             maximum: biggerMaximum,
-            outputLimit: nil
+            outputLimit: nil,
+            deferredSupported: true
         )
         XCTAssertEqual(normalStandard.dimensions, standard)
         XCTAssertEqual(normalStandard.downgradeReason, .none)
@@ -88,8 +107,10 @@ final class SmokeTests: XCTestCase {
         let normalMaximum = ResolvedResolution.resolve(
             requested: .maximum,
             standard: standard,
+            balanced: nil,
             maximum: biggerMaximum,
-            outputLimit: nil
+            outputLimit: nil,
+            deferredSupported: true
         )
         XCTAssertEqual(normalMaximum.dimensions, biggerMaximum)
         XCTAssertEqual(normalMaximum.downgradeReason, .none)
@@ -97,8 +118,10 @@ final class SmokeTests: XCTestCase {
         let deviceCappedMaximum = ResolvedResolution.resolve(
             requested: .maximum,
             standard: standard,
+            balanced: nil,
             maximum: standard,
-            outputLimit: nil
+            outputLimit: nil,
+            deferredSupported: true
         )
         XCTAssertEqual(deviceCappedMaximum.dimensions, standard)
         XCTAssertEqual(deviceCappedMaximum.downgradeReason, .unsupportedByActiveFormat)
@@ -107,11 +130,158 @@ final class SmokeTests: XCTestCase {
         let outputCappedMaximum = ResolvedResolution.resolve(
             requested: .maximum,
             standard: standard,
+            balanced: nil,
             maximum: biggerMaximum,
-            outputLimit: standard
+            outputLimit: standard,
+            deferredSupported: true
         )
         XCTAssertEqual(outputCappedMaximum.dimensions, standard)
         XCTAssertEqual(outputCappedMaximum.downgradeReason, .outputLimited)
+    }
+
+    func testBalancedResolvesToTwentyFourMegapixelsOnlyWhenDeferredDeliveryIsSupported() {
+        let twelve = PhotoDimensions(width: 4_032, height: 3_024)
+        let twentyFour = PhotoDimensions(width: 5_712, height: 4_284)
+        let fortyEight = PhotoDimensions(width: 8_064, height: 6_048)
+
+        let deferred = ResolvedResolution.resolve(
+            requested: .balanced,
+            standard: twelve,
+            balanced: twentyFour,
+            maximum: fortyEight,
+            outputLimit: nil,
+            deferredSupported: true
+        )
+        XCTAssertEqual(deferred.dimensions, twentyFour)
+        XCTAssertFalse(deferred.isDowngraded)
+
+        let noDeferred = ResolvedResolution.resolve(
+            requested: .balanced,
+            standard: twelve,
+            balanced: twentyFour,
+            maximum: fortyEight,
+            outputLimit: nil,
+            deferredSupported: false
+        )
+        XCTAssertEqual(
+            noDeferred.dimensions,
+            twelve,
+            "deferred unavailable must fall back to 12 MP truthfully"
+        )
+        XCTAssertEqual(noDeferred.downgradeReason, .deferredUnavailable)
+        XCTAssertTrue(noDeferred.isDowngraded)
+
+        let noTwentyFourFormat = ResolvedResolution.resolve(
+            requested: .balanced,
+            standard: twelve,
+            balanced: nil,
+            maximum: fortyEight,
+            outputLimit: nil,
+            deferredSupported: true
+        )
+        XCTAssertEqual(noTwentyFourFormat.dimensions, twelve)
+        XCTAssertEqual(noTwentyFourFormat.downgradeReason, .unsupportedByActiveFormat)
+    }
+
+    func testDeferredProxyRecordStaysPendingUntilPhotosConfirmsFinishedDimensions() {
+        let twelve = PhotoDimensions(width: 4_032, height: 3_024)
+        let twentyFour = PhotoDimensions(width: 5_712, height: 4_284)
+        let pending = CaptureResolutionRecord(
+            requested: .balanced,
+            resolvedDimensions: twentyFour,
+            proxyResolvedDimensions: twelve,
+            savedDimensions: nil,
+            downgradeReason: .none
+        )
+        XCTAssertTrue(pending.isDeferredProxy)
+        XCTAssertFalse(pending.isFinalized)
+
+        // The asset still holds only the proxy → not final.
+        XCTAssertNil(
+            CaptureResolutionRecord.deferredConfirmation(for: pending, assetDimensions: twelve)
+        )
+        // Photos completed the fused 24 MP photo → final, with requested,
+        // capture-resolved, proxy-resolved and final dimensions kept distinct.
+        let finalized = CaptureResolutionRecord.deferredConfirmation(
+            for: pending,
+            assetDimensions: twentyFour
+        )
+        XCTAssertEqual(finalized?.requested, .balanced)
+        XCTAssertEqual(finalized?.resolvedDimensions, twentyFour)
+        XCTAssertEqual(finalized?.proxyResolvedDimensions, twelve)
+        XCTAssertEqual(finalized?.savedDimensions, twentyFour)
+        XCTAssertTrue(finalized?.isFinalized ?? false)
+        // Photos finished at an unexpected size → recorded truthfully, never
+        // claimed as 24 MP.
+        let offSpec = PhotoDimensions(width: 4_000, height: 3_000)
+        XCTAssertEqual(
+            CaptureResolutionRecord.deferredConfirmation(for: pending, assetDimensions: offSpec)?
+                .savedDimensions,
+            offSpec
+        )
+        // A normal immediate capture has no proxy and is never finalized
+        // through this path.
+        let normal = CaptureResolutionRecord(
+            requested: .maximum,
+            resolvedDimensions: PhotoDimensions(width: 8_064, height: 6_048),
+            savedDimensions: PhotoDimensions(width: 8_064, height: 6_048),
+            downgradeReason: .none
+        )
+        XCTAssertFalse(normal.isDeferredProxy)
+        XCTAssertTrue(normal.isFinalized)
+        XCTAssertNil(
+            CaptureResolutionRecord.deferredConfirmation(
+                for: normal,
+                assetDimensions: PhotoDimensions(width: 8_064, height: 6_048)
+            )
+        )
+    }
+
+    func testFilteredOrCroppedBalancedCaptureFallsBackToStandardTruthfully() {
+        let twelve = PhotoDimensions(width: 4_032, height: 3_024)
+        let twentyFour = PhotoDimensions(width: 5_712, height: 4_284)
+        let fortyEight = PhotoDimensions(width: 8_064, height: 6_048)
+
+        let unfiltered = CameraSession.captureSnapshot(
+            requested: .balanced,
+            requiresImmediateProcessing: false,
+            standard: twelve,
+            balanced: twentyFour,
+            maximum: fortyEight,
+            outputLimit: fortyEight,
+            deferredSupported: true,
+            capabilityGeneration: 4
+        )
+        XCTAssertEqual(unfiltered.resolved.dimensions, twentyFour)
+        XCTAssertFalse(unfiltered.resolved.isDowngraded)
+
+        let filtered = CameraSession.captureSnapshot(
+            requested: .balanced,
+            requiresImmediateProcessing: true,
+            standard: twelve,
+            balanced: twentyFour,
+            maximum: fortyEight,
+            outputLimit: fortyEight,
+            deferredSupported: true,
+            capabilityGeneration: 4
+        )
+        XCTAssertEqual(filtered.resolved.requested, .balanced)
+        XCTAssertEqual(filtered.resolved.dimensions, twelve)
+        XCTAssertEqual(filtered.resolved.downgradeReason, .immediateProcessingRequired)
+
+        // The verified 48 MP path is untouched by the same constraint.
+        let filteredMaximum = CameraSession.captureSnapshot(
+            requested: .maximum,
+            requiresImmediateProcessing: true,
+            standard: twelve,
+            balanced: twentyFour,
+            maximum: fortyEight,
+            outputLimit: fortyEight,
+            deferredSupported: true,
+            capabilityGeneration: 4
+        )
+        XCTAssertEqual(filteredMaximum.resolved.dimensions, fortyEight)
+        XCTAssertFalse(filteredMaximum.resolved.isDowngraded)
     }
 
     func testCaptureResolutionRecordReportsSavedDimensionsEvenWhenTheyContradictTheRequest() {
@@ -132,12 +302,16 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
-    func testRequestedResolutionDefaultsToStandardAndPersistsAcrossRecreation() {
+    func testRequestedResolutionDefaultsToBalancedAndPersistsAcrossRecreation() {
         let suite = "FocelleTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        XCTAssertEqual(AppSettings(defaults: defaults).requestedResolution, .standard)
+        XCTAssertEqual(
+            AppSettings(defaults: defaults).requestedResolution,
+            .balanced,
+            "clean installs default to the balanced 24 MP tier"
+        )
 
         let settings = AppSettings(defaults: defaults)
         settings.requestedResolution = .maximum
@@ -151,7 +325,7 @@ final class SmokeTests: XCTestCase {
     func testCameraResolutionOnlyChangesThroughSetRequestedResolution() {
         let camera = CameraSession()
 
-        XCTAssertEqual(camera.resolution, .standard)
+        XCTAssertEqual(camera.resolution, .balanced)
         camera.setRequestedResolution(.maximum)
         XCTAssertEqual(camera.resolution, .maximum)
         XCTAssertEqual(camera.resolvedResolution.requested, .maximum)
@@ -255,6 +429,53 @@ final class SmokeTests: XCTestCase {
 
         XCTAssertEqual(camera.resolution, .maximum)
         XCTAssertEqual(camera.resolvedResolution.dimensions, genuineMaximum)
+        XCTAssertFalse(camera.resolvedResolution.isDowngraded)
+    }
+
+    @MainActor
+    func testCameraSwitchRecomputesTwelveTwentyFourFortyEightAvailability() {
+        let camera = CameraSession()
+        let twelve = PhotoDimensions(width: 4_032, height: 3_024)
+        let twentyFour = PhotoDimensions(width: 5_712, height: 4_284)
+        let fortyEight = PhotoDimensions(width: 8_064, height: 6_048)
+        camera.setRequestedResolution(.balanced)
+
+        // Rear camera: 12/24/48 with deferred delivery.
+        camera.cachedStandardDimensions = twelve
+        camera.cachedBalancedDimensions = twentyFour
+        camera.cachedMaximumDimensions = fortyEight
+        camera.cachedOutputLimit = fortyEight
+        camera.cachedDeferredDeliverySupported = true
+        camera.recomputeResolvedResolution()
+
+        XCTAssertTrue(camera.supportsBalancedResolution)
+        XCTAssertEqual(camera.balancedModeLabel, "24")
+        XCTAssertTrue(camera.supportsMaximumResolution)
+        XCTAssertEqual(camera.resolvedResolution.dimensions, twentyFour)
+
+        // Front camera: only 12 MP and no deferred delivery.
+        camera.cachedStandardDimensions = twelve
+        camera.cachedBalancedDimensions = nil
+        camera.cachedMaximumDimensions = twelve
+        camera.cachedOutputLimit = twelve
+        camera.cachedDeferredDeliverySupported = false
+        camera.recomputeResolvedResolution()
+
+        XCTAssertFalse(camera.supportsBalancedResolution)
+        XCTAssertFalse(camera.supportsMaximumResolution)
+        XCTAssertEqual(camera.resolution, .balanced, "the requested tier must survive the switch")
+        XCTAssertEqual(camera.resolvedResolution.dimensions, twelve)
+        XCTAssertEqual(camera.resolvedResolution.downgradeReason, .unsupportedByActiveFormat)
+
+        // Back to the rear camera: 24 MP resolves again without user action.
+        camera.cachedBalancedDimensions = twentyFour
+        camera.cachedMaximumDimensions = fortyEight
+        camera.cachedOutputLimit = fortyEight
+        camera.cachedDeferredDeliverySupported = true
+        camera.recomputeResolvedResolution()
+
+        XCTAssertTrue(camera.supportsBalancedResolution)
+        XCTAssertEqual(camera.resolvedResolution.dimensions, twentyFour)
         XCTAssertFalse(camera.resolvedResolution.isDowngraded)
     }
 

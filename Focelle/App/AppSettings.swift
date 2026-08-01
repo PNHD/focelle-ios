@@ -60,7 +60,8 @@ final class AppSettings: ObservableObject {
     }
 
     // A genuine new-format value always wins; otherwise the legacy Bool (if
-    // it was ever set) maps across; a clean install defaults to standard.
+    // it was ever set) maps across; a clean install defaults to balanced
+    // (24 MP on compatible rear cameras).
     static func migratedResolution(newRawValue: String?, legacyValue: Bool?) -> CameraResolution {
         if let newRawValue, let resolution = CameraResolution(rawValue: newRawValue) {
             return resolution
@@ -68,6 +69,6 @@ final class AppSettings: ObservableObject {
         if let legacyValue {
             return legacyValue ? .maximum : .standard
         }
-        return .standard
+        return .balanced
     }
 }

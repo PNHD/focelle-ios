@@ -288,7 +288,7 @@ struct CameraView: View {
                 camera.refreshLocalGuidanceAfterSettings()
             }
         ) {
-            SettingsView(supportsMaximumResolution: camera.supportsMaximumResolution)
+            SettingsView(camera: camera)
                 .environmentObject(settings)
                 .environmentObject(location)
                 .environmentObject(beta)
@@ -400,14 +400,24 @@ struct CameraView: View {
                 }
                 .accessibilityLabel(Text("camera.ratio"))
 
-                if camera.supportsMaximumResolution {
+                if camera.supportsMaximumResolution
+                    || camera.supportsBalancedResolution
+                    || camera.resolvedResolution.isDowngraded
+                {
                     VStack(spacing: 2) {
                         Menu {
                             Button("\(camera.standardModeLabel) MP") {
                                 settings.requestedResolution = .standard
                             }
-                            Button("\(camera.maximumModeLabel) MP") {
-                                settings.requestedResolution = .maximum
+                            if camera.supportsBalancedResolution {
+                                Button("\(camera.balancedModeLabel) MP") {
+                                    settings.requestedResolution = .balanced
+                                }
+                            }
+                            if camera.supportsMaximumResolution {
+                                Button("\(camera.maximumModeLabel) MP") {
+                                    settings.requestedResolution = .maximum
+                                }
                             }
                         } label: {
                             Text(camera.resolvedResolution.label)
