@@ -8,3 +8,5 @@ xcuserdata/
 backend/node_modules/
 backend/.dev.vars*
 backend/.wrangler/
+__pycache__/
+*.pyc
