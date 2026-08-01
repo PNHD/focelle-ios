@@ -96,7 +96,8 @@ struct PhotoCapabilityTiers: Equatable, Sendable {
     let maximum: PhotoDimensions?
 
     static func resolve(from options: [PhotoDimensions]) -> PhotoCapabilityTiers {
-        let supported = options
+        let supported =
+            options
             .filter { $0.pixels > 0 }
             .sorted { $0.pixels < $1.pixels }
         let standard = supported.first
@@ -1037,7 +1038,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         let timeouts = Array(captureTimeouts.values)
         captureTimeouts.removeAll()
         captureStateLock.unlock()
-        timeouts.forEach { $0.cancel() }
+        for timeout in timeouts { timeout.cancel() }
         if hadPending { finishCapture() }
     }
 
@@ -1412,18 +1413,21 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             self.deferredConfirmationTracker.expire(now: ProcessInfo.processInfo.systemUptime)
             let pending = self.deferredConfirmationTracker.entries
             for identifier in pending.keys {
-                guard let asset = PHAsset.fetchAssets(
-                    withLocalIdentifiers: [identifier], options: nil
-                ).firstObject
+                guard let asset =
+                    PHAsset.fetchAssets(
+                        withLocalIdentifiers: [identifier], options: nil
+                    ).firstObject
                 else { continue }
                 let dimensions = PhotoDimensions(
                     width: Int32(asset.pixelWidth),
                     height: Int32(asset.pixelHeight)
                 )
-                guard let finalized = self.deferredConfirmationTracker.confirm(
-                    identifier: identifier,
-                    dimensions: dimensions
-                ) else { continue }
+                guard let finalized =
+                    self.deferredConfirmationTracker.confirm(
+                        identifier: identifier,
+                        dimensions: dimensions
+                    )
+                else { continue }
                 self.lastCaptureResolution = finalized
             }
         }

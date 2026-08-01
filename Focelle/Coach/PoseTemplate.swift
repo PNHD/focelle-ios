@@ -208,10 +208,11 @@ enum PoseTemplateDedup {
     static func distance(_ a: PoseTemplate, _ b: PoseTemplate) -> Double {
         let names = Set(a.landmarks.keys).intersection(b.landmarks.keys)
         guard !names.isEmpty else { return 1 }
-        let landmarkDistance = names.reduce(0.0) { partial, name in
-            partial
-                + PoseTemplateValidation.distance(a.landmarks[name]!, b.landmarks[name]!)
-        } / Double(names.count)
+        let landmarkDistance =
+            names.reduce(0.0) { partial, name in
+                partial
+                    + PoseTemplateValidation.distance(a.landmarks[name]!, b.landmarks[name]!)
+            } / Double(names.count)
         let framingDistance =
             abs(a.targetFraming.centerX - b.targetFraming.centerX)
             + abs(a.targetFraming.centerY - b.targetFraming.centerY)
@@ -228,9 +229,10 @@ extension PoseTemplate {
             if name.hasPrefix("right_") { return "left_" + name.dropFirst(6) }
             return name
         }
-        let mirroredLandmarks = Dictionary(uniqueKeysWithValues: landmarks.map { key, value in
-            (mirror(key), NormalizedPoint(x: 1 - value.x, y: value.y))
-        })
+        let mirroredLandmarks =
+            Dictionary(uniqueKeysWithValues: landmarks.map { key, value in
+                (mirror(key), NormalizedPoint(x: 1 - value.x, y: value.y))
+            })
         return PoseTemplate(
             schemaVersion: schemaVersion,
             id: id + "-mirror",

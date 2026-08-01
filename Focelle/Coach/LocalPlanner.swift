@@ -56,6 +56,7 @@ enum LocalPlanner {
             )
             return (
                 template: template,
+                score: score,
                 plan: makePlan(
                     id: "unassigned",
                     template: template,
@@ -64,7 +65,8 @@ enum LocalPlanner {
                 )
             )
         }
-        let primary = scored.max { $0.score < $1.score }!
+        let primary =
+            scored.max { $0.score < $1.score }!
         var selected = [primary]
         if let safe = scored
             .filter({ $0.template.id != primary.template.id })
@@ -72,11 +74,12 @@ enum LocalPlanner {
         {
             selected.append(safe)
         }
-        if let creative = scored
+        if let creative =
+            scored
             .filter({ candidate in !selected.contains(where: { $0.template.id == candidate.template.id }) })
             .max(by: {
-                maxMinDistance($0.plan, from: selected.map(\.plan))
-                    < maxMinDistance($1.plan, from: selected.map(\.plan))
+                maxMinDistance($0.plan, from: selected.map { $0.plan })
+                    < maxMinDistance($1.plan, from: selected.map { $0.plan })
             })
         {
             selected.append(creative)
@@ -282,7 +285,7 @@ enum LocalPlanner {
     }
 
     private static func withID(
-        _ entry: (template: PoseTemplate, plan: CoachPlan),
+        _ entry: (template: PoseTemplate, score: Double, plan: CoachPlan),
         _ id: String,
         titleVI: String,
         titleEN: String

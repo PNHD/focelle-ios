@@ -1,8 +1,8 @@
-@preconcurrency import CoreVideo
 @preconcurrency import CoreImage
+@preconcurrency import CoreVideo
 import Foundation
-import simd
 @preconcurrency import Vision
+import simd
 
 final class OnDeviceAnalyzer: @unchecked Sendable {
     private let queue = DispatchQueue(
@@ -116,7 +116,8 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
                 self.lastMeasurement = measurement
                 self.lastDescriptor = descriptor
                 self.sequenceHandler = VNSequenceRequestHandler()
-                self.tracker = self.pendingSelection?.state == .lost
+                self.tracker =
+                    self.pendingSelection?.state == .lost
                     ? nil
                     : measurement.primaryRect.map(Self.makeTracker)
                 completion(measurement, descriptor)
@@ -182,7 +183,8 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
     ) -> SubjectIdentity? {
         let candidates = measurement.humanRects.isEmpty ? measurement.faceRects : measurement.humanRects
         if var pending = pendingSelection, identityTracker.identity == nil {
-            let prints = pending.featurePrint == nil
+            let prints =
+                pending.featurePrint == nil
                 ? []
                 : candidates.map { Self.featurePrint(buffer, rect: $0) }
             let distances = candidates.indices.map { index in
@@ -279,13 +281,13 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
             guard let observation = request.results?.first else { return nil }
             guard Double(observation.confidence) > 0.2 else { return nil }
             let points = try observation.recognizedPoints(.all)
-            return points.compactMap { joint, point in
+            return points.compactMap { joint, point -> PoseLandmark? in
                 // `position` is a simd_float4x4 transform. Vision projects
                 // it into input-image geometry; only transform Z is retained
                 // as root-relative depth, never absolute camera distance.
                 guard let imagePoint = try? observation.pointInImage(joint) else { return nil }
                 return pose3DLandmark(
-                    name: joint.rawValue,
+                    name: joint.rawValue.rawValue,
                     projected: imagePoint.location,
                     transform: point.position,
                     confidence: observation.confidence
@@ -324,7 +326,7 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
         return points.compactMap { joint, point in
             guard point.confidence > 0.15 else { return nil }
             return PoseLandmark(
-                name: joint.rawValue,
+                name: joint.rawValue.rawValue,
                 point: NormalizedPoint(
                     x: Double(point.location.x),
                     y: Double(point.location.y)

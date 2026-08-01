@@ -1,7 +1,7 @@
 import AVFoundation
 import CoreImage
-import simd
 import XCTest
+import simd
 
 @testable import Focelle
 
