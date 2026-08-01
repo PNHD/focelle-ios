@@ -105,48 +105,43 @@ Status as of `5532063`. Conservative by rule: when in doubt, the lower level win
   was found during this check — local guidance/target overlay disappears
   after a Settings round-trip and after force-close/relaunch — tracked as
   `FCL-003` below; it does not reopen FCL-002.
-- **`FCL-M1 — Camera Core Stabilization`**: `IN REVIEW — NOT PHYSICALLY
-  VERIFIED`. Branch: `task/FCL-M1-camera-core-stabilization`, created from the
-  exact `feat/focelle-beta` HEAD at `fd08ed2f24662b9439245b7e7fe541ff6cb9c4ef`.
-  This single milestone now carries both tickets that were previously tracked
-  as separate gates:
-  - **FCL-003 (guidance lifecycle restoration)** — already implemented and
-    independently reviewed on branch `task/FCL-003-guidance-restore`
-    (commits `76b11e1`, `50ef10a`); cherry-picked into FCL-M1 unchanged, and
-    included here rather than re-litigated on its own.
-  - **FCL-004 (truthful, persistent, verifiable camera resolution)** —
-    implemented within FCL-M1: a single persisted `AppSettings.requestedResolution`
-    replaces the old competing `AppSettings.maximumResolution` /
-    `CameraSession.resolution` pair; `CameraSession.resolution` is now
-    `private(set)`, changeable only through `setRequestedResolution(_:)`;
-    the displayed resolution label, the two menu choices, and a downgrade
-    indicator are all derived from actual resolved `PhotoDimensions` (via
-    `ResolvedResolution`/`CaptureResolutionRecord`), never a hardcoded
-    "24"/"48"; a privacy-safe `lastCaptureResolution` record captures
-    requested vs. resolved vs. saved pixel dimensions after every capture.
-  - Both are covered by regression tests (pure resolution-rule tests plus
-    the retained FCL-003 lifecycle tests). Neither has run in CI at this
-    HEAD, and **no claim is made that 24 MP or 48 MP physically works** —
-    only a real device capture, inspected via the new saved-output record,
-    can prove that.
-  - **Correction batch**: independent review of the first FCL-004 pass found
-    the test target no longer compiled (a leftover `maximumResolution`
-    reference), no migration path for installs with only the legacy Bool
-    persisted, `configureCapabilities` still mutating the requested tier
-    itself (not just the mirror) whenever the active camera lacked a
-    distinct maximum — so "changeable only through `setRequestedResolution(_:)`"
-    was not yet true in every internal path — and capture settings/record
-    dimensions that could be independently re-derived rather than sharing
-    one snapshot. All four are fixed as of this HEAD: `AppSettings`
-    migrates a legacy `maximumResolution` Bool once and persists the mapped
-    value; `configureCapabilities` no longer touches `resolution` at all,
-    only the resolved/downgrade state; and `capture()` takes one
-    `CaptureResolutionSnapshot` on the camera queue that both configures
-    `AVCapturePhotoSettings` and becomes the saved record. This is still
-    **not** CI-run or physically verified — the claim above is about what
-    the code now does, not about a device having proven it.
+- **`FCL-M1 — Camera Core Stabilization`**: `COMPLETE — CI AND PHYSICAL
+  DEVICE VERIFIED`. Branch: `task/FCL-M1-camera-core-stabilization`, created
+  from the exact `feat/focelle-beta` HEAD at
+  `fd08ed2f24662b9439245b7e7fe541ff6cb9c4ef` and integrated into
+  `feat/focelle-beta` at `f2b20ed9c585fb782c7c0a9c394649a2c178a17c` by linear
+  fast-forward (no merge commit, no force-push). The milestone carries both
+  previously tracked tickets, now closed:
+  - **FCL-003 — CLOSED**: guidance lifecycle physically verified on iPhone
+    17e / iOS 26 (Sideloadly). Two screen recordings: app launches, camera
+    preview runs, no crash or frozen camera; guidance/local bounding boxes
+    reappear after relaunch and after a Settings round-trip; manual shutter
+    remains functional.
+  - **FCL-004 — CLOSED**: 12/48 MP UI and saved output physically verified.
+    The UI exposes `12 MP` and `48 MP` rather than a misleading 24 MP label.
+    A 48 MP capture was verified in Photos as `6048 × 8064` pixels, 48 MP,
+    JPEG, approximately 16–17 MB. UI selection, resolved capture and saved
+    output agree.
+  - CI at the exact integration SHA passed: run ID `30566172126`, jobs
+    `backend`, `simulator-test`, `device-package` — 3/3 success.
 - **`FCL-005`**: a separate, later AI-product milestone. Not started, not
   scoped by FCL-M1, and not to begin before FCL-M1 closes.
+
+### FCL-M1 integration record
+
+| Field | Value |
+|---|---|
+| Milestone | `FCL-M1 — Camera Core Stabilization`: `COMPLETE — CI AND PHYSICAL DEVICE VERIFIED` |
+| Implementation/artifact source SHA | `f2b20ed9c585fb782c7c0a9c394649a2c178a17c` |
+| Physical CI run | workflow `iOS`, run ID `30566172126`, conclusion success |
+| CI jobs | `backend`, `simulator-test`, `device-package` — 3/3 success at the source SHA |
+| Physical device | iPhone 17e, iOS 26, Sideloadly installation |
+| FCL-003 | `CLOSED` — guidance lifecycle physically verified |
+| FCL-004 | `CLOSED` — 12/48 MP UI and saved output physically verified |
+| Verified 48 MP output | `6048 × 8064` pixels, 48 MP, JPEG, approximately 16–17 MB |
+| Integration method | `git merge --ff-only` from `fd08ed2…` to `f2b20ed…`, no merge commit |
+| Integration docs commit | resolve with `git rev-parse HEAD` after this commit is created — not hardcoded here |
+| FCL-005 / FCL-M2 | `NOT STARTED` — semantic/cloud AI remains unavailable in the tested build |
 
 ### FCL-001C transition record
 
@@ -175,31 +170,24 @@ evidence contradicts it. This gate note previously still described FCL-002
 as inactive after FCL-002 had already passed; that was a documentation
 contradiction and is corrected here.
 
-**`FCL-M1 — Camera Core Stabilization`** is the one active gate: `IN REVIEW —
-NOT PHYSICALLY VERIFIED`. FCL-003 and FCL-004 are no longer separate
-execution gates — they are both carried inside this single milestone, on
-branch `task/FCL-M1-camera-core-stabilization` (from `feat/focelle-beta` at
-`fd08ed2f24662b9439245b7e7fe541ff6cb9c4ef`).
+**`FCL-M1 — Camera Core Stabilization`** is **COMPLETE — CI AND PHYSICAL
+DEVICE VERIFIED**, integrated into `feat/focelle-beta` at
+`f2b20ed9c585fb782c7c0a9c394649a2c178a17c` by linear fast-forward from
+`fd08ed2f24662b9439245b7e7fe541ff6cb9c4ef` (no merge commit, no force-push).
+FCL-003 and FCL-004 are closed inside it:
 
-- Implementation and regression tests for both tickets are in place. Both
-  have now been through one round of independent review with follow-up
-  fixes applied (see the FCL-004 correction batch in §5). Neither has run
-  in CI at this HEAD, and neither is claimed as physically verified.
-- Before this gate can close, a physical pass on the iPhone 17e must confirm:
-  - FCL-003 — local guidance/target overlay resumes after a Settings round
-    trip (repeated, no frozen rectangles, no duplicate overlays) and after
-    force-close/relaunch; an explicit `guidanceEnabled = false` stays off
-    across both; cloud AI stays unnecessary for local guidance.
-  - FCL-004 — the displayed resolution label matches what a saved photo
-    actually contains (checked via the new capture-resolution record, not
-    just the toolbar label); Settings and the toolbar agree on the same
-    selection immediately, after a Settings round trip, after a camera
-    switch, and after relaunch; a genuine downgrade shows the actionable
-    inline indicator rather than silently keeping the old label; **24 MP
-    and 48 MP are not to be recorded as physically working until this pass
-    proves it** — this HEAD makes no such claim.
-- `FCL-005` remains a separate, later AI-product milestone: unscheduled
-  behind this gate, not started, and not to begin until FCL-M1 closes.
+- FCL-003 — guidance lifecycle physically verified: bounding boxes reappear
+  after relaunch and after a Settings round-trip; manual shutter functional;
+  no crash or frozen camera in two screen recordings.
+- FCL-004 — 12/48 MP UI truthful and saved output verified: a 48 MP capture
+  in Photos is `6048 × 8064` pixels, 48 MP, JPEG, approximately 16–17 MB.
+
+**`FCL-005 / FCL-M2 — AI Photography Coach`** remains **NOT STARTED**:
+unscheduled, not scoped, and no implementation begun. The tested build still
+displays `AI đám mây chưa được cấu hình.` — semantic/cloud AI is unavailable
+and local guidance remains heuristic/object-tracking. Closing FCL-M1 does
+**not** imply that AI coaching improves photographic quality; that is the
+separate FCL-M2 product milestone.
 
 If the agent is on a documentation-only branch, it must stop before running
 any physical check — a gate does not close from a documentation branch.
