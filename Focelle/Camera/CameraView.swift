@@ -237,6 +237,9 @@ struct CameraView: View {
         .onChange(of: settings.onDeviceOnly) { _, enabled in
             if enabled { cancelAI() }
         }
+        .onChange(of: settings.coachV2Enabled) { oldValue, newValue in
+            camera.coachV2DidChange(from: oldValue, to: newValue)
+        }
         .onChange(of: settings.autoCapture) { _, _ in
             autoCapture.cancel()
         }

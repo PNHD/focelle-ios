@@ -278,9 +278,14 @@ struct PoseTemplateBundle: Codable, Equatable, Sendable {
 // The checked-in generated bundle. Loading failure yields an empty bundle so
 // the planner degrades to no local plans instead of crashing the camera.
 enum PoseTemplateStore {
-    static let shared: PoseTemplateBundle = {
-        guard let url = Bundle.main.url(forResource: "PoseTemplates", withExtension: "json"),
-            let bundle = try? PoseTemplateBundle.load(from: url)
+    static let resourceName = "PoseTemplates"
+    static let resourceExtension = "json"
+
+    static let shared: PoseTemplateBundle = load(in: .main)
+
+    static func load(in bundle: Bundle) -> PoseTemplateBundle {
+        guard let url = bundle.url(forResource: resourceName, withExtension: resourceExtension),
+            let loaded = try? PoseTemplateBundle.load(from: url)
         else {
             return PoseTemplateBundle(
                 schemaVersion: PoseTemplate.currentSchemaVersion,
@@ -290,6 +295,6 @@ enum PoseTemplateStore {
                 templates: []
             )
         }
-        return bundle
-    }()
+        return loaded
+    }
 }

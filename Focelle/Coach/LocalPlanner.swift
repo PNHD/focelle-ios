@@ -65,22 +65,31 @@ enum LocalPlanner {
             )
         }
         let primary = scored.max { $0.score < $1.score }!
-        let safe = scored.min { $0.plan.motion < $1.plan.motion }!
-        let rankedByDiversity = scored.sorted {
-            maxMinDistance($0.plan, from: [primary.plan, safe.plan])
-                > maxMinDistance($1.plan, from: [primary.plan, safe.plan])
+        var selected = [primary]
+        if let safe = scored
+            .filter({ $0.template.id != primary.template.id })
+            .min(by: { $0.plan.motion < $1.plan.motion })
+        {
+            selected.append(safe)
         }
-        let creative =
-            rankedByDiversity.first {
-                $0.template.id != primary.template.id && $0.template.id != safe.template.id
-            } ?? rankedByDiversity[0]
+        if let creative = scored
+            .filter({ candidate in !selected.contains(where: { $0.template.id == candidate.template.id }) })
+            .max(by: {
+                maxMinDistance($0.plan, from: selected.map(\.plan))
+                    < maxMinDistance($1.plan, from: selected.map(\.plan))
+            })
+        {
+            selected.append(creative)
+        }
 
-        let plans = [
-            withID(primary, "primary", titleVI: "Đẹp nhất", titleEN: "Best"),
-            withID(safe, "safe", titleVI: "An toàn", titleEN: "Safe"),
-            withID(creative, "creative", titleVI: "Sáng tạo", titleEN: "Creative"),
+        let labels = [
+            ("primary", "Đẹp nhất", "Best"),
+            ("safe", "An toàn", "Safe"),
+            ("creative", "Sáng tạo", "Creative"),
         ]
-        return deduplicatedIDs(plans)
+        return zip(selected, labels).map { entry, label in
+            withID(entry, label.0, titleVI: label.1, titleEN: label.2)
+        }
     }
 
     static func subjectCount(for intent: FramingIntent) -> Int? {
@@ -100,7 +109,13 @@ enum LocalPlanner {
         selectedSubject: CGRect?
     ) -> Bool {
         guard PoseTemplateValidation.validate(template) else { return true }
+        guard capabilities.maxZoom >= 1, capabilities.aspectRatio > 0 else { return true }
         if template.recommendedZoom > capabilities.maxZoom { return true }
+
+        let activeCrop = cropRect(for: capabilities.aspectRatio)
+        let target = targetRect(for: template.targetFraming)
+        guard activeCrop.contains(target) else { return true }
+        if let selectedSubject, !activeCrop.contains(selectedSubject) { return true }
 
         let frame = template.targetFraming
         let halfWidth = frame.subjectWidth / 2
@@ -124,6 +139,7 @@ enum LocalPlanner {
         }
 
         if scene.hasFace, let nose = scene.faceLandmarks.first(where: { $0.name == "nose" }) {
+            guard activeCrop.contains(CGPoint(x: nose.point.x, y: nose.point.y)) else { return true }
             let faceZone = template.faceZone
             let inside =
                 nose.point.x >= faceZone.x && nose.point.x <= faceZone.x + faceZone.width
@@ -131,6 +147,27 @@ enum LocalPlanner {
             if !inside { return true }
         }
         return false
+    }
+
+    // Vision analysis is normalized to the uncropped 4:3 sensor frame. The
+    // active output ratio is therefore a centered hard crop in that space.
+    static func cropRect(for aspectRatio: Double) -> CGRect {
+        let sensorAspect = 4.0 / 3.0
+        if aspectRatio <= sensorAspect {
+            let width = aspectRatio / sensorAspect
+            return CGRect(x: (1 - width) / 2, y: 0, width: width, height: 1)
+        }
+        let height = sensorAspect / aspectRatio
+        return CGRect(x: 0, y: (1 - height) / 2, width: 1, height: height)
+    }
+
+    static func targetRect(for framing: TargetFraming) -> CGRect {
+        CGRect(
+            x: framing.centerX - framing.subjectWidth / 2,
+            y: framing.centerY - framing.subjectHeight / 2,
+            width: framing.subjectWidth,
+            height: framing.subjectHeight
+        )
     }
 
     static func score(
@@ -265,10 +302,6 @@ enum LocalPlanner {
         )
     }
 
-    private static func deduplicatedIDs(_ plans: [CoachPlan]) -> [CoachPlan] {
-        var seen: Set<String> = []
-        return plans.filter { seen.insert($0.id).inserted }
-    }
 }
 
 // Batch A boundary (section F): aesthetics scoring is benchmark-first. The

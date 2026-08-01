@@ -42,16 +42,18 @@ drift.
 - generation and timestamp metadata.
 
 Reuses the existing thermal throttling (0.7 s / 1.4 s full-detection cadence)
-and stale-generation rejection (`SceneDescriptor.isCurrent`). Feature prints
-are computed only for a selected subject, never per frame. No image bytes,
-faces, landmarks, or reconstructable scene data are retained or logged.
+and stale-generation rejection (`SceneDescriptor.isCurrent`). Selected-subject
+association uses Vision feature-print observations only in memory and only
+while a selection is active; no feature-print data, image bytes, faces, or
+reconstructable scene data are retained or logged.
 
 ## 3. Stabilization and selected-subject identity
 
-`SubjectIdentityTracker` adopts a subject only on box-overlap (IoU ≥ 0.35) or
-feature-print cosine evidence (≥ 0.92); after temporary tracking loss it
-preserves the previous subject for 0.8 s, then reports the subject lost. It
-never jumps to an unrelated salient object. `DescriptorStabilizer` applies a
+`SubjectIdentityTracker` starts only from the user-selected candidate, then
+uses box-overlap (IoU ≥ 0.35) or a documented, lower-is-more-similar Vision
+feature-print distance while that selection is active. After temporary
+tracking loss it preserves the previous subject for 0.8 s, then reports the
+subject lost rather than switching to another candidate. `DescriptorStabilizer` applies a
 deterministic EMA (0.5) to luma, face quality, lighting contrast, blur and
 subject bounds.
 
@@ -84,8 +86,9 @@ subject bounds.
 `SceneDescriptor + selected subject + framing intent → candidate retrieval →
 hard rejection → scoring → diversity selection`.
 
-- Hard rejection (runs before scoring): invalid template; crop cuts the face
-  beyond the face zone; pose confidence too low for person categories;
+- Hard rejection (runs before scoring): invalid template; infeasible active
+  4:3/1:1/16:9 crop or edge placement; crop cuts the face beyond the face zone;
+  pose confidence too low for person categories;
   selected-subject identity mismatch; zoom beyond capability; subject-count
   incompatibility; target framing outside the active frame.
 - Ranking features (tunable defaults, not claimed optimal): pose alignment
@@ -93,7 +96,9 @@ hard rejection → scoring → diversity selection`.
   0.10, lighting feasibility 0.10, intent fit 0.05. Experimental weights
   (aesthetics, affinity, embedding) are 0.
 - Diversity: Primary = top score; Safe = least camera motion; Creative =
-  greedy max-min distance from Primary and Safe with a distinct template.
+  greedy max-min distance from Primary and Safe with a distinct template. The
+  planner returns one or two plans when that is all the distinct feasible
+  templates provide; it does not duplicate a template to fill three slots.
 - Everything works offline.
 
 ## 6. Vision aesthetics boundary (Batch A)
@@ -105,11 +110,12 @@ false and the planner weight is zero. No claim of objective beauty.
 ## 7. Beta/internal integration
 
 Settings exposes "AI Coach V2 (Experimental)" (default OFF). When enabled,
-the Analyze button runs the local planner; the panel shows the three plan
+the Analyze button runs the local planner; the panel shows the available plan
 titles, selection, Apply, and Undo. Apply/Undo use `PlanSession`. The selected
 plan's target frame renders through the existing `GuidanceOverlay` (target
-frame is now also drawn for `.none` directions). Disabling the flag returns
-immediately to the FCL-M1 heuristic/cloud path. No Batch B UI (final plan
+frame is now also drawn for `.none` directions). Disabling the flag invalidates
+V2 analysis and its plan session, clears V2 guidance, restores an applied
+baseline once, and returns to the FCL-M1 heuristic/cloud path. No Batch B UI (final plan
 cards, intent chips, cloud schema v3, skeleton animation).
 
 ## 8. Boundaries and evidence
