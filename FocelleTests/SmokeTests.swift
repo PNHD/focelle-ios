@@ -1667,6 +1667,11 @@ final class SmokeTests: XCTestCase {
             ),
         ]
 
+        XCTAssertTrue(
+            templates.allSatisfy(PoseTemplateValidation.validate),
+            "all feasible planner fixtures must pass production validation"
+        )
+
         let plans = LocalPlanner.plan(
             scene: scene,
             intent: .portrait,
@@ -1688,6 +1693,11 @@ final class SmokeTests: XCTestCase {
         let scene = makeDescriptor()
         let sideEdge = makeTemplate(id: "side", centerX: 0.16, subjectWidth: 0.2)
         let topEdge = makeTemplate(id: "top", centerY: 0.84, subjectHeight: 0.25)
+
+        XCTAssertTrue(
+            PoseTemplateValidation.validate(sideEdge),
+            "planner fixture side must be valid"
+        )
 
         XCTAssertFalse(
             LocalPlanner.isHardRejected(
@@ -1752,19 +1762,29 @@ final class SmokeTests: XCTestCase {
 
     func testPlannerReturnsOnlyAvailableDistinctTemplatePlans() {
         let scene = makeDescriptor()
+        let oneTemplate = makeTemplate(id: "one")
+        XCTAssertTrue(
+            PoseTemplateValidation.validate(oneTemplate),
+            "planner fixture one must be valid"
+        )
         let one = LocalPlanner.plan(
             scene: scene,
             intent: .portrait,
-            templates: [makeTemplate(id: "one")],
+            templates: [oneTemplate],
             capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 4.0 / 3.0),
             selectedSubject: nil
         )
         XCTAssertEqual(one.map(\.templateID), ["one"])
 
+        let twoTemplates = [oneTemplate, makeTemplate(id: "two", zoom: 1.2)]
+        XCTAssertTrue(
+            twoTemplates.allSatisfy(PoseTemplateValidation.validate),
+            "all two-plan planner fixtures must be valid"
+        )
         let two = LocalPlanner.plan(
             scene: scene,
             intent: .portrait,
-            templates: [makeTemplate(id: "one"), makeTemplate(id: "two", zoom: 1.2)],
+            templates: twoTemplates,
             capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 4.0 / 3.0),
             selectedSubject: nil
         )
@@ -1895,7 +1915,7 @@ final class SmokeTests: XCTestCase {
 
     private func standingLandmarks(centerX: Double = 0.5) -> [String: NormalizedPoint] {
         [
-            "head_top": NormalizedPoint(x: centerX, y: 0.95),
+            "head_top": NormalizedPoint(x: centerX, y: 0.92),
             "nose": NormalizedPoint(x: centerX, y: 0.85),
             "left_shoulder": NormalizedPoint(x: centerX - 0.11, y: 0.72),
             "right_shoulder": NormalizedPoint(x: centerX + 0.11, y: 0.72),
