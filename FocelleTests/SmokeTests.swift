@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreImage
+import simd
 import XCTest
 
 @testable import Focelle
@@ -235,6 +236,31 @@ final class SmokeTests: XCTestCase {
                 assetDimensions: PhotoDimensions(width: 8_064, height: 6_048)
             )
         )
+    }
+
+    func testDeferredConfirmationOwnershipCleansSuccessCancelAndTimeout() {
+        let proxy = PhotoDimensions(width: 4_032, height: 3_024)
+        let final = PhotoDimensions(width: 5_712, height: 4_284)
+        let record = CaptureResolutionRecord(
+            requested: .balanced,
+            resolvedDimensions: final,
+            proxyResolvedDimensions: proxy,
+            savedDimensions: nil
+        )
+        var pending = DeferredConfirmationTracker()
+        pending.insert(identifier: "first", record: record, deadline: 10)
+        pending.insert(identifier: "second", record: record, deadline: 10)
+
+        XCTAssertEqual(pending.confirm(identifier: "first", dimensions: final)?.savedDimensions, final)
+        XCTAssertNil(pending.entries["first"])
+        XCTAssertNotNil(pending.entries["second"])
+
+        pending.cancel(identifier: "second")
+        XCTAssertTrue(pending.entries.isEmpty)
+
+        pending.insert(identifier: "timeout", record: record, deadline: 10)
+        pending.expire(now: 10)
+        XCTAssertTrue(pending.entries.isEmpty)
     }
 
     func testFilteredOrCroppedBalancedCaptureFallsBackToStandardTruthfully() {
@@ -1353,33 +1379,79 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(result.faceCaptureQuality ?? 0, 0.7, accuracy: 0.0001)
     }
 
-    func testSelectedSubjectDoesNotJumpToUnrelatedObjectAfterTrackingLoss() {
+    func testSelectedSubjectOwnershipCrossingAndLossNeverFallBackToFirstCandidate() {
         var tracker = SubjectIdentityTracker()
         let subject = CGRect(x: 0.3, y: 0.2, width: 0.3, height: 0.5)
-        let subjectPrint = FeaturePrint(buckets: [0.8, 0.1, 0.05, 0.02, 0.01, 0.01, 0.005, 0.005])
         let unrelated = CGRect(x: 0.7, y: 0.6, width: 0.15, height: 0.15)
-        let unrelatedPrint = FeaturePrint(buckets: [0.1, 0.1, 0.7, 0.05, 0.02, 0.01, 0.01, 0.01])
 
-        let adopted = tracker.update(candidates: [subject], featurePrints: [subjectPrint], now: 1)
+        // Detector ordering is deliberately hostile: selection, not index 0,
+        // establishes the first identity.
+        let adopted = tracker.update(
+            candidates: [unrelated, subject],
+            selectedCandidate: subject,
+            featurePrints: [],
+            now: 1
+        )
         XCTAssertEqual(adopted?.id, 1)
+        XCTAssertEqual(adopted?.rect, subject)
 
-        // Within the preservation window the previous subject is kept, not
-        // replaced by the unrelated salient object.
+        let crossedSubject = CGRect(x: 0.34, y: 0.2, width: 0.3, height: 0.5)
+        let crossing = tracker.update(
+            candidates: [unrelated, crossedSubject],
+            selectedCandidate: nil,
+            featurePrints: [],
+            now: 1.2
+        )
+        XCTAssertEqual(crossing?.id, 1)
+        XCTAssertEqual(crossing?.rect, crossedSubject)
+
         let preserved = tracker.update(
             candidates: [unrelated],
-            featurePrints: [unrelatedPrint],
+            selectedCandidate: nil,
+            featurePrints: [],
             now: 1.4
         )
         XCTAssertEqual(preserved?.id, 1)
-        XCTAssertEqual(preserved?.rect, subject)
+        XCTAssertEqual(preserved?.rect, crossedSubject)
 
-        // After the window the subject is reported lost rather than jumping.
         let lost = tracker.update(
             candidates: [unrelated],
-            featurePrints: [unrelatedPrint],
+            selectedCandidate: nil,
+            featurePrints: [],
             now: 2.5
         )
         XCTAssertNil(lost)
+    }
+
+    func testFeaturePrintDistanceUsesLowerValuesForAdoption() {
+        XCTAssertTrue(SubjectFeaturePrint.canAdopt(distance: 0.1))
+        XCTAssertFalse(SubjectFeaturePrint.canAdopt(distance: 0.5))
+    }
+
+    func testFaceLandmarkPointConvertsFromFaceRelativeToWholeImage() {
+        let converted = OnDeviceAnalyzer.fullImagePoint(
+            CGPoint(x: 0.25, y: 0.75),
+            faceBounds: CGRect(x: 0.2, y: 0.3, width: 0.4, height: 0.2)
+        )
+
+        XCTAssertEqual(converted.x, 0.3, accuracy: 0.0001)
+        XCTAssertEqual(converted.y, 0.45, accuracy: 0.0001)
+    }
+
+    func testPose3DHelperProjectsImageCoordinatesAndReadsTransformDepth() {
+        var transform = matrix_identity_float4x4
+        transform.columns.3 = SIMD4<Float>(0.4, 0.5, 1.25, 1)
+
+        let landmark = OnDeviceAnalyzer.pose3DLandmark(
+            name: "root",
+            projected: CGPoint(x: 0.2, y: 0.8),
+            transform: transform,
+            confidence: 0.75
+        )
+
+        XCTAssertEqual(landmark.point, NormalizedPoint(x: 0.2, y: 0.8))
+        XCTAssertEqual(landmark.depth, 1.25)
+        XCTAssertEqual(landmark.confidence, 0.75)
     }
 
     // MARK: - FCL-M2 Batch A: pose templates
@@ -1543,6 +1615,94 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(plans.first(where: { $0.id == "safe" })?.motion, 0, "safe needs the least motion")
     }
 
+    func testPlannerRejectsAspectCropUnsafeTemplatesBeforeScoring() {
+        let scene = makeDescriptor()
+        let sideEdge = makeTemplate(id: "side", centerX: 0.16, subjectWidth: 0.2)
+        let topEdge = makeTemplate(id: "top", centerY: 0.84, subjectHeight: 0.25)
+
+        XCTAssertFalse(
+            LocalPlanner.isHardRejected(
+                sideEdge,
+                scene: scene,
+                intent: .portrait,
+                capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 4.0 / 3.0),
+                selectedSubject: nil
+            )
+        )
+        XCTAssertTrue(
+            LocalPlanner.isHardRejected(
+                sideEdge,
+                scene: scene,
+                intent: .portrait,
+                capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 1),
+                selectedSubject: nil
+            )
+        )
+        XCTAssertTrue(
+            LocalPlanner.isHardRejected(
+                topEdge,
+                scene: scene,
+                intent: .portrait,
+                capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 16.0 / 9.0),
+                selectedSubject: nil
+            )
+        )
+    }
+
+    func testPlannerRejectsEdgePeopleAndFacesForTheActiveCrop() {
+        let edgePerson = makeDescriptor(
+            humanRects: [CGRect(x: 0.02, y: 0.2, width: 0.2, height: 0.6)],
+            nose: nil
+        )
+        let normal = makeTemplate(id: "normal")
+        XCTAssertTrue(
+            LocalPlanner.isHardRejected(
+                normal,
+                scene: edgePerson,
+                intent: .portrait,
+                capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 1),
+                selectedSubject: edgePerson.subjectRect
+            )
+        )
+
+        let edgeFace = makeDescriptor(nose: NormalizedPoint(x: 0.5, y: 0.9))
+        let faceSafeInFourThree = makeTemplate(
+            id: "face-edge",
+            faceZone: Frame(x: 0.3, y: 0.8, width: 0.4, height: 0.15)
+        )
+        XCTAssertTrue(
+            LocalPlanner.isHardRejected(
+                faceSafeInFourThree,
+                scene: edgeFace,
+                intent: .portrait,
+                capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 16.0 / 9.0),
+                selectedSubject: nil
+            )
+        )
+    }
+
+    func testPlannerReturnsOnlyAvailableDistinctTemplatePlans() {
+        let scene = makeDescriptor()
+        let one = LocalPlanner.plan(
+            scene: scene,
+            intent: .portrait,
+            templates: [makeTemplate(id: "one")],
+            capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 4.0 / 3.0),
+            selectedSubject: nil
+        )
+        XCTAssertEqual(one.map(\.templateID), ["one"])
+
+        let two = LocalPlanner.plan(
+            scene: scene,
+            intent: .portrait,
+            templates: [makeTemplate(id: "one"), makeTemplate(id: "two", zoom: 1.2)],
+            capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 4.0 / 3.0),
+            selectedSubject: nil
+        )
+        XCTAssertEqual(two.count, 2)
+        XCTAssertEqual(Set(two.map(\.templateID)).count, 2)
+    }
+
     // MARK: - FCL-M2 Batch A: feature flags
 
     @MainActor
@@ -1566,12 +1726,60 @@ final class SmokeTests: XCTestCase {
         XCTAssertFalse(camera.coachPlanApplied)
     }
 
+    @MainActor
+    func testCoachDisableClearsAppliedV2StateAndInvalidatesAnalysis() async {
+        let camera = CameraSession()
+        let plan = makeCoachPlan()
+        let session = PlanSession(
+            baselineZoom: 1,
+            baselineExposureBias: 0,
+            capabilityGeneration: 0
+        ).applying(zoom: plan.recommendedZoom, exposureBias: plan.recommendedExposureBias)
+        camera.debugSeedCoachForTesting(plan: plan, session: session, applied: true)
+
+        camera.coachV2DidChange(from: true, to: false)
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertTrue(camera.coachPlans.isEmpty)
+        XCTAssertNil(camera.selectedCoachPlan)
+        XCTAssertNil(camera.coachSession)
+        XCTAssertFalse(camera.coachPlanApplied)
+        XCTAssertNil(camera.guidance)
+    }
+
+    @MainActor
+    func testCameraSwitchInvalidatesVisiblePlanBeforeImmediateApply() {
+        let camera = CameraSession()
+        let plan = makeCoachPlan()
+        camera.debugSeedCoachForTesting(
+            plan: plan,
+            session: PlanSession(
+                baselineZoom: 1,
+                baselineExposureBias: 0,
+                capabilityGeneration: 0
+            ),
+            applied: false
+        )
+
+        camera.switchCamera()
+        camera.applyCoachPlan(plan.id)
+
+        XCTAssertNil(camera.coachSession)
+        XCTAssertTrue(camera.coachPlans.isEmpty)
+        XCTAssertFalse(camera.coachPlanApplied)
+    }
+
     private func makeBundle() throws -> PoseTemplateBundle {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appending(path: "Focelle/Coach/PoseTemplates.json")
-        return try PoseTemplateBundle.load(from: url)
+        let resourceURL = try XCTUnwrap(
+            Bundle.main.url(
+                forResource: PoseTemplateStore.resourceName,
+                withExtension: PoseTemplateStore.resourceExtension
+            )
+        )
+        XCTAssertEqual(resourceURL.lastPathComponent, "PoseTemplates.json")
+        let bundle = PoseTemplateStore.load(in: .main)
+        XCTAssertNotEqual(bundle.generation, "missing")
+        return bundle
     }
 
     private func makeTemplate(
@@ -1690,6 +1898,27 @@ final class SmokeTests: XCTestCase {
             flash: .off,
             presetIDs: ["neutral-skin"],
             pose: "Relax shoulders"
+        )
+    }
+
+    private func makeCoachPlan() -> CoachPlan {
+        CoachPlan(
+            id: "primary",
+            templateID: "test-template",
+            titleVI: "Đẹp nhất",
+            titleEN: "Best",
+            targetFraming: TargetFraming(
+                subjectWidth: 0.3,
+                subjectHeight: 0.6,
+                centerX: 0.5,
+                centerY: 0.5
+            ),
+            recommendedZoom: 1.2,
+            recommendedExposureBias: 0.2,
+            instructionVI: "Giữ khung.",
+            instructionEN: "Hold the frame.",
+            score: 1,
+            motion: 0.2
         )
     }
 }
