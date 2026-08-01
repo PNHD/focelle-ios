@@ -1244,6 +1244,429 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "zh_Hant_TW")), "zh-Hant")
     }
 
+    // MARK: - FCL-M2 Batch A: PlanSession zoom/exposure contract
+
+    func testAnalyzeSnapshotsBaselineAndNeverMutatesCameraValues() {
+        let session = PlanSession(
+            baselineZoom: 1.5,
+            baselineExposureBias: 0.2,
+            capabilityGeneration: 3
+        )
+
+        XCTAssertEqual(session.baselineZoom, 1.5)
+        XCTAssertEqual(session.baselineExposureBias, 0.2)
+        XCTAssertNil(session.appliedZoom)
+        XCTAssertNil(session.appliedExposureBias)
+    }
+
+    @MainActor
+    func testCoachAnalyzeWithNoSceneLeavesZoomAndExposureUntouched() async {
+        let camera = CameraSession()
+        camera.zoom = 3.4
+        camera.exposure = 0.6
+
+        camera.analyzeSceneV2()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(camera.zoom, 3.4)
+        XCTAssertEqual(camera.exposure, 0.6, accuracy: 0.0001)
+        XCTAssertEqual(camera.notice, "coach.error.noScene")
+        XCTAssertTrue(camera.coachPlans.isEmpty)
+        XCTAssertNil(camera.coachSession)
+    }
+
+    func testApplyUsesAbsoluteValuesNeverCompounding() {
+        let session = PlanSession(
+            baselineZoom: 1.5,
+            baselineExposureBias: 0.2,
+            capabilityGeneration: 3
+        )
+
+        let applied = session.applying(zoom: 2.0, exposureBias: -0.4)
+
+        XCTAssertEqual(applied.appliedZoom, 2.0, "absolute value, not baseline + delta")
+        XCTAssertEqual(applied.appliedExposureBias, -0.4)
+        XCTAssertEqual(session.baselineZoom, 1.5, "baseline is immutable")
+    }
+
+    func testUndoRestoresExactBaseline() {
+        let session = PlanSession(
+            baselineZoom: 1.5,
+            baselineExposureBias: 0.2,
+            capabilityGeneration: 3
+        )
+        let applied = session.applying(zoom: 2.0, exposureBias: -0.4)
+
+        XCTAssertEqual(applied.undo.zoom, 1.5)
+        XCTAssertEqual(applied.undo.exposureBias, 0.2)
+        XCTAssertEqual(applied.undoing().appliedZoom, nil)
+    }
+
+    func testRepeatedApplyUndoCyclesDoNotDrift() {
+        var session = PlanSession(
+            baselineZoom: 1.5,
+            baselineExposureBias: 0.2,
+            capabilityGeneration: 3
+        )
+        for _ in 0..<10 {
+            session = session.applying(zoom: 2.0, exposureBias: -0.4)
+            session = session.undoing()
+        }
+
+        XCTAssertEqual(session.undo.zoom, 1.5)
+        XCTAssertEqual(session.undo.exposureBias, 0.2)
+        XCTAssertNil(session.appliedZoom)
+    }
+
+    func testCapabilityGenerationChangeInvalidatesPlanSession() {
+        let session = PlanSession(
+            baselineZoom: 1,
+            baselineExposureBias: 0,
+            capabilityGeneration: 7
+        )
+
+        XCTAssertTrue(session.isValid(for: 7))
+        XCTAssertFalse(session.isValid(for: 8), "a camera switch invalidates the session")
+    }
+
+    func testSceneDescriptorRejectsStaleGeneration() {
+        XCTAssertTrue(SceneDescriptor.isCurrent(generation: 2, currentGeneration: 2))
+        XCTAssertFalse(SceneDescriptor.isCurrent(generation: 1, currentGeneration: 2))
+    }
+
+    // MARK: - FCL-M2 Batch A: stabilization and identity
+
+    func testLandmarkStabilizationIsDeterministicAndSmoothsScalars() {
+        var stabilizer = DescriptorStabilizer()
+        let first = makeDescriptor(luma: 0.4, quality: 0.5)
+        let second = makeDescriptor(luma: 0.6, quality: 0.9)
+
+        _ = stabilizer.update(first)
+        let result = stabilizer.update(second)
+
+        var repeatStabilizer = DescriptorStabilizer()
+        _ = repeatStabilizer.update(first)
+        let repeatResult = repeatStabilizer.update(second)
+
+        XCTAssertEqual(result, repeatResult, "same input sequence must give the same output")
+        XCTAssertEqual(result.luma, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(result.faceCaptureQuality ?? 0, 0.7, accuracy: 0.0001)
+    }
+
+    func testSelectedSubjectDoesNotJumpToUnrelatedObjectAfterTrackingLoss() {
+        var tracker = SubjectIdentityTracker()
+        let subject = CGRect(x: 0.3, y: 0.2, width: 0.3, height: 0.5)
+        let subjectPrint = FeaturePrint(buckets: [0.8, 0.1, 0.05, 0.02, 0.01, 0.01, 0.005, 0.005])
+        let unrelated = CGRect(x: 0.7, y: 0.6, width: 0.15, height: 0.15)
+        let unrelatedPrint = FeaturePrint(buckets: [0.1, 0.1, 0.7, 0.05, 0.02, 0.01, 0.01, 0.01])
+
+        let adopted = tracker.update(candidates: [subject], featurePrints: [subjectPrint], now: 1)
+        XCTAssertEqual(adopted?.id, 1)
+
+        // Within the preservation window the previous subject is kept, not
+        // replaced by the unrelated salient object.
+        let preserved = tracker.update(
+            candidates: [unrelated],
+            featurePrints: [unrelatedPrint],
+            now: 1.4
+        )
+        XCTAssertEqual(preserved?.id, 1)
+        XCTAssertEqual(preserved?.rect, subject)
+
+        // After the window the subject is reported lost rather than jumping.
+        let lost = tracker.update(
+            candidates: [unrelated],
+            featurePrints: [unrelatedPrint],
+            now: 2.5
+        )
+        XCTAssertNil(lost)
+    }
+
+    // MARK: - FCL-M2 Batch A: pose templates
+
+    func testTemplateSchemaValidatesGeneratedBundle() throws {
+        let bundle = try makeBundle()
+
+        XCTAssertEqual(bundle.schemaVersion, 1)
+        XCTAssertEqual(bundle.seedCount, 14)
+        XCTAssertGreaterThanOrEqual(bundle.generatedCount, 72)
+        XCTAssertLessThanOrEqual(bundle.generatedCount, 96)
+        XCTAssertEqual(bundle.templates.count, bundle.generatedCount)
+        XCTAssertEqual(Set(bundle.templates.map(\.id)).count, bundle.templates.count)
+        for template in bundle.templates {
+            XCTAssertTrue(PoseTemplateValidation.validate(template), template.id)
+            XCTAssertEqual(template.source, "owned-synthetic")
+        }
+    }
+
+    func testGeneratorOutputIsCanonicalAndMirrorDeduplicated() throws {
+        let bundle = try makeBundle()
+
+        let keys = bundle.templates.map(PoseTemplateDedup.canonicalKey)
+        XCTAssertEqual(
+            Set(keys).count,
+            keys.count,
+            "mirror-equivalent templates must not both survive"
+        )
+        XCTAssertEqual(
+            PoseTemplateDedup.deduplicated(bundle.templates).count,
+            bundle.templates.count,
+            "the bundle must already be deduplicated"
+        )
+        let template = try XCTUnwrap(
+            bundle.templates.first { $0.category == "onePerson" && !$0.landmarks.isEmpty }
+        )
+        XCTAssertEqual(
+            PoseTemplateDedup.canonicalKey(template),
+            PoseTemplateDedup.canonicalKey(template.mirrored),
+            "canonicalization must treat a template and its mirror as equal"
+        )
+    }
+
+    func testImplausibleAndCropUnsafeTemplatesAreRejected() {
+        var foldedLegs = makeTemplate(
+            landmarks: [
+                "left_shoulder": NormalizedPoint(x: 0.39, y: 0.72),
+                "right_shoulder": NormalizedPoint(x: 0.61, y: 0.72),
+                "left_elbow": NormalizedPoint(x: 0.32, y: 0.67),
+                "right_elbow": NormalizedPoint(x: 0.68, y: 0.67),
+                "left_hand": NormalizedPoint(x: 0.35, y: 0.62),
+                "right_hand": NormalizedPoint(x: 0.65, y: 0.62),
+                "left_hip": NormalizedPoint(x: 0.42, y: 0.55),
+                "right_hip": NormalizedPoint(x: 0.58, y: 0.55),
+                "left_knee": NormalizedPoint(x: 0.5, y: 0.4),
+                "right_knee": NormalizedPoint(x: 0.5, y: 0.4),
+                "left_ankle": NormalizedPoint(x: 0.484, y: 0.43),
+                "right_ankle": NormalizedPoint(x: 0.516, y: 0.43),
+                "left_foot": NormalizedPoint(x: 0.49, y: 0.39),
+                "right_foot": NormalizedPoint(x: 0.51, y: 0.39),
+            ]
+        )
+        XCTAssertFalse(
+            PoseTemplateValidation.validate(foldedLegs),
+            "a hyperflexed knee must be rejected"
+        )
+
+        let cropUnsafe = makeTemplate(
+            faceZone: Frame(x: 0.1, y: 0.95, width: 0.2, height: 0.1)
+        )
+        XCTAssertFalse(
+            PoseTemplateValidation.validate(cropUnsafe),
+            "a face zone without crop safety margin must be rejected"
+        )
+    }
+
+    func testMirrorEquivalentTemplatesAreRemoved() throws {
+        let bundle = try makeBundle()
+        let template = try XCTUnwrap(
+            bundle.templates.first { $0.category == "onePerson" && !$0.landmarks.isEmpty }
+        )
+
+        let deduplicated = PoseTemplateDedup.deduplicated([template, template.mirrored])
+
+        XCTAssertEqual(deduplicated.count, 1)
+    }
+
+    // MARK: - FCL-M2 Batch A: local planner
+
+    func testHardCropConstraintsRunBeforeScoring() {
+        let scene = makeDescriptor(nose: NormalizedPoint(x: 0.9, y: 0.8))
+        let templates = [
+            makeTemplate(
+                id: "crop-unsafe",
+                faceZone: Frame(x: 0.2, y: 0.5, width: 0.3, height: 0.2)
+            )
+        ]
+
+        let plans = LocalPlanner.plan(
+            scene: scene,
+            intent: .portrait,
+            templates: templates,
+            capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 4.0 / 3.0),
+            selectedSubject: nil
+        )
+
+        XCTAssertTrue(
+            plans.isEmpty,
+            "a template that crops the face must be rejected before scoring"
+        )
+    }
+
+    func testZoomBeyondCapabilityIsHardRejected() {
+        let scene = makeDescriptor()
+        let templates = [makeTemplate(id: "too-zoomed", zoom: 5)]
+
+        let plans = LocalPlanner.plan(
+            scene: scene,
+            intent: .portrait,
+            templates: templates,
+            capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 4.0 / 3.0),
+            selectedSubject: nil
+        )
+
+        XCTAssertTrue(plans.isEmpty)
+    }
+
+    func testPlannerReturnsFeasibleAndDiversePrimarySafeCreativePlans() {
+        let scene = makeDescriptor()
+        let templates = [
+            makeTemplate(id: "t1", zoom: 1.0),
+            makeTemplate(
+                id: "t2",
+                centerX: 0.35,
+                subjectWidth: 0.44,
+                zoom: 1.4,
+                faceZone: Frame(x: 0.25, y: 0.6, width: 0.3, height: 0.22)
+            ),
+            makeTemplate(
+                id: "t3",
+                centerX: 0.65,
+                subjectWidth: 0.30,
+                subjectHeight: 0.70,
+                zoom: 1.8,
+                faceZone: Frame(x: 0.5, y: 0.6, width: 0.3, height: 0.22)
+            ),
+        ]
+
+        let plans = LocalPlanner.plan(
+            scene: scene,
+            intent: .portrait,
+            templates: templates,
+            capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 4.0 / 3.0),
+            selectedSubject: nil
+        )
+
+        XCTAssertEqual(plans.count, 3)
+        XCTAssertEqual(Set(plans.map(\.id)), ["primary", "safe", "creative"])
+        XCTAssertEqual(Set(plans.map(\.templateID)).count, 3, "plans must be meaningfully diverse")
+        XCTAssertTrue(plans.allSatisfy { $0.recommendedZoom <= 3 })
+        XCTAssertEqual(plans.first(where: { $0.id == "safe" })?.motion, 0, "safe needs the least motion")
+    }
+
+    // MARK: - FCL-M2 Batch A: feature flags
+
+    @MainActor
+    func testCoachFeatureFlagsDefaultOffPersistAndKeepFallbackStateClean() {
+        let suite = "FocelleTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertFalse(settings.coachV2Enabled, "Coach V2 must default OFF")
+        XCTAssertFalse(settings.aestheticsEnabled)
+
+        settings.coachV2Enabled = true
+        settings.aestheticsEnabled = true
+        XCTAssertTrue(AppSettings(defaults: defaults).coachV2Enabled)
+        XCTAssertTrue(AppSettings(defaults: defaults).aestheticsEnabled)
+
+        let camera = CameraSession()
+        XCTAssertTrue(camera.coachPlans.isEmpty)
+        XCTAssertNil(camera.coachSession)
+        XCTAssertFalse(camera.coachPlanApplied)
+    }
+
+    private func makeBundle() throws -> PoseTemplateBundle {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appending(path: "Focelle/Coach/PoseTemplates.json")
+        return try PoseTemplateBundle.load(from: url)
+    }
+
+    private func makeTemplate(
+        id: String = "t1",
+        category: String = "onePerson",
+        subjectCount: Int = 1,
+        centerX: Double = 0.5,
+        centerY: Double = 0.5,
+        subjectWidth: Double = 0.34,
+        subjectHeight: Double = 0.82,
+        faceZone: Frame = Frame(x: 0.35, y: 0.6, width: 0.3, height: 0.22),
+        landmarks: [String: NormalizedPoint]? = nil,
+        zoom: Double = 1.0
+    ) -> PoseTemplate {
+        PoseTemplate(
+            schemaVersion: 1,
+            id: id,
+            category: category,
+            framing: "full",
+            orientation: "front",
+            subjectCount: subjectCount,
+            cameraHints: [],
+            landmarks: landmarks ?? standingLandmarks(),
+            targetFraming: TargetFraming(
+                subjectWidth: subjectWidth,
+                subjectHeight: subjectHeight,
+                centerX: centerX,
+                centerY: centerY
+            ),
+            headroom: 0.12,
+            faceZone: faceZone,
+            recommendedZoom: zoom,
+            contextTags: [],
+            lightingConstraints: LightingConstraints(
+                minLuma: 0.2,
+                maxLuma: 0.9,
+                avoidBacklit: false
+            ),
+            instructionVI: "Giữ khung.",
+            instructionEN: "Hold the frame.",
+            source: "owned-synthetic"
+        )
+    }
+
+    private func standingLandmarks(centerX: Double = 0.5) -> [String: NormalizedPoint] {
+        [
+            "head_top": NormalizedPoint(x: centerX, y: 0.95),
+            "nose": NormalizedPoint(x: centerX, y: 0.85),
+            "left_shoulder": NormalizedPoint(x: centerX - 0.11, y: 0.72),
+            "right_shoulder": NormalizedPoint(x: centerX + 0.11, y: 0.72),
+            "left_elbow": NormalizedPoint(x: centerX - 0.18, y: 0.67),
+            "right_elbow": NormalizedPoint(x: centerX + 0.18, y: 0.67),
+            "left_hand": NormalizedPoint(x: centerX - 0.15, y: 0.62),
+            "right_hand": NormalizedPoint(x: centerX + 0.15, y: 0.62),
+            "left_hip": NormalizedPoint(x: centerX - 0.08, y: 0.55),
+            "right_hip": NormalizedPoint(x: centerX + 0.08, y: 0.55),
+            "left_knee": NormalizedPoint(x: centerX - 0.09, y: 0.38),
+            "right_knee": NormalizedPoint(x: centerX + 0.09, y: 0.38),
+            "left_ankle": NormalizedPoint(x: centerX - 0.06, y: 0.14),
+            "right_ankle": NormalizedPoint(x: centerX + 0.06, y: 0.14),
+            "left_foot": NormalizedPoint(x: centerX - 0.07, y: 0.11),
+            "right_foot": NormalizedPoint(x: centerX + 0.07, y: 0.11),
+        ]
+    }
+
+    private func makeDescriptor(
+        humanRects: [CGRect] = [CGRect(x: 0.2, y: 0.2, width: 0.3, height: 0.6)],
+        nose: NormalizedPoint? = NormalizedPoint(x: 0.5, y: 0.7),
+        luma: Double = 0.5,
+        quality: Double? = 0.8
+    ) -> SceneDescriptor {
+        let pose = standingLandmarks()
+        return SceneDescriptor(
+            subjectRect: humanRects.first,
+            subjectIdentityID: 1,
+            humanRects: humanRects,
+            poseLandmarks: pose.map { PoseLandmark(name: $0.key, point: $0.value, confidence: 0.8) },
+            pose3D: nil,
+            faceLandmarks: nose.map { [FaceLandmark(name: "nose", point: $0, confidence: 0.9)] } ?? [],
+            faceCaptureQuality: quality,
+            saliencyRect: nil,
+            horizonAngle: nil,
+            luma: luma,
+            lighting: LightingInfo(
+                histogram: LightingInfo.histogram(fromLumaSamples: [0.2, 0.4, 0.6, 0.8]),
+                backlit: false,
+                contrast: 0.05
+            ),
+            blurProxy: 0.4,
+            classifications: ["onePerson"],
+            generation: 1,
+            timestamp: 1
+        )
+    }
+
     private func makeAIResponse() -> AICompositionResponse {
         AICompositionResponse(
             schemaVersion: 2,
