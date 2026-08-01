@@ -1415,7 +1415,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             for identifier in pending.keys {
                 guard
                     let asset =
-                    PHAsset
+                        PHAsset
                         .fetchAssets(
                             withLocalIdentifiers: [identifier], options: nil
                         )
@@ -1427,7 +1427,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 )
                 guard
                     let finalized =
-                    self.deferredConfirmationTracker
+                        self.deferredConfirmationTracker
                         .confirm(
                             identifier: identifier,
                             dimensions: dimensions
