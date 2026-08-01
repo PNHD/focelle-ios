@@ -1654,16 +1654,16 @@ final class SmokeTests: XCTestCase {
                 id: "t2",
                 centerX: 0.35,
                 subjectWidth: 0.44,
-                zoom: 1.4,
-                faceZone: Frame(x: 0.25, y: 0.6, width: 0.3, height: 0.22)
+                faceZone: Frame(x: 0.25, y: 0.6, width: 0.3, height: 0.22),
+                zoom: 1.4
             ),
             makeTemplate(
                 id: "t3",
                 centerX: 0.65,
                 subjectWidth: 0.30,
                 subjectHeight: 0.70,
-                zoom: 1.8,
-                faceZone: Frame(x: 0.5, y: 0.6, width: 0.3, height: 0.22)
+                faceZone: Frame(x: 0.5, y: 0.6, width: 0.3, height: 0.22),
+                zoom: 1.8
             ),
         ]
 
@@ -1676,8 +1676,10 @@ final class SmokeTests: XCTestCase {
         )
 
         XCTAssertEqual(plans.count, 3)
-        XCTAssertEqual(Set(plans.map(\.id)), ["primary", "safe", "creative"])
-        XCTAssertEqual(Set(plans.map(\.templateID)).count, 3, "plans must be meaningfully diverse")
+        let planIDs = Set(plans.map { $0.id })
+        let templateIDs = Set(plans.map { $0.templateID })
+        XCTAssertEqual(planIDs, Set(["primary", "safe", "creative"]))
+        XCTAssertEqual(templateIDs.count, 3, "plans must be meaningfully diverse")
         XCTAssertTrue(plans.allSatisfy { $0.recommendedZoom <= 3 })
         XCTAssertEqual(plans.first(where: { $0.id == "safe" })?.motion, 0, "safe needs the least motion")
     }
