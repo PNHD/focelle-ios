@@ -61,7 +61,10 @@ struct GuidanceOverlay: View {
                             .position(target)
                     }
 
-                    if guidance.direction.usesTargetFrame,
+                    // Coach plans present an aligned target frame even when
+                    // the direction is `.none`; heuristic guidance only draws
+                    // the frame for closer/farther instructions.
+                    if guidance.direction.usesTargetFrame || guidance.direction == .none,
                         let targetRect = guidance.targetRect
                     {
                         RoundedRectangle(cornerRadius: 18)

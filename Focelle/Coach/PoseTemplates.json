@@ -1,0 +1,6430 @@
+{
+  "generatedCount": 92,
+  "generation": "focelle-coach-a-1",
+  "schemaVersion": 1,
+  "seedCount": 14,
+  "templates": [
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "couple",
+      "contextTags": [
+        "group",
+        "couple"
+      ],
+      "faceZone": {
+        "height": 0.16,
+        "width": 0.36,
+        "x": 0.32,
+        "y": 0.74
+      },
+      "framing": "full",
+      "headroom": 0.1,
+      "id": "couple-front-v1",
+      "instructionEN": "Stand close together, both facing the camera.",
+      "instructionVI": "Cả hai đứng sát nhau, cùng hướng về máy.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.374,
+          "y": 0.908
+        },
+        "left_ankle": {
+          "x": 0.32,
+          "y": 0.134
+        },
+        "left_elbow": {
+          "x": 0.212,
+          "y": 0.611
+        },
+        "left_foot": {
+          "x": 0.311,
+          "y": 0.107
+        },
+        "left_hand": {
+          "x": 0.239,
+          "y": 0.566
+        },
+        "left_hip": {
+          "x": 0.302,
+          "y": 0.503
+        },
+        "left_knee": {
+          "x": 0.293,
+          "y": 0.35
+        },
+        "left_shoulder": {
+          "x": 0.275,
+          "y": 0.656
+        },
+        "nose": {
+          "x": 0.374,
+          "y": 0.872
+        },
+        "right_ankle": {
+          "x": 0.428,
+          "y": 0.134
+        },
+        "right_elbow": {
+          "x": 0.536,
+          "y": 0.611
+        },
+        "right_foot": {
+          "x": 0.437,
+          "y": 0.107
+        },
+        "right_hand": {
+          "x": 0.509,
+          "y": 0.566
+        },
+        "right_hip": {
+          "x": 0.446,
+          "y": 0.503
+        },
+        "right_knee": {
+          "x": 0.455,
+          "y": 0.35
+        },
+        "right_shoulder": {
+          "x": 0.473,
+          "y": 0.656
+        },
+        "subject2_head_top": {
+          "x": 0.626,
+          "y": 0.908
+        },
+        "subject2_left_ankle": {
+          "x": 0.572,
+          "y": 0.134
+        },
+        "subject2_left_elbow": {
+          "x": 0.464,
+          "y": 0.611
+        },
+        "subject2_left_foot": {
+          "x": 0.563,
+          "y": 0.107
+        },
+        "subject2_left_hand": {
+          "x": 0.491,
+          "y": 0.566
+        },
+        "subject2_left_hip": {
+          "x": 0.554,
+          "y": 0.503
+        },
+        "subject2_left_knee": {
+          "x": 0.545,
+          "y": 0.35
+        },
+        "subject2_left_shoulder": {
+          "x": 0.527,
+          "y": 0.656
+        },
+        "subject2_nose": {
+          "x": 0.626,
+          "y": 0.872
+        },
+        "subject2_right_ankle": {
+          "x": 0.68,
+          "y": 0.134
+        },
+        "subject2_right_elbow": {
+          "x": 0.788,
+          "y": 0.611
+        },
+        "subject2_right_foot": {
+          "x": 0.689,
+          "y": 0.107
+        },
+        "subject2_right_hand": {
+          "x": 0.761,
+          "y": 0.566
+        },
+        "subject2_right_hip": {
+          "x": 0.698,
+          "y": 0.503
+        },
+        "subject2_right_knee": {
+          "x": 0.707,
+          "y": 0.35
+        },
+        "subject2_right_shoulder": {
+          "x": 0.725,
+          "y": 0.656
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 2,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.44,
+        "subjectHeight": 0.738,
+        "subjectWidth": 0.558
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "couple",
+      "contextTags": [
+        "group",
+        "couple"
+      ],
+      "faceZone": {
+        "height": 0.16,
+        "width": 0.36,
+        "x": 0.37,
+        "y": 0.74
+      },
+      "framing": "full",
+      "headroom": 0.1,
+      "id": "couple-front-v2",
+      "instructionEN": "Stand close together, both facing the camera.",
+      "instructionVI": "Cả hai đứng sát nhau, cùng hướng về máy.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.424,
+          "y": 0.908
+        },
+        "left_ankle": {
+          "x": 0.37,
+          "y": 0.134
+        },
+        "left_elbow": {
+          "x": 0.262,
+          "y": 0.611
+        },
+        "left_foot": {
+          "x": 0.361,
+          "y": 0.107
+        },
+        "left_hand": {
+          "x": 0.289,
+          "y": 0.566
+        },
+        "left_hip": {
+          "x": 0.352,
+          "y": 0.503
+        },
+        "left_knee": {
+          "x": 0.343,
+          "y": 0.35
+        },
+        "left_shoulder": {
+          "x": 0.325,
+          "y": 0.656
+        },
+        "nose": {
+          "x": 0.424,
+          "y": 0.872
+        },
+        "right_ankle": {
+          "x": 0.478,
+          "y": 0.134
+        },
+        "right_elbow": {
+          "x": 0.586,
+          "y": 0.611
+        },
+        "right_foot": {
+          "x": 0.487,
+          "y": 0.107
+        },
+        "right_hand": {
+          "x": 0.559,
+          "y": 0.566
+        },
+        "right_hip": {
+          "x": 0.496,
+          "y": 0.503
+        },
+        "right_knee": {
+          "x": 0.505,
+          "y": 0.35
+        },
+        "right_shoulder": {
+          "x": 0.523,
+          "y": 0.656
+        },
+        "subject2_head_top": {
+          "x": 0.676,
+          "y": 0.908
+        },
+        "subject2_left_ankle": {
+          "x": 0.622,
+          "y": 0.134
+        },
+        "subject2_left_elbow": {
+          "x": 0.514,
+          "y": 0.611
+        },
+        "subject2_left_foot": {
+          "x": 0.613,
+          "y": 0.107
+        },
+        "subject2_left_hand": {
+          "x": 0.541,
+          "y": 0.566
+        },
+        "subject2_left_hip": {
+          "x": 0.604,
+          "y": 0.503
+        },
+        "subject2_left_knee": {
+          "x": 0.595,
+          "y": 0.35
+        },
+        "subject2_left_shoulder": {
+          "x": 0.577,
+          "y": 0.656
+        },
+        "subject2_nose": {
+          "x": 0.676,
+          "y": 0.872
+        },
+        "subject2_right_ankle": {
+          "x": 0.73,
+          "y": 0.134
+        },
+        "subject2_right_elbow": {
+          "x": 0.838,
+          "y": 0.611
+        },
+        "subject2_right_foot": {
+          "x": 0.739,
+          "y": 0.107
+        },
+        "subject2_right_hand": {
+          "x": 0.811,
+          "y": 0.566
+        },
+        "subject2_right_hip": {
+          "x": 0.748,
+          "y": 0.503
+        },
+        "subject2_right_knee": {
+          "x": 0.757,
+          "y": 0.35
+        },
+        "subject2_right_shoulder": {
+          "x": 0.775,
+          "y": 0.656
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 2,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.44,
+        "subjectHeight": 0.738,
+        "subjectWidth": 0.558
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "couple",
+      "contextTags": [
+        "group",
+        "couple",
+        "seated"
+      ],
+      "faceZone": {
+        "height": 0.16,
+        "width": 0.32,
+        "x": 0.34,
+        "y": 0.72
+      },
+      "framing": "medium",
+      "headroom": 0.12,
+      "id": "couple-seated-v1",
+      "instructionEN": "Sit close together with relaxed shoulders.",
+      "instructionVI": "Ngồi gần nhau, vai thả lỏng.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.374,
+          "y": 0.916
+        },
+        "left_ankle": {
+          "x": 0.32,
+          "y": 0.268
+        },
+        "left_elbow": {
+          "x": 0.212,
+          "y": 0.646
+        },
+        "left_foot": {
+          "x": 0.311,
+          "y": 0.241
+        },
+        "left_hand": {
+          "x": 0.239,
+          "y": 0.511
+        },
+        "left_hip": {
+          "x": 0.302,
+          "y": 0.511
+        },
+        "left_knee": {
+          "x": 0.293,
+          "y": 0.466
+        },
+        "left_shoulder": {
+          "x": 0.275,
+          "y": 0.664
+        },
+        "nose": {
+          "x": 0.374,
+          "y": 0.88
+        },
+        "right_ankle": {
+          "x": 0.428,
+          "y": 0.268
+        },
+        "right_elbow": {
+          "x": 0.536,
+          "y": 0.646
+        },
+        "right_foot": {
+          "x": 0.437,
+          "y": 0.241
+        },
+        "right_hand": {
+          "x": 0.509,
+          "y": 0.511
+        },
+        "right_hip": {
+          "x": 0.446,
+          "y": 0.511
+        },
+        "right_knee": {
+          "x": 0.455,
+          "y": 0.466
+        },
+        "right_shoulder": {
+          "x": 0.473,
+          "y": 0.664
+        },
+        "subject2_head_top": {
+          "x": 0.626,
+          "y": 0.916
+        },
+        "subject2_left_ankle": {
+          "x": 0.572,
+          "y": 0.268
+        },
+        "subject2_left_elbow": {
+          "x": 0.464,
+          "y": 0.646
+        },
+        "subject2_left_foot": {
+          "x": 0.563,
+          "y": 0.241
+        },
+        "subject2_left_hand": {
+          "x": 0.491,
+          "y": 0.511
+        },
+        "subject2_left_hip": {
+          "x": 0.554,
+          "y": 0.511
+        },
+        "subject2_left_knee": {
+          "x": 0.545,
+          "y": 0.466
+        },
+        "subject2_left_shoulder": {
+          "x": 0.527,
+          "y": 0.664
+        },
+        "subject2_nose": {
+          "x": 0.626,
+          "y": 0.88
+        },
+        "subject2_right_ankle": {
+          "x": 0.68,
+          "y": 0.268
+        },
+        "subject2_right_elbow": {
+          "x": 0.788,
+          "y": 0.646
+        },
+        "subject2_right_foot": {
+          "x": 0.689,
+          "y": 0.241
+        },
+        "subject2_right_hand": {
+          "x": 0.761,
+          "y": 0.511
+        },
+        "subject2_right_hip": {
+          "x": 0.698,
+          "y": 0.511
+        },
+        "subject2_right_knee": {
+          "x": 0.707,
+          "y": 0.466
+        },
+        "subject2_right_shoulder": {
+          "x": 0.725,
+          "y": 0.664
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.1,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 2,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.52,
+        "subjectHeight": 0.54,
+        "subjectWidth": 0.54
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "couple",
+      "contextTags": [
+        "group",
+        "couple",
+        "seated"
+      ],
+      "faceZone": {
+        "height": 0.16,
+        "width": 0.32,
+        "x": 0.39,
+        "y": 0.72
+      },
+      "framing": "medium",
+      "headroom": 0.12,
+      "id": "couple-seated-v2",
+      "instructionEN": "Sit close together with relaxed shoulders.",
+      "instructionVI": "Ngồi gần nhau, vai thả lỏng.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.424,
+          "y": 0.916
+        },
+        "left_ankle": {
+          "x": 0.37,
+          "y": 0.268
+        },
+        "left_elbow": {
+          "x": 0.262,
+          "y": 0.646
+        },
+        "left_foot": {
+          "x": 0.361,
+          "y": 0.241
+        },
+        "left_hand": {
+          "x": 0.289,
+          "y": 0.511
+        },
+        "left_hip": {
+          "x": 0.352,
+          "y": 0.511
+        },
+        "left_knee": {
+          "x": 0.343,
+          "y": 0.466
+        },
+        "left_shoulder": {
+          "x": 0.325,
+          "y": 0.664
+        },
+        "nose": {
+          "x": 0.424,
+          "y": 0.88
+        },
+        "right_ankle": {
+          "x": 0.478,
+          "y": 0.268
+        },
+        "right_elbow": {
+          "x": 0.586,
+          "y": 0.646
+        },
+        "right_foot": {
+          "x": 0.487,
+          "y": 0.241
+        },
+        "right_hand": {
+          "x": 0.559,
+          "y": 0.511
+        },
+        "right_hip": {
+          "x": 0.496,
+          "y": 0.511
+        },
+        "right_knee": {
+          "x": 0.505,
+          "y": 0.466
+        },
+        "right_shoulder": {
+          "x": 0.523,
+          "y": 0.664
+        },
+        "subject2_head_top": {
+          "x": 0.676,
+          "y": 0.916
+        },
+        "subject2_left_ankle": {
+          "x": 0.622,
+          "y": 0.268
+        },
+        "subject2_left_elbow": {
+          "x": 0.514,
+          "y": 0.646
+        },
+        "subject2_left_foot": {
+          "x": 0.613,
+          "y": 0.241
+        },
+        "subject2_left_hand": {
+          "x": 0.541,
+          "y": 0.511
+        },
+        "subject2_left_hip": {
+          "x": 0.604,
+          "y": 0.511
+        },
+        "subject2_left_knee": {
+          "x": 0.595,
+          "y": 0.466
+        },
+        "subject2_left_shoulder": {
+          "x": 0.577,
+          "y": 0.664
+        },
+        "subject2_nose": {
+          "x": 0.676,
+          "y": 0.88
+        },
+        "subject2_right_ankle": {
+          "x": 0.73,
+          "y": 0.268
+        },
+        "subject2_right_elbow": {
+          "x": 0.838,
+          "y": 0.646
+        },
+        "subject2_right_foot": {
+          "x": 0.739,
+          "y": 0.241
+        },
+        "subject2_right_hand": {
+          "x": 0.811,
+          "y": 0.511
+        },
+        "subject2_right_hip": {
+          "x": 0.748,
+          "y": 0.511
+        },
+        "subject2_right_knee": {
+          "x": 0.757,
+          "y": 0.466
+        },
+        "subject2_right_shoulder": {
+          "x": 0.775,
+          "y": 0.664
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.1,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 2,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.52,
+        "subjectHeight": 0.54,
+        "subjectWidth": 0.54
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.18,
+        "y": 0.24
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "food-overhead-v1",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.48,
+        "subjectHeight": 0.495,
+        "subjectWidth": 0.63
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.23,
+        "y": 0.28
+      },
+      "framing": "medium",
+      "headroom": 0.1,
+      "id": "food-overhead-v10",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.52,
+        "subjectHeight": 0.55,
+        "subjectWidth": 0.7
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.18,
+        "y": 0.32
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "food-overhead-v11",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.56,
+        "subjectHeight": 0.55,
+        "subjectWidth": 0.7
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.23,
+        "y": 0.32
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "food-overhead-v12",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.56,
+        "subjectHeight": 0.55,
+        "subjectWidth": 0.7
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.18,
+        "y": 0.24
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "food-overhead-v13",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.48,
+        "subjectHeight": 0.605,
+        "subjectWidth": 0.77
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.23,
+        "y": 0.24
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "food-overhead-v14",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.48,
+        "subjectHeight": 0.605,
+        "subjectWidth": 0.77
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.18,
+        "y": 0.28
+      },
+      "framing": "medium",
+      "headroom": 0.1,
+      "id": "food-overhead-v15",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.52,
+        "subjectHeight": 0.605,
+        "subjectWidth": 0.77
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.23,
+        "y": 0.28
+      },
+      "framing": "medium",
+      "headroom": 0.1,
+      "id": "food-overhead-v16",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.52,
+        "subjectHeight": 0.605,
+        "subjectWidth": 0.77
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.18,
+        "y": 0.32
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "food-overhead-v17",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.56,
+        "subjectHeight": 0.605,
+        "subjectWidth": 0.77
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.23,
+        "y": 0.32
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "food-overhead-v18",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.56,
+        "subjectHeight": 0.605,
+        "subjectWidth": 0.77
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.23,
+        "y": 0.24
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "food-overhead-v2",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.48,
+        "subjectHeight": 0.495,
+        "subjectWidth": 0.63
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.18,
+        "y": 0.28
+      },
+      "framing": "medium",
+      "headroom": 0.1,
+      "id": "food-overhead-v21",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.52,
+        "subjectHeight": 0.495,
+        "subjectWidth": 0.63
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.13,
+        "y": 0.28
+      },
+      "framing": "medium",
+      "headroom": 0.1,
+      "id": "food-overhead-v22",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.45,
+        "centerY": 0.52,
+        "subjectHeight": 0.495,
+        "subjectWidth": 0.63
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.18,
+        "y": 0.32
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "food-overhead-v23",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.56,
+        "subjectHeight": 0.495,
+        "subjectWidth": 0.63
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.13,
+        "y": 0.32
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "food-overhead-v24",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.45,
+        "centerY": 0.56,
+        "subjectHeight": 0.495,
+        "subjectWidth": 0.63
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.18,
+        "y": 0.24
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "food-overhead-v25",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.48,
+        "subjectHeight": 0.55,
+        "subjectWidth": 0.7
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.13,
+        "y": 0.24
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "food-overhead-v26",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.45,
+        "centerY": 0.48,
+        "subjectHeight": 0.55,
+        "subjectWidth": 0.7
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "food",
+      "contextTags": [
+        "food"
+      ],
+      "faceZone": {
+        "height": 0.44,
+        "width": 0.64,
+        "x": 0.18,
+        "y": 0.28
+      },
+      "framing": "medium",
+      "headroom": 0.1,
+      "id": "food-overhead-v27",
+      "instructionEN": "Shoot the dish from above with the plate centered.",
+      "instructionVI": "Chụp món ăn từ trên, đĩa nằm giữa khung.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.52,
+        "subjectHeight": 0.55,
+        "subjectWidth": 0.7
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "smallGroup",
+      "contextTags": [
+        "group"
+      ],
+      "faceZone": {
+        "height": 0.16,
+        "width": 0.6,
+        "x": 0.2,
+        "y": 0.74
+      },
+      "framing": "full",
+      "headroom": 0.1,
+      "id": "group-four-v1",
+      "instructionEN": "Group of four with nobody blocked.",
+      "instructionVI": "Nhóm bốn người, tránh ai bị khuất.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.266,
+          "y": 0.908
+        },
+        "left_ankle": {
+          "x": 0.212,
+          "y": 0.134
+        },
+        "left_elbow": {
+          "x": 0.104,
+          "y": 0.611
+        },
+        "left_foot": {
+          "x": 0.203,
+          "y": 0.107
+        },
+        "left_hand": {
+          "x": 0.131,
+          "y": 0.566
+        },
+        "left_hip": {
+          "x": 0.194,
+          "y": 0.503
+        },
+        "left_knee": {
+          "x": 0.185,
+          "y": 0.35
+        },
+        "left_shoulder": {
+          "x": 0.167,
+          "y": 0.656
+        },
+        "nose": {
+          "x": 0.266,
+          "y": 0.872
+        },
+        "right_ankle": {
+          "x": 0.32,
+          "y": 0.134
+        },
+        "right_elbow": {
+          "x": 0.428,
+          "y": 0.611
+        },
+        "right_foot": {
+          "x": 0.329,
+          "y": 0.107
+        },
+        "right_hand": {
+          "x": 0.401,
+          "y": 0.566
+        },
+        "right_hip": {
+          "x": 0.338,
+          "y": 0.503
+        },
+        "right_knee": {
+          "x": 0.347,
+          "y": 0.35
+        },
+        "right_shoulder": {
+          "x": 0.365,
+          "y": 0.656
+        },
+        "subject2_head_top": {
+          "x": 0.734,
+          "y": 0.908
+        },
+        "subject2_left_ankle": {
+          "x": 0.68,
+          "y": 0.134
+        },
+        "subject2_left_elbow": {
+          "x": 0.572,
+          "y": 0.611
+        },
+        "subject2_left_foot": {
+          "x": 0.671,
+          "y": 0.107
+        },
+        "subject2_left_hand": {
+          "x": 0.599,
+          "y": 0.566
+        },
+        "subject2_left_hip": {
+          "x": 0.662,
+          "y": 0.503
+        },
+        "subject2_left_knee": {
+          "x": 0.653,
+          "y": 0.35
+        },
+        "subject2_left_shoulder": {
+          "x": 0.635,
+          "y": 0.656
+        },
+        "subject2_nose": {
+          "x": 0.734,
+          "y": 0.872
+        },
+        "subject2_right_ankle": {
+          "x": 0.788,
+          "y": 0.134
+        },
+        "subject2_right_elbow": {
+          "x": 0.896,
+          "y": 0.611
+        },
+        "subject2_right_foot": {
+          "x": 0.797,
+          "y": 0.107
+        },
+        "subject2_right_hand": {
+          "x": 0.869,
+          "y": 0.566
+        },
+        "subject2_right_hip": {
+          "x": 0.806,
+          "y": 0.503
+        },
+        "subject2_right_knee": {
+          "x": 0.815,
+          "y": 0.35
+        },
+        "subject2_right_shoulder": {
+          "x": 0.833,
+          "y": 0.656
+        },
+        "subject3_head_top": {
+          "x": 0.311,
+          "y": 0.908
+        },
+        "subject3_left_ankle": {
+          "x": 0.257,
+          "y": 0.134
+        },
+        "subject3_left_elbow": {
+          "x": 0.149,
+          "y": 0.611
+        },
+        "subject3_left_foot": {
+          "x": 0.248,
+          "y": 0.107
+        },
+        "subject3_left_hand": {
+          "x": 0.176,
+          "y": 0.566
+        },
+        "subject3_left_hip": {
+          "x": 0.239,
+          "y": 0.503
+        },
+        "subject3_left_knee": {
+          "x": 0.23,
+          "y": 0.35
+        },
+        "subject3_left_shoulder": {
+          "x": 0.212,
+          "y": 0.656
+        },
+        "subject3_nose": {
+          "x": 0.311,
+          "y": 0.872
+        },
+        "subject3_right_ankle": {
+          "x": 0.365,
+          "y": 0.134
+        },
+        "subject3_right_elbow": {
+          "x": 0.473,
+          "y": 0.611
+        },
+        "subject3_right_foot": {
+          "x": 0.374,
+          "y": 0.107
+        },
+        "subject3_right_hand": {
+          "x": 0.446,
+          "y": 0.566
+        },
+        "subject3_right_hip": {
+          "x": 0.383,
+          "y": 0.503
+        },
+        "subject3_right_knee": {
+          "x": 0.392,
+          "y": 0.35
+        },
+        "subject3_right_shoulder": {
+          "x": 0.41,
+          "y": 0.656
+        },
+        "subject4_head_top": {
+          "x": 0.689,
+          "y": 0.908
+        },
+        "subject4_left_ankle": {
+          "x": 0.635,
+          "y": 0.134
+        },
+        "subject4_left_elbow": {
+          "x": 0.527,
+          "y": 0.611
+        },
+        "subject4_left_foot": {
+          "x": 0.626,
+          "y": 0.107
+        },
+        "subject4_left_hand": {
+          "x": 0.554,
+          "y": 0.566
+        },
+        "subject4_left_hip": {
+          "x": 0.617,
+          "y": 0.503
+        },
+        "subject4_left_knee": {
+          "x": 0.608,
+          "y": 0.35
+        },
+        "subject4_left_shoulder": {
+          "x": 0.59,
+          "y": 0.656
+        },
+        "subject4_nose": {
+          "x": 0.689,
+          "y": 0.872
+        },
+        "subject4_right_ankle": {
+          "x": 0.743,
+          "y": 0.134
+        },
+        "subject4_right_elbow": {
+          "x": 0.851,
+          "y": 0.611
+        },
+        "subject4_right_foot": {
+          "x": 0.752,
+          "y": 0.107
+        },
+        "subject4_right_hand": {
+          "x": 0.824,
+          "y": 0.566
+        },
+        "subject4_right_hip": {
+          "x": 0.761,
+          "y": 0.503
+        },
+        "subject4_right_knee": {
+          "x": 0.77,
+          "y": 0.35
+        },
+        "subject4_right_shoulder": {
+          "x": 0.788,
+          "y": 0.656
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 4,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.44,
+        "subjectHeight": 0.72,
+        "subjectWidth": 0.828
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "smallGroup",
+      "contextTags": [
+        "group"
+      ],
+      "faceZone": {
+        "height": 0.16,
+        "width": 0.6,
+        "x": 0.25,
+        "y": 0.74
+      },
+      "framing": "full",
+      "headroom": 0.1,
+      "id": "group-four-v2",
+      "instructionEN": "Group of four with nobody blocked.",
+      "instructionVI": "Nhóm bốn người, tránh ai bị khuất.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.316,
+          "y": 0.908
+        },
+        "left_ankle": {
+          "x": 0.262,
+          "y": 0.134
+        },
+        "left_elbow": {
+          "x": 0.154,
+          "y": 0.611
+        },
+        "left_foot": {
+          "x": 0.253,
+          "y": 0.107
+        },
+        "left_hand": {
+          "x": 0.181,
+          "y": 0.566
+        },
+        "left_hip": {
+          "x": 0.244,
+          "y": 0.503
+        },
+        "left_knee": {
+          "x": 0.235,
+          "y": 0.35
+        },
+        "left_shoulder": {
+          "x": 0.217,
+          "y": 0.656
+        },
+        "nose": {
+          "x": 0.316,
+          "y": 0.872
+        },
+        "right_ankle": {
+          "x": 0.37,
+          "y": 0.134
+        },
+        "right_elbow": {
+          "x": 0.478,
+          "y": 0.611
+        },
+        "right_foot": {
+          "x": 0.379,
+          "y": 0.107
+        },
+        "right_hand": {
+          "x": 0.451,
+          "y": 0.566
+        },
+        "right_hip": {
+          "x": 0.388,
+          "y": 0.503
+        },
+        "right_knee": {
+          "x": 0.397,
+          "y": 0.35
+        },
+        "right_shoulder": {
+          "x": 0.415,
+          "y": 0.656
+        },
+        "subject2_head_top": {
+          "x": 0.784,
+          "y": 0.908
+        },
+        "subject2_left_ankle": {
+          "x": 0.73,
+          "y": 0.134
+        },
+        "subject2_left_elbow": {
+          "x": 0.622,
+          "y": 0.611
+        },
+        "subject2_left_foot": {
+          "x": 0.721,
+          "y": 0.107
+        },
+        "subject2_left_hand": {
+          "x": 0.649,
+          "y": 0.566
+        },
+        "subject2_left_hip": {
+          "x": 0.712,
+          "y": 0.503
+        },
+        "subject2_left_knee": {
+          "x": 0.703,
+          "y": 0.35
+        },
+        "subject2_left_shoulder": {
+          "x": 0.685,
+          "y": 0.656
+        },
+        "subject2_nose": {
+          "x": 0.784,
+          "y": 0.872
+        },
+        "subject2_right_ankle": {
+          "x": 0.838,
+          "y": 0.134
+        },
+        "subject2_right_elbow": {
+          "x": 0.946,
+          "y": 0.611
+        },
+        "subject2_right_foot": {
+          "x": 0.847,
+          "y": 0.107
+        },
+        "subject2_right_hand": {
+          "x": 0.919,
+          "y": 0.566
+        },
+        "subject2_right_hip": {
+          "x": 0.856,
+          "y": 0.503
+        },
+        "subject2_right_knee": {
+          "x": 0.865,
+          "y": 0.35
+        },
+        "subject2_right_shoulder": {
+          "x": 0.883,
+          "y": 0.656
+        },
+        "subject3_head_top": {
+          "x": 0.361,
+          "y": 0.908
+        },
+        "subject3_left_ankle": {
+          "x": 0.307,
+          "y": 0.134
+        },
+        "subject3_left_elbow": {
+          "x": 0.199,
+          "y": 0.611
+        },
+        "subject3_left_foot": {
+          "x": 0.298,
+          "y": 0.107
+        },
+        "subject3_left_hand": {
+          "x": 0.226,
+          "y": 0.566
+        },
+        "subject3_left_hip": {
+          "x": 0.289,
+          "y": 0.503
+        },
+        "subject3_left_knee": {
+          "x": 0.28,
+          "y": 0.35
+        },
+        "subject3_left_shoulder": {
+          "x": 0.262,
+          "y": 0.656
+        },
+        "subject3_nose": {
+          "x": 0.361,
+          "y": 0.872
+        },
+        "subject3_right_ankle": {
+          "x": 0.415,
+          "y": 0.134
+        },
+        "subject3_right_elbow": {
+          "x": 0.523,
+          "y": 0.611
+        },
+        "subject3_right_foot": {
+          "x": 0.424,
+          "y": 0.107
+        },
+        "subject3_right_hand": {
+          "x": 0.496,
+          "y": 0.566
+        },
+        "subject3_right_hip": {
+          "x": 0.433,
+          "y": 0.503
+        },
+        "subject3_right_knee": {
+          "x": 0.442,
+          "y": 0.35
+        },
+        "subject3_right_shoulder": {
+          "x": 0.46,
+          "y": 0.656
+        },
+        "subject4_head_top": {
+          "x": 0.739,
+          "y": 0.908
+        },
+        "subject4_left_ankle": {
+          "x": 0.685,
+          "y": 0.134
+        },
+        "subject4_left_elbow": {
+          "x": 0.577,
+          "y": 0.611
+        },
+        "subject4_left_foot": {
+          "x": 0.676,
+          "y": 0.107
+        },
+        "subject4_left_hand": {
+          "x": 0.604,
+          "y": 0.566
+        },
+        "subject4_left_hip": {
+          "x": 0.667,
+          "y": 0.503
+        },
+        "subject4_left_knee": {
+          "x": 0.658,
+          "y": 0.35
+        },
+        "subject4_left_shoulder": {
+          "x": 0.64,
+          "y": 0.656
+        },
+        "subject4_nose": {
+          "x": 0.739,
+          "y": 0.872
+        },
+        "subject4_right_ankle": {
+          "x": 0.793,
+          "y": 0.134
+        },
+        "subject4_right_elbow": {
+          "x": 0.901,
+          "y": 0.611
+        },
+        "subject4_right_foot": {
+          "x": 0.802,
+          "y": 0.107
+        },
+        "subject4_right_hand": {
+          "x": 0.874,
+          "y": 0.566
+        },
+        "subject4_right_hip": {
+          "x": 0.811,
+          "y": 0.503
+        },
+        "subject4_right_knee": {
+          "x": 0.82,
+          "y": 0.35
+        },
+        "subject4_right_shoulder": {
+          "x": 0.838,
+          "y": 0.656
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 4,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.44,
+        "subjectHeight": 0.72,
+        "subjectWidth": 0.828
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "smallGroup",
+      "contextTags": [
+        "group"
+      ],
+      "faceZone": {
+        "height": 0.16,
+        "width": 0.48,
+        "x": 0.26,
+        "y": 0.74
+      },
+      "framing": "full",
+      "headroom": 0.1,
+      "id": "group-three-v1",
+      "instructionEN": "Three people stand in a row, evenly spaced.",
+      "instructionVI": "Ba người đứng thành hàng, cách đều nhau.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.32,
+          "y": 0.908
+        },
+        "left_ankle": {
+          "x": 0.266,
+          "y": 0.134
+        },
+        "left_elbow": {
+          "x": 0.158,
+          "y": 0.611
+        },
+        "left_foot": {
+          "x": 0.257,
+          "y": 0.107
+        },
+        "left_hand": {
+          "x": 0.185,
+          "y": 0.566
+        },
+        "left_hip": {
+          "x": 0.248,
+          "y": 0.503
+        },
+        "left_knee": {
+          "x": 0.239,
+          "y": 0.35
+        },
+        "left_shoulder": {
+          "x": 0.221,
+          "y": 0.656
+        },
+        "nose": {
+          "x": 0.32,
+          "y": 0.872
+        },
+        "right_ankle": {
+          "x": 0.374,
+          "y": 0.134
+        },
+        "right_elbow": {
+          "x": 0.482,
+          "y": 0.611
+        },
+        "right_foot": {
+          "x": 0.383,
+          "y": 0.107
+        },
+        "right_hand": {
+          "x": 0.455,
+          "y": 0.566
+        },
+        "right_hip": {
+          "x": 0.392,
+          "y": 0.503
+        },
+        "right_knee": {
+          "x": 0.401,
+          "y": 0.35
+        },
+        "right_shoulder": {
+          "x": 0.419,
+          "y": 0.656
+        },
+        "subject2_head_top": {
+          "x": 0.68,
+          "y": 0.908
+        },
+        "subject2_left_ankle": {
+          "x": 0.626,
+          "y": 0.134
+        },
+        "subject2_left_elbow": {
+          "x": 0.518,
+          "y": 0.611
+        },
+        "subject2_left_foot": {
+          "x": 0.617,
+          "y": 0.107
+        },
+        "subject2_left_hand": {
+          "x": 0.545,
+          "y": 0.566
+        },
+        "subject2_left_hip": {
+          "x": 0.608,
+          "y": 0.503
+        },
+        "subject2_left_knee": {
+          "x": 0.599,
+          "y": 0.35
+        },
+        "subject2_left_shoulder": {
+          "x": 0.581,
+          "y": 0.656
+        },
+        "subject2_nose": {
+          "x": 0.68,
+          "y": 0.872
+        },
+        "subject2_right_ankle": {
+          "x": 0.734,
+          "y": 0.134
+        },
+        "subject2_right_elbow": {
+          "x": 0.842,
+          "y": 0.611
+        },
+        "subject2_right_foot": {
+          "x": 0.743,
+          "y": 0.107
+        },
+        "subject2_right_hand": {
+          "x": 0.815,
+          "y": 0.566
+        },
+        "subject2_right_hip": {
+          "x": 0.752,
+          "y": 0.503
+        },
+        "subject2_right_knee": {
+          "x": 0.761,
+          "y": 0.35
+        },
+        "subject2_right_shoulder": {
+          "x": 0.779,
+          "y": 0.656
+        },
+        "subject3_head_top": {
+          "x": 0.518,
+          "y": 0.908
+        },
+        "subject3_left_ankle": {
+          "x": 0.464,
+          "y": 0.134
+        },
+        "subject3_left_elbow": {
+          "x": 0.356,
+          "y": 0.611
+        },
+        "subject3_left_foot": {
+          "x": 0.455,
+          "y": 0.107
+        },
+        "subject3_left_hand": {
+          "x": 0.383,
+          "y": 0.566
+        },
+        "subject3_left_hip": {
+          "x": 0.446,
+          "y": 0.503
+        },
+        "subject3_left_knee": {
+          "x": 0.437,
+          "y": 0.35
+        },
+        "subject3_left_shoulder": {
+          "x": 0.419,
+          "y": 0.656
+        },
+        "subject3_nose": {
+          "x": 0.518,
+          "y": 0.872
+        },
+        "subject3_right_ankle": {
+          "x": 0.572,
+          "y": 0.134
+        },
+        "subject3_right_elbow": {
+          "x": 0.68,
+          "y": 0.611
+        },
+        "subject3_right_foot": {
+          "x": 0.581,
+          "y": 0.107
+        },
+        "subject3_right_hand": {
+          "x": 0.653,
+          "y": 0.566
+        },
+        "subject3_right_hip": {
+          "x": 0.59,
+          "y": 0.503
+        },
+        "subject3_right_knee": {
+          "x": 0.599,
+          "y": 0.35
+        },
+        "subject3_right_shoulder": {
+          "x": 0.617,
+          "y": 0.656
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 3,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.44,
+        "subjectHeight": 0.72,
+        "subjectWidth": 0.702
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "smallGroup",
+      "contextTags": [
+        "group"
+      ],
+      "faceZone": {
+        "height": 0.16,
+        "width": 0.48,
+        "x": 0.31,
+        "y": 0.74
+      },
+      "framing": "full",
+      "headroom": 0.1,
+      "id": "group-three-v2",
+      "instructionEN": "Three people stand in a row, evenly spaced.",
+      "instructionVI": "Ba người đứng thành hàng, cách đều nhau.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.37,
+          "y": 0.908
+        },
+        "left_ankle": {
+          "x": 0.316,
+          "y": 0.134
+        },
+        "left_elbow": {
+          "x": 0.208,
+          "y": 0.611
+        },
+        "left_foot": {
+          "x": 0.307,
+          "y": 0.107
+        },
+        "left_hand": {
+          "x": 0.235,
+          "y": 0.566
+        },
+        "left_hip": {
+          "x": 0.298,
+          "y": 0.503
+        },
+        "left_knee": {
+          "x": 0.289,
+          "y": 0.35
+        },
+        "left_shoulder": {
+          "x": 0.271,
+          "y": 0.656
+        },
+        "nose": {
+          "x": 0.37,
+          "y": 0.872
+        },
+        "right_ankle": {
+          "x": 0.424,
+          "y": 0.134
+        },
+        "right_elbow": {
+          "x": 0.532,
+          "y": 0.611
+        },
+        "right_foot": {
+          "x": 0.433,
+          "y": 0.107
+        },
+        "right_hand": {
+          "x": 0.505,
+          "y": 0.566
+        },
+        "right_hip": {
+          "x": 0.442,
+          "y": 0.503
+        },
+        "right_knee": {
+          "x": 0.451,
+          "y": 0.35
+        },
+        "right_shoulder": {
+          "x": 0.469,
+          "y": 0.656
+        },
+        "subject2_head_top": {
+          "x": 0.73,
+          "y": 0.908
+        },
+        "subject2_left_ankle": {
+          "x": 0.676,
+          "y": 0.134
+        },
+        "subject2_left_elbow": {
+          "x": 0.568,
+          "y": 0.611
+        },
+        "subject2_left_foot": {
+          "x": 0.667,
+          "y": 0.107
+        },
+        "subject2_left_hand": {
+          "x": 0.595,
+          "y": 0.566
+        },
+        "subject2_left_hip": {
+          "x": 0.658,
+          "y": 0.503
+        },
+        "subject2_left_knee": {
+          "x": 0.649,
+          "y": 0.35
+        },
+        "subject2_left_shoulder": {
+          "x": 0.631,
+          "y": 0.656
+        },
+        "subject2_nose": {
+          "x": 0.73,
+          "y": 0.872
+        },
+        "subject2_right_ankle": {
+          "x": 0.784,
+          "y": 0.134
+        },
+        "subject2_right_elbow": {
+          "x": 0.892,
+          "y": 0.611
+        },
+        "subject2_right_foot": {
+          "x": 0.793,
+          "y": 0.107
+        },
+        "subject2_right_hand": {
+          "x": 0.865,
+          "y": 0.566
+        },
+        "subject2_right_hip": {
+          "x": 0.802,
+          "y": 0.503
+        },
+        "subject2_right_knee": {
+          "x": 0.811,
+          "y": 0.35
+        },
+        "subject2_right_shoulder": {
+          "x": 0.829,
+          "y": 0.656
+        },
+        "subject3_head_top": {
+          "x": 0.568,
+          "y": 0.908
+        },
+        "subject3_left_ankle": {
+          "x": 0.514,
+          "y": 0.134
+        },
+        "subject3_left_elbow": {
+          "x": 0.406,
+          "y": 0.611
+        },
+        "subject3_left_foot": {
+          "x": 0.505,
+          "y": 0.107
+        },
+        "subject3_left_hand": {
+          "x": 0.433,
+          "y": 0.566
+        },
+        "subject3_left_hip": {
+          "x": 0.496,
+          "y": 0.503
+        },
+        "subject3_left_knee": {
+          "x": 0.487,
+          "y": 0.35
+        },
+        "subject3_left_shoulder": {
+          "x": 0.469,
+          "y": 0.656
+        },
+        "subject3_nose": {
+          "x": 0.568,
+          "y": 0.872
+        },
+        "subject3_right_ankle": {
+          "x": 0.622,
+          "y": 0.134
+        },
+        "subject3_right_elbow": {
+          "x": 0.73,
+          "y": 0.611
+        },
+        "subject3_right_foot": {
+          "x": 0.631,
+          "y": 0.107
+        },
+        "subject3_right_hand": {
+          "x": 0.703,
+          "y": 0.566
+        },
+        "subject3_right_hip": {
+          "x": 0.64,
+          "y": 0.503
+        },
+        "subject3_right_knee": {
+          "x": 0.649,
+          "y": 0.35
+        },
+        "subject3_right_shoulder": {
+          "x": 0.667,
+          "y": 0.656
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 3,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.44,
+        "subjectHeight": 0.72,
+        "subjectWidth": 0.702
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "closeUp"
+      ],
+      "faceZone": {
+        "height": 0.24,
+        "width": 0.4,
+        "x": 0.3,
+        "y": 0.64
+      },
+      "framing": "close",
+      "headroom": 0.2,
+      "id": "one-close-portrait-v1",
+      "instructionEN": "Frame the face with headroom above.",
+      "instructionVI": "Cận khuôn mặt, để khoảng trống phía trên đầu.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.5,
+          "y": 0.722
+        },
+        "left_ankle": {
+          "x": 0.446,
+          "y": 0.074
+        },
+        "left_elbow": {
+          "x": 0.338,
+          "y": 0.389
+        },
+        "left_foot": {
+          "x": 0.437,
+          "y": 0.047
+        },
+        "left_hand": {
+          "x": 0.365,
+          "y": 0.56
+        },
+        "left_hip": {
+          "x": 0.428,
+          "y": 0.326
+        },
+        "left_knee": {
+          "x": 0.419,
+          "y": 0.2
+        },
+        "left_shoulder": {
+          "x": 0.401,
+          "y": 0.434
+        },
+        "nose": {
+          "x": 0.5,
+          "y": 0.65
+        },
+        "right_ankle": {
+          "x": 0.554,
+          "y": 0.074
+        },
+        "right_elbow": {
+          "x": 0.662,
+          "y": 0.389
+        },
+        "right_foot": {
+          "x": 0.563,
+          "y": 0.047
+        },
+        "right_hand": {
+          "x": 0.635,
+          "y": 0.56
+        },
+        "right_hip": {
+          "x": 0.572,
+          "y": 0.326
+        },
+        "right_knee": {
+          "x": 0.581,
+          "y": 0.2
+        },
+        "right_shoulder": {
+          "x": 0.599,
+          "y": 0.434
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.8,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.38,
+        "subjectHeight": 0.54,
+        "subjectWidth": 0.504
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "closeUp"
+      ],
+      "faceZone": {
+        "height": 0.24,
+        "width": 0.4,
+        "x": 0.35,
+        "y": 0.68
+      },
+      "framing": "close",
+      "headroom": 0.22,
+      "id": "one-close-portrait-v10",
+      "instructionEN": "Frame the face with headroom above.",
+      "instructionVI": "Cận khuôn mặt, để khoảng trống phía trên đầu.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.55,
+          "y": 0.8
+        },
+        "left_ankle": {
+          "x": 0.49,
+          "y": 0.08
+        },
+        "left_elbow": {
+          "x": 0.37,
+          "y": 0.43
+        },
+        "left_foot": {
+          "x": 0.48,
+          "y": 0.05
+        },
+        "left_hand": {
+          "x": 0.4,
+          "y": 0.62
+        },
+        "left_hip": {
+          "x": 0.47,
+          "y": 0.36
+        },
+        "left_knee": {
+          "x": 0.46,
+          "y": 0.22
+        },
+        "left_shoulder": {
+          "x": 0.44,
+          "y": 0.48
+        },
+        "nose": {
+          "x": 0.55,
+          "y": 0.72
+        },
+        "right_ankle": {
+          "x": 0.61,
+          "y": 0.08
+        },
+        "right_elbow": {
+          "x": 0.73,
+          "y": 0.43
+        },
+        "right_foot": {
+          "x": 0.62,
+          "y": 0.05
+        },
+        "right_hand": {
+          "x": 0.7,
+          "y": 0.62
+        },
+        "right_hip": {
+          "x": 0.63,
+          "y": 0.36
+        },
+        "right_knee": {
+          "x": 0.64,
+          "y": 0.22
+        },
+        "right_shoulder": {
+          "x": 0.66,
+          "y": 0.48
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.8,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.42,
+        "subjectHeight": 0.6,
+        "subjectWidth": 0.56
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "closeUp"
+      ],
+      "faceZone": {
+        "height": 0.24,
+        "width": 0.4,
+        "x": 0.3,
+        "y": 0.68
+      },
+      "framing": "close",
+      "headroom": 0.22,
+      "id": "one-close-portrait-v15",
+      "instructionEN": "Frame the face with headroom above.",
+      "instructionVI": "Cận khuôn mặt, để khoảng trống phía trên đầu.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.5,
+          "y": 0.838
+        },
+        "left_ankle": {
+          "x": 0.434,
+          "y": 0.046
+        },
+        "left_elbow": {
+          "x": 0.302,
+          "y": 0.431
+        },
+        "left_foot": {
+          "x": 0.423,
+          "y": 0.013
+        },
+        "left_hand": {
+          "x": 0.335,
+          "y": 0.64
+        },
+        "left_hip": {
+          "x": 0.412,
+          "y": 0.354
+        },
+        "left_knee": {
+          "x": 0.401,
+          "y": 0.2
+        },
+        "left_shoulder": {
+          "x": 0.379,
+          "y": 0.486
+        },
+        "nose": {
+          "x": 0.5,
+          "y": 0.75
+        },
+        "right_ankle": {
+          "x": 0.566,
+          "y": 0.046
+        },
+        "right_elbow": {
+          "x": 0.698,
+          "y": 0.431
+        },
+        "right_foot": {
+          "x": 0.577,
+          "y": 0.013
+        },
+        "right_hand": {
+          "x": 0.665,
+          "y": 0.64
+        },
+        "right_hip": {
+          "x": 0.588,
+          "y": 0.354
+        },
+        "right_knee": {
+          "x": 0.599,
+          "y": 0.2
+        },
+        "right_shoulder": {
+          "x": 0.621,
+          "y": 0.486
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.8,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.42,
+        "subjectHeight": 0.66,
+        "subjectWidth": 0.616
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "closeUp"
+      ],
+      "faceZone": {
+        "height": 0.24,
+        "width": 0.4,
+        "x": 0.35,
+        "y": 0.68
+      },
+      "framing": "close",
+      "headroom": 0.22,
+      "id": "one-close-portrait-v16",
+      "instructionEN": "Frame the face with headroom above.",
+      "instructionVI": "Cận khuôn mặt, để khoảng trống phía trên đầu.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.55,
+          "y": 0.838
+        },
+        "left_ankle": {
+          "x": 0.484,
+          "y": 0.046
+        },
+        "left_elbow": {
+          "x": 0.352,
+          "y": 0.431
+        },
+        "left_foot": {
+          "x": 0.473,
+          "y": 0.013
+        },
+        "left_hand": {
+          "x": 0.385,
+          "y": 0.64
+        },
+        "left_hip": {
+          "x": 0.462,
+          "y": 0.354
+        },
+        "left_knee": {
+          "x": 0.451,
+          "y": 0.2
+        },
+        "left_shoulder": {
+          "x": 0.429,
+          "y": 0.486
+        },
+        "nose": {
+          "x": 0.55,
+          "y": 0.75
+        },
+        "right_ankle": {
+          "x": 0.616,
+          "y": 0.046
+        },
+        "right_elbow": {
+          "x": 0.748,
+          "y": 0.431
+        },
+        "right_foot": {
+          "x": 0.627,
+          "y": 0.013
+        },
+        "right_hand": {
+          "x": 0.715,
+          "y": 0.64
+        },
+        "right_hip": {
+          "x": 0.638,
+          "y": 0.354
+        },
+        "right_knee": {
+          "x": 0.649,
+          "y": 0.2
+        },
+        "right_shoulder": {
+          "x": 0.671,
+          "y": 0.486
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.8,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.42,
+        "subjectHeight": 0.66,
+        "subjectWidth": 0.616
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "closeUp"
+      ],
+      "faceZone": {
+        "height": 0.24,
+        "width": 0.4,
+        "x": 0.35,
+        "y": 0.64
+      },
+      "framing": "close",
+      "headroom": 0.2,
+      "id": "one-close-portrait-v2",
+      "instructionEN": "Frame the face with headroom above.",
+      "instructionVI": "Cận khuôn mặt, để khoảng trống phía trên đầu.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.55,
+          "y": 0.722
+        },
+        "left_ankle": {
+          "x": 0.496,
+          "y": 0.074
+        },
+        "left_elbow": {
+          "x": 0.388,
+          "y": 0.389
+        },
+        "left_foot": {
+          "x": 0.487,
+          "y": 0.047
+        },
+        "left_hand": {
+          "x": 0.415,
+          "y": 0.56
+        },
+        "left_hip": {
+          "x": 0.478,
+          "y": 0.326
+        },
+        "left_knee": {
+          "x": 0.469,
+          "y": 0.2
+        },
+        "left_shoulder": {
+          "x": 0.451,
+          "y": 0.434
+        },
+        "nose": {
+          "x": 0.55,
+          "y": 0.65
+        },
+        "right_ankle": {
+          "x": 0.604,
+          "y": 0.074
+        },
+        "right_elbow": {
+          "x": 0.712,
+          "y": 0.389
+        },
+        "right_foot": {
+          "x": 0.613,
+          "y": 0.047
+        },
+        "right_hand": {
+          "x": 0.685,
+          "y": 0.56
+        },
+        "right_hip": {
+          "x": 0.622,
+          "y": 0.326
+        },
+        "right_knee": {
+          "x": 0.631,
+          "y": 0.2
+        },
+        "right_shoulder": {
+          "x": 0.649,
+          "y": 0.434
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.8,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.38,
+        "subjectHeight": 0.54,
+        "subjectWidth": 0.504
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "closeUp"
+      ],
+      "faceZone": {
+        "height": 0.24,
+        "width": 0.4,
+        "x": 0.3,
+        "y": 0.68
+      },
+      "framing": "close",
+      "headroom": 0.22,
+      "id": "one-close-portrait-v21",
+      "instructionEN": "Frame the face with headroom above.",
+      "instructionVI": "Cận khuôn mặt, để khoảng trống phía trên đầu.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.5,
+          "y": 0.762
+        },
+        "left_ankle": {
+          "x": 0.446,
+          "y": 0.114
+        },
+        "left_elbow": {
+          "x": 0.338,
+          "y": 0.429
+        },
+        "left_foot": {
+          "x": 0.437,
+          "y": 0.087
+        },
+        "left_hand": {
+          "x": 0.365,
+          "y": 0.6
+        },
+        "left_hip": {
+          "x": 0.428,
+          "y": 0.366
+        },
+        "left_knee": {
+          "x": 0.419,
+          "y": 0.24
+        },
+        "left_shoulder": {
+          "x": 0.401,
+          "y": 0.474
+        },
+        "nose": {
+          "x": 0.5,
+          "y": 0.69
+        },
+        "right_ankle": {
+          "x": 0.554,
+          "y": 0.114
+        },
+        "right_elbow": {
+          "x": 0.662,
+          "y": 0.429
+        },
+        "right_foot": {
+          "x": 0.563,
+          "y": 0.087
+        },
+        "right_hand": {
+          "x": 0.635,
+          "y": 0.6
+        },
+        "right_hip": {
+          "x": 0.572,
+          "y": 0.366
+        },
+        "right_knee": {
+          "x": 0.581,
+          "y": 0.24
+        },
+        "right_shoulder": {
+          "x": 0.599,
+          "y": 0.474
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.8,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.42,
+        "subjectHeight": 0.54,
+        "subjectWidth": 0.504
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "closeUp"
+      ],
+      "faceZone": {
+        "height": 0.24,
+        "width": 0.4,
+        "x": 0.25,
+        "y": 0.68
+      },
+      "framing": "close",
+      "headroom": 0.22,
+      "id": "one-close-portrait-v22",
+      "instructionEN": "Frame the face with headroom above.",
+      "instructionVI": "Cận khuôn mặt, để khoảng trống phía trên đầu.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.45,
+          "y": 0.762
+        },
+        "left_ankle": {
+          "x": 0.396,
+          "y": 0.114
+        },
+        "left_elbow": {
+          "x": 0.288,
+          "y": 0.429
+        },
+        "left_foot": {
+          "x": 0.387,
+          "y": 0.087
+        },
+        "left_hand": {
+          "x": 0.315,
+          "y": 0.6
+        },
+        "left_hip": {
+          "x": 0.378,
+          "y": 0.366
+        },
+        "left_knee": {
+          "x": 0.369,
+          "y": 0.24
+        },
+        "left_shoulder": {
+          "x": 0.351,
+          "y": 0.474
+        },
+        "nose": {
+          "x": 0.45,
+          "y": 0.69
+        },
+        "right_ankle": {
+          "x": 0.504,
+          "y": 0.114
+        },
+        "right_elbow": {
+          "x": 0.612,
+          "y": 0.429
+        },
+        "right_foot": {
+          "x": 0.513,
+          "y": 0.087
+        },
+        "right_hand": {
+          "x": 0.585,
+          "y": 0.6
+        },
+        "right_hip": {
+          "x": 0.522,
+          "y": 0.366
+        },
+        "right_knee": {
+          "x": 0.531,
+          "y": 0.24
+        },
+        "right_shoulder": {
+          "x": 0.549,
+          "y": 0.474
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.8,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.45,
+        "centerY": 0.42,
+        "subjectHeight": 0.54,
+        "subjectWidth": 0.504
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "closeUp"
+      ],
+      "faceZone": {
+        "height": 0.24,
+        "width": 0.4,
+        "x": 0.3,
+        "y": 0.64
+      },
+      "framing": "close",
+      "headroom": 0.2,
+      "id": "one-close-portrait-v25",
+      "instructionEN": "Frame the face with headroom above.",
+      "instructionVI": "Cận khuôn mặt, để khoảng trống phía trên đầu.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.5,
+          "y": 0.76
+        },
+        "left_ankle": {
+          "x": 0.44,
+          "y": 0.04
+        },
+        "left_elbow": {
+          "x": 0.32,
+          "y": 0.39
+        },
+        "left_foot": {
+          "x": 0.43,
+          "y": 0.01
+        },
+        "left_hand": {
+          "x": 0.35,
+          "y": 0.58
+        },
+        "left_hip": {
+          "x": 0.42,
+          "y": 0.32
+        },
+        "left_knee": {
+          "x": 0.41,
+          "y": 0.18
+        },
+        "left_shoulder": {
+          "x": 0.39,
+          "y": 0.44
+        },
+        "nose": {
+          "x": 0.5,
+          "y": 0.68
+        },
+        "right_ankle": {
+          "x": 0.56,
+          "y": 0.04
+        },
+        "right_elbow": {
+          "x": 0.68,
+          "y": 0.39
+        },
+        "right_foot": {
+          "x": 0.57,
+          "y": 0.01
+        },
+        "right_hand": {
+          "x": 0.65,
+          "y": 0.58
+        },
+        "right_hip": {
+          "x": 0.58,
+          "y": 0.32
+        },
+        "right_knee": {
+          "x": 0.59,
+          "y": 0.18
+        },
+        "right_shoulder": {
+          "x": 0.61,
+          "y": 0.44
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.8,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.38,
+        "subjectHeight": 0.6,
+        "subjectWidth": 0.56
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "closeUp"
+      ],
+      "faceZone": {
+        "height": 0.24,
+        "width": 0.4,
+        "x": 0.25,
+        "y": 0.64
+      },
+      "framing": "close",
+      "headroom": 0.2,
+      "id": "one-close-portrait-v26",
+      "instructionEN": "Frame the face with headroom above.",
+      "instructionVI": "Cận khuôn mặt, để khoảng trống phía trên đầu.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.45,
+          "y": 0.76
+        },
+        "left_ankle": {
+          "x": 0.39,
+          "y": 0.04
+        },
+        "left_elbow": {
+          "x": 0.27,
+          "y": 0.39
+        },
+        "left_foot": {
+          "x": 0.38,
+          "y": 0.01
+        },
+        "left_hand": {
+          "x": 0.3,
+          "y": 0.58
+        },
+        "left_hip": {
+          "x": 0.37,
+          "y": 0.32
+        },
+        "left_knee": {
+          "x": 0.36,
+          "y": 0.18
+        },
+        "left_shoulder": {
+          "x": 0.34,
+          "y": 0.44
+        },
+        "nose": {
+          "x": 0.45,
+          "y": 0.68
+        },
+        "right_ankle": {
+          "x": 0.51,
+          "y": 0.04
+        },
+        "right_elbow": {
+          "x": 0.63,
+          "y": 0.39
+        },
+        "right_foot": {
+          "x": 0.52,
+          "y": 0.01
+        },
+        "right_hand": {
+          "x": 0.6,
+          "y": 0.58
+        },
+        "right_hip": {
+          "x": 0.53,
+          "y": 0.32
+        },
+        "right_knee": {
+          "x": 0.54,
+          "y": 0.18
+        },
+        "right_shoulder": {
+          "x": 0.56,
+          "y": 0.44
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.8,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.45,
+        "centerY": 0.38,
+        "subjectHeight": 0.6,
+        "subjectWidth": 0.56
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "closeUp"
+      ],
+      "faceZone": {
+        "height": 0.24,
+        "width": 0.4,
+        "x": 0.3,
+        "y": 0.68
+      },
+      "framing": "close",
+      "headroom": 0.22,
+      "id": "one-close-portrait-v27",
+      "instructionEN": "Frame the face with headroom above.",
+      "instructionVI": "Cận khuôn mặt, để khoảng trống phía trên đầu.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.5,
+          "y": 0.8
+        },
+        "left_ankle": {
+          "x": 0.44,
+          "y": 0.08
+        },
+        "left_elbow": {
+          "x": 0.32,
+          "y": 0.43
+        },
+        "left_foot": {
+          "x": 0.43,
+          "y": 0.05
+        },
+        "left_hand": {
+          "x": 0.35,
+          "y": 0.62
+        },
+        "left_hip": {
+          "x": 0.42,
+          "y": 0.36
+        },
+        "left_knee": {
+          "x": 0.41,
+          "y": 0.22
+        },
+        "left_shoulder": {
+          "x": 0.39,
+          "y": 0.48
+        },
+        "nose": {
+          "x": 0.5,
+          "y": 0.72
+        },
+        "right_ankle": {
+          "x": 0.56,
+          "y": 0.08
+        },
+        "right_elbow": {
+          "x": 0.68,
+          "y": 0.43
+        },
+        "right_foot": {
+          "x": 0.57,
+          "y": 0.05
+        },
+        "right_hand": {
+          "x": 0.65,
+          "y": 0.62
+        },
+        "right_hip": {
+          "x": 0.58,
+          "y": 0.36
+        },
+        "right_knee": {
+          "x": 0.59,
+          "y": 0.22
+        },
+        "right_shoulder": {
+          "x": 0.61,
+          "y": 0.48
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.8,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.42,
+        "subjectHeight": 0.6,
+        "subjectWidth": 0.56
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "fullBody"
+      ],
+      "faceZone": {
+        "height": 0.16,
+        "width": 0.2,
+        "x": 0.4,
+        "y": 0.74
+      },
+      "framing": "full",
+      "headroom": 0.1,
+      "id": "one-full-front-v1",
+      "instructionEN": "Stand straight and keep full body in frame.",
+      "instructionVI": "Đứng thẳng, giữ khoảng cách để toàn thân vừa khung.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.5,
+          "y": 0.908
+        },
+        "left_ankle": {
+          "x": 0.446,
+          "y": 0.134
+        },
+        "left_elbow": {
+          "x": 0.338,
+          "y": 0.611
+        },
+        "left_foot": {
+          "x": 0.437,
+          "y": 0.107
+        },
+        "left_hand": {
+          "x": 0.365,
+          "y": 0.566
+        },
+        "left_hip": {
+          "x": 0.428,
+          "y": 0.503
+        },
+        "left_knee": {
+          "x": 0.419,
+          "y": 0.35
+        },
+        "left_shoulder": {
+          "x": 0.401,
+          "y": 0.656
+        },
+        "nose": {
+          "x": 0.5,
+          "y": 0.872
+        },
+        "right_ankle": {
+          "x": 0.554,
+          "y": 0.134
+        },
+        "right_elbow": {
+          "x": 0.662,
+          "y": 0.611
+        },
+        "right_foot": {
+          "x": 0.563,
+          "y": 0.107
+        },
+        "right_hand": {
+          "x": 0.635,
+          "y": 0.566
+        },
+        "right_hip": {
+          "x": 0.572,
+          "y": 0.503
+        },
+        "right_knee": {
+          "x": 0.581,
+          "y": 0.35
+        },
+        "right_shoulder": {
+          "x": 0.599,
+          "y": 0.656
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.44,
+        "subjectHeight": 0.738,
+        "subjectWidth": 0.306
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "fullBody"
+      ],
+      "faceZone": {
+        "height": 0.16,
+        "width": 0.2,
+        "x": 0.45,
+        "y": 0.74
+      },
+      "framing": "full",
+      "headroom": 0.1,
+      "id": "one-full-front-v2",
+      "instructionEN": "Stand straight and keep full body in frame.",
+      "instructionVI": "Đứng thẳng, giữ khoảng cách để toàn thân vừa khung.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.55,
+          "y": 0.908
+        },
+        "left_ankle": {
+          "x": 0.496,
+          "y": 0.134
+        },
+        "left_elbow": {
+          "x": 0.388,
+          "y": 0.611
+        },
+        "left_foot": {
+          "x": 0.487,
+          "y": 0.107
+        },
+        "left_hand": {
+          "x": 0.415,
+          "y": 0.566
+        },
+        "left_hip": {
+          "x": 0.478,
+          "y": 0.503
+        },
+        "left_knee": {
+          "x": 0.469,
+          "y": 0.35
+        },
+        "left_shoulder": {
+          "x": 0.451,
+          "y": 0.656
+        },
+        "nose": {
+          "x": 0.55,
+          "y": 0.872
+        },
+        "right_ankle": {
+          "x": 0.604,
+          "y": 0.134
+        },
+        "right_elbow": {
+          "x": 0.712,
+          "y": 0.611
+        },
+        "right_foot": {
+          "x": 0.613,
+          "y": 0.107
+        },
+        "right_hand": {
+          "x": 0.685,
+          "y": 0.566
+        },
+        "right_hip": {
+          "x": 0.622,
+          "y": 0.503
+        },
+        "right_knee": {
+          "x": 0.631,
+          "y": 0.35
+        },
+        "right_shoulder": {
+          "x": 0.649,
+          "y": 0.656
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.44,
+        "subjectHeight": 0.738,
+        "subjectWidth": 0.306
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait"
+      ],
+      "faceZone": {
+        "height": 0.18,
+        "width": 0.28,
+        "x": 0.36,
+        "y": 0.7
+      },
+      "framing": "medium",
+      "headroom": 0.14,
+      "id": "one-medium-front-v1",
+      "instructionEN": "Move closer, crop at the hips.",
+      "instructionVI": "Tiến lại gần, cắt ngang hông.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.5,
+          "y": 0.85
+        },
+        "left_ankle": {
+          "x": 0.446,
+          "y": 0.094
+        },
+        "left_elbow": {
+          "x": 0.338,
+          "y": 0.517
+        },
+        "left_foot": {
+          "x": 0.437,
+          "y": 0.067
+        },
+        "left_hand": {
+          "x": 0.365,
+          "y": 0.562
+        },
+        "left_hip": {
+          "x": 0.428,
+          "y": 0.436
+        },
+        "left_knee": {
+          "x": 0.419,
+          "y": 0.274
+        },
+        "left_shoulder": {
+          "x": 0.401,
+          "y": 0.562
+        },
+        "nose": {
+          "x": 0.5,
+          "y": 0.778
+        },
+        "right_ankle": {
+          "x": 0.554,
+          "y": 0.094
+        },
+        "right_elbow": {
+          "x": 0.662,
+          "y": 0.517
+        },
+        "right_foot": {
+          "x": 0.563,
+          "y": 0.067
+        },
+        "right_hand": {
+          "x": 0.635,
+          "y": 0.562
+        },
+        "right_hip": {
+          "x": 0.572,
+          "y": 0.436
+        },
+        "right_knee": {
+          "x": 0.581,
+          "y": 0.274
+        },
+        "right_shoulder": {
+          "x": 0.599,
+          "y": 0.562
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.4,
+        "subjectHeight": 0.63,
+        "subjectWidth": 0.396
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait"
+      ],
+      "faceZone": {
+        "height": 0.18,
+        "width": 0.28,
+        "x": 0.41,
+        "y": 0.7
+      },
+      "framing": "medium",
+      "headroom": 0.14,
+      "id": "one-medium-front-v2",
+      "instructionEN": "Move closer, crop at the hips.",
+      "instructionVI": "Tiến lại gần, cắt ngang hông.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.55,
+          "y": 0.85
+        },
+        "left_ankle": {
+          "x": 0.496,
+          "y": 0.094
+        },
+        "left_elbow": {
+          "x": 0.388,
+          "y": 0.517
+        },
+        "left_foot": {
+          "x": 0.487,
+          "y": 0.067
+        },
+        "left_hand": {
+          "x": 0.415,
+          "y": 0.562
+        },
+        "left_hip": {
+          "x": 0.478,
+          "y": 0.436
+        },
+        "left_knee": {
+          "x": 0.469,
+          "y": 0.274
+        },
+        "left_shoulder": {
+          "x": 0.451,
+          "y": 0.562
+        },
+        "nose": {
+          "x": 0.55,
+          "y": 0.778
+        },
+        "right_ankle": {
+          "x": 0.604,
+          "y": 0.094
+        },
+        "right_elbow": {
+          "x": 0.712,
+          "y": 0.517
+        },
+        "right_foot": {
+          "x": 0.613,
+          "y": 0.067
+        },
+        "right_hand": {
+          "x": 0.685,
+          "y": 0.562
+        },
+        "right_hip": {
+          "x": 0.622,
+          "y": 0.436
+        },
+        "right_knee": {
+          "x": 0.631,
+          "y": 0.274
+        },
+        "right_shoulder": {
+          "x": 0.649,
+          "y": 0.562
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.4,
+        "subjectHeight": 0.63,
+        "subjectWidth": 0.396
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait"
+      ],
+      "faceZone": {
+        "height": 0.18,
+        "width": 0.28,
+        "x": 0.36,
+        "y": 0.74
+      },
+      "framing": "medium",
+      "headroom": 0.16,
+      "id": "one-medium-front-v21",
+      "instructionEN": "Move closer, crop at the hips.",
+      "instructionVI": "Tiến lại gần, cắt ngang hông.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.5,
+          "y": 0.89
+        },
+        "left_ankle": {
+          "x": 0.446,
+          "y": 0.134
+        },
+        "left_elbow": {
+          "x": 0.338,
+          "y": 0.557
+        },
+        "left_foot": {
+          "x": 0.437,
+          "y": 0.107
+        },
+        "left_hand": {
+          "x": 0.365,
+          "y": 0.602
+        },
+        "left_hip": {
+          "x": 0.428,
+          "y": 0.476
+        },
+        "left_knee": {
+          "x": 0.419,
+          "y": 0.314
+        },
+        "left_shoulder": {
+          "x": 0.401,
+          "y": 0.602
+        },
+        "nose": {
+          "x": 0.5,
+          "y": 0.818
+        },
+        "right_ankle": {
+          "x": 0.554,
+          "y": 0.134
+        },
+        "right_elbow": {
+          "x": 0.662,
+          "y": 0.557
+        },
+        "right_foot": {
+          "x": 0.563,
+          "y": 0.107
+        },
+        "right_hand": {
+          "x": 0.635,
+          "y": 0.602
+        },
+        "right_hip": {
+          "x": 0.572,
+          "y": 0.476
+        },
+        "right_knee": {
+          "x": 0.581,
+          "y": 0.314
+        },
+        "right_shoulder": {
+          "x": 0.599,
+          "y": 0.602
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.44,
+        "subjectHeight": 0.63,
+        "subjectWidth": 0.396
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait"
+      ],
+      "faceZone": {
+        "height": 0.18,
+        "width": 0.28,
+        "x": 0.31,
+        "y": 0.74
+      },
+      "framing": "medium",
+      "headroom": 0.16,
+      "id": "one-medium-front-v22",
+      "instructionEN": "Move closer, crop at the hips.",
+      "instructionVI": "Tiến lại gần, cắt ngang hông.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.45,
+          "y": 0.89
+        },
+        "left_ankle": {
+          "x": 0.396,
+          "y": 0.134
+        },
+        "left_elbow": {
+          "x": 0.288,
+          "y": 0.557
+        },
+        "left_foot": {
+          "x": 0.387,
+          "y": 0.107
+        },
+        "left_hand": {
+          "x": 0.315,
+          "y": 0.602
+        },
+        "left_hip": {
+          "x": 0.378,
+          "y": 0.476
+        },
+        "left_knee": {
+          "x": 0.369,
+          "y": 0.314
+        },
+        "left_shoulder": {
+          "x": 0.351,
+          "y": 0.602
+        },
+        "nose": {
+          "x": 0.45,
+          "y": 0.818
+        },
+        "right_ankle": {
+          "x": 0.504,
+          "y": 0.134
+        },
+        "right_elbow": {
+          "x": 0.612,
+          "y": 0.557
+        },
+        "right_foot": {
+          "x": 0.513,
+          "y": 0.107
+        },
+        "right_hand": {
+          "x": 0.585,
+          "y": 0.602
+        },
+        "right_hip": {
+          "x": 0.522,
+          "y": 0.476
+        },
+        "right_knee": {
+          "x": 0.531,
+          "y": 0.314
+        },
+        "right_shoulder": {
+          "x": 0.549,
+          "y": 0.602
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.45,
+        "centerY": 0.44,
+        "subjectHeight": 0.63,
+        "subjectWidth": 0.396
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait"
+      ],
+      "faceZone": {
+        "height": 0.18,
+        "width": 0.28,
+        "x": 0.36,
+        "y": 0.7
+      },
+      "framing": "medium",
+      "headroom": 0.14,
+      "id": "one-medium-front-v25",
+      "instructionEN": "Move closer, crop at the hips.",
+      "instructionVI": "Tiến lại gần, cắt ngang hông.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.5,
+          "y": 0.9
+        },
+        "left_ankle": {
+          "x": 0.44,
+          "y": 0.06
+        },
+        "left_elbow": {
+          "x": 0.32,
+          "y": 0.53
+        },
+        "left_foot": {
+          "x": 0.43,
+          "y": 0.03
+        },
+        "left_hand": {
+          "x": 0.35,
+          "y": 0.58
+        },
+        "left_hip": {
+          "x": 0.42,
+          "y": 0.44
+        },
+        "left_knee": {
+          "x": 0.41,
+          "y": 0.26
+        },
+        "left_shoulder": {
+          "x": 0.39,
+          "y": 0.58
+        },
+        "nose": {
+          "x": 0.5,
+          "y": 0.82
+        },
+        "right_ankle": {
+          "x": 0.56,
+          "y": 0.06
+        },
+        "right_elbow": {
+          "x": 0.68,
+          "y": 0.53
+        },
+        "right_foot": {
+          "x": 0.57,
+          "y": 0.03
+        },
+        "right_hand": {
+          "x": 0.65,
+          "y": 0.58
+        },
+        "right_hip": {
+          "x": 0.58,
+          "y": 0.44
+        },
+        "right_knee": {
+          "x": 0.59,
+          "y": 0.26
+        },
+        "right_shoulder": {
+          "x": 0.61,
+          "y": 0.58
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.4,
+        "subjectHeight": 0.7,
+        "subjectWidth": 0.44
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait"
+      ],
+      "faceZone": {
+        "height": 0.18,
+        "width": 0.28,
+        "x": 0.31,
+        "y": 0.7
+      },
+      "framing": "medium",
+      "headroom": 0.14,
+      "id": "one-medium-front-v26",
+      "instructionEN": "Move closer, crop at the hips.",
+      "instructionVI": "Tiến lại gần, cắt ngang hông.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.45,
+          "y": 0.9
+        },
+        "left_ankle": {
+          "x": 0.39,
+          "y": 0.06
+        },
+        "left_elbow": {
+          "x": 0.27,
+          "y": 0.53
+        },
+        "left_foot": {
+          "x": 0.38,
+          "y": 0.03
+        },
+        "left_hand": {
+          "x": 0.3,
+          "y": 0.58
+        },
+        "left_hip": {
+          "x": 0.37,
+          "y": 0.44
+        },
+        "left_knee": {
+          "x": 0.36,
+          "y": 0.26
+        },
+        "left_shoulder": {
+          "x": 0.34,
+          "y": 0.58
+        },
+        "nose": {
+          "x": 0.45,
+          "y": 0.82
+        },
+        "right_ankle": {
+          "x": 0.51,
+          "y": 0.06
+        },
+        "right_elbow": {
+          "x": 0.63,
+          "y": 0.53
+        },
+        "right_foot": {
+          "x": 0.52,
+          "y": 0.03
+        },
+        "right_hand": {
+          "x": 0.6,
+          "y": 0.58
+        },
+        "right_hip": {
+          "x": 0.53,
+          "y": 0.44
+        },
+        "right_knee": {
+          "x": 0.54,
+          "y": 0.26
+        },
+        "right_shoulder": {
+          "x": 0.56,
+          "y": 0.58
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.3,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.45,
+        "centerY": 0.4,
+        "subjectHeight": 0.7,
+        "subjectWidth": 0.44
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "seated"
+      ],
+      "faceZone": {
+        "height": 0.16,
+        "width": 0.24,
+        "x": 0.38,
+        "y": 0.72
+      },
+      "framing": "medium",
+      "headroom": 0.12,
+      "id": "one-seated-v1",
+      "instructionEN": "Sit up straight with eyes level with the camera.",
+      "instructionVI": "Ngồi thẳng lưng, mắt ngang máy.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.5,
+          "y": 0.915
+        },
+        "left_ankle": {
+          "x": 0.446,
+          "y": 0.267
+        },
+        "left_elbow": {
+          "x": 0.338,
+          "y": 0.645
+        },
+        "left_foot": {
+          "x": 0.437,
+          "y": 0.24
+        },
+        "left_hand": {
+          "x": 0.365,
+          "y": 0.51
+        },
+        "left_hip": {
+          "x": 0.428,
+          "y": 0.51
+        },
+        "left_knee": {
+          "x": 0.419,
+          "y": 0.465
+        },
+        "left_shoulder": {
+          "x": 0.401,
+          "y": 0.663
+        },
+        "nose": {
+          "x": 0.5,
+          "y": 0.879
+        },
+        "right_ankle": {
+          "x": 0.554,
+          "y": 0.267
+        },
+        "right_elbow": {
+          "x": 0.662,
+          "y": 0.645
+        },
+        "right_foot": {
+          "x": 0.563,
+          "y": 0.24
+        },
+        "right_hand": {
+          "x": 0.635,
+          "y": 0.51
+        },
+        "right_hip": {
+          "x": 0.572,
+          "y": 0.51
+        },
+        "right_knee": {
+          "x": 0.581,
+          "y": 0.465
+        },
+        "right_shoulder": {
+          "x": 0.599,
+          "y": 0.663
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.2,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.51,
+        "subjectHeight": 0.558,
+        "subjectWidth": 0.378
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "seated"
+      ],
+      "faceZone": {
+        "height": 0.16,
+        "width": 0.24,
+        "x": 0.43,
+        "y": 0.72
+      },
+      "framing": "medium",
+      "headroom": 0.12,
+      "id": "one-seated-v2",
+      "instructionEN": "Sit up straight with eyes level with the camera.",
+      "instructionVI": "Ngồi thẳng lưng, mắt ngang máy.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.55,
+          "y": 0.915
+        },
+        "left_ankle": {
+          "x": 0.496,
+          "y": 0.267
+        },
+        "left_elbow": {
+          "x": 0.388,
+          "y": 0.645
+        },
+        "left_foot": {
+          "x": 0.487,
+          "y": 0.24
+        },
+        "left_hand": {
+          "x": 0.415,
+          "y": 0.51
+        },
+        "left_hip": {
+          "x": 0.478,
+          "y": 0.51
+        },
+        "left_knee": {
+          "x": 0.469,
+          "y": 0.465
+        },
+        "left_shoulder": {
+          "x": 0.451,
+          "y": 0.663
+        },
+        "nose": {
+          "x": 0.55,
+          "y": 0.879
+        },
+        "right_ankle": {
+          "x": 0.604,
+          "y": 0.267
+        },
+        "right_elbow": {
+          "x": 0.712,
+          "y": 0.645
+        },
+        "right_foot": {
+          "x": 0.613,
+          "y": 0.24
+        },
+        "right_hand": {
+          "x": 0.685,
+          "y": 0.51
+        },
+        "right_hip": {
+          "x": 0.622,
+          "y": 0.51
+        },
+        "right_knee": {
+          "x": 0.631,
+          "y": 0.465
+        },
+        "right_shoulder": {
+          "x": 0.649,
+          "y": 0.663
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.2,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.51,
+        "subjectHeight": 0.558,
+        "subjectWidth": 0.378
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "profile"
+      ],
+      "faceZone": {
+        "height": 0.15,
+        "width": 0.16,
+        "x": 0.42,
+        "y": 0.75
+      },
+      "framing": "full",
+      "headroom": 0.1,
+      "id": "one-side-v1",
+      "instructionEN": "Lean slightly and look toward the camera.",
+      "instructionVI": "Nghiêng người nhẹ, nhìn về phía máy.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.554,
+          "y": 0.908
+        },
+        "left_ankle": {
+          "x": 0.5,
+          "y": 0.134
+        },
+        "left_elbow": {
+          "x": 0.392,
+          "y": 0.611
+        },
+        "left_foot": {
+          "x": 0.491,
+          "y": 0.107
+        },
+        "left_hand": {
+          "x": 0.419,
+          "y": 0.566
+        },
+        "left_hip": {
+          "x": 0.482,
+          "y": 0.503
+        },
+        "left_knee": {
+          "x": 0.473,
+          "y": 0.35
+        },
+        "left_shoulder": {
+          "x": 0.455,
+          "y": 0.656
+        },
+        "nose": {
+          "x": 0.554,
+          "y": 0.872
+        },
+        "right_ankle": {
+          "x": 0.608,
+          "y": 0.134
+        },
+        "right_elbow": {
+          "x": 0.716,
+          "y": 0.611
+        },
+        "right_foot": {
+          "x": 0.617,
+          "y": 0.107
+        },
+        "right_hand": {
+          "x": 0.689,
+          "y": 0.566
+        },
+        "right_hip": {
+          "x": 0.626,
+          "y": 0.503
+        },
+        "right_knee": {
+          "x": 0.635,
+          "y": 0.35
+        },
+        "right_shoulder": {
+          "x": 0.653,
+          "y": 0.656
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "side",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.44,
+        "subjectHeight": 0.738,
+        "subjectWidth": 0.252
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "profile"
+      ],
+      "faceZone": {
+        "height": 0.15,
+        "width": 0.16,
+        "x": 0.47,
+        "y": 0.75
+      },
+      "framing": "full",
+      "headroom": 0.1,
+      "id": "one-side-v2",
+      "instructionEN": "Lean slightly and look toward the camera.",
+      "instructionVI": "Nghiêng người nhẹ, nhìn về phía máy.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.604,
+          "y": 0.908
+        },
+        "left_ankle": {
+          "x": 0.55,
+          "y": 0.134
+        },
+        "left_elbow": {
+          "x": 0.442,
+          "y": 0.611
+        },
+        "left_foot": {
+          "x": 0.541,
+          "y": 0.107
+        },
+        "left_hand": {
+          "x": 0.469,
+          "y": 0.566
+        },
+        "left_hip": {
+          "x": 0.532,
+          "y": 0.503
+        },
+        "left_knee": {
+          "x": 0.523,
+          "y": 0.35
+        },
+        "left_shoulder": {
+          "x": 0.505,
+          "y": 0.656
+        },
+        "nose": {
+          "x": 0.604,
+          "y": 0.872
+        },
+        "right_ankle": {
+          "x": 0.658,
+          "y": 0.134
+        },
+        "right_elbow": {
+          "x": 0.766,
+          "y": 0.611
+        },
+        "right_foot": {
+          "x": 0.667,
+          "y": 0.107
+        },
+        "right_hand": {
+          "x": 0.739,
+          "y": 0.566
+        },
+        "right_hip": {
+          "x": 0.676,
+          "y": 0.503
+        },
+        "right_knee": {
+          "x": 0.685,
+          "y": 0.35
+        },
+        "right_shoulder": {
+          "x": 0.703,
+          "y": 0.656
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "side",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.44,
+        "subjectHeight": 0.738,
+        "subjectWidth": 0.252
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "fullBody"
+      ],
+      "faceZone": {
+        "height": 0.16,
+        "width": 0.2,
+        "x": 0.42,
+        "y": 0.74
+      },
+      "framing": "full",
+      "headroom": 0.1,
+      "id": "one-threequarter-v1",
+      "instructionEN": "Turn three quarters toward the camera.",
+      "instructionVI": "Xoay nhẹ 3/4 người về phía máy.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.545,
+          "y": 0.908
+        },
+        "left_ankle": {
+          "x": 0.491,
+          "y": 0.134
+        },
+        "left_elbow": {
+          "x": 0.383,
+          "y": 0.611
+        },
+        "left_foot": {
+          "x": 0.482,
+          "y": 0.107
+        },
+        "left_hand": {
+          "x": 0.41,
+          "y": 0.566
+        },
+        "left_hip": {
+          "x": 0.473,
+          "y": 0.503
+        },
+        "left_knee": {
+          "x": 0.464,
+          "y": 0.35
+        },
+        "left_shoulder": {
+          "x": 0.446,
+          "y": 0.656
+        },
+        "nose": {
+          "x": 0.545,
+          "y": 0.872
+        },
+        "right_ankle": {
+          "x": 0.599,
+          "y": 0.134
+        },
+        "right_elbow": {
+          "x": 0.707,
+          "y": 0.611
+        },
+        "right_foot": {
+          "x": 0.608,
+          "y": 0.107
+        },
+        "right_hand": {
+          "x": 0.68,
+          "y": 0.566
+        },
+        "right_hip": {
+          "x": 0.617,
+          "y": 0.503
+        },
+        "right_knee": {
+          "x": 0.626,
+          "y": 0.35
+        },
+        "right_shoulder": {
+          "x": 0.644,
+          "y": 0.656
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "threeQuarter",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.52,
+        "centerY": 0.44,
+        "subjectHeight": 0.72,
+        "subjectWidth": 0.288
+      }
+    },
+    {
+      "cameraHints": [
+        "eyeLevel"
+      ],
+      "category": "onePerson",
+      "contextTags": [
+        "portrait",
+        "fullBody"
+      ],
+      "faceZone": {
+        "height": 0.16,
+        "width": 0.2,
+        "x": 0.47,
+        "y": 0.74
+      },
+      "framing": "full",
+      "headroom": 0.1,
+      "id": "one-threequarter-v2",
+      "instructionEN": "Turn three quarters toward the camera.",
+      "instructionVI": "Xoay nhẹ 3/4 người về phía máy.",
+      "landmarks": {
+        "head_top": {
+          "x": 0.595,
+          "y": 0.908
+        },
+        "left_ankle": {
+          "x": 0.541,
+          "y": 0.134
+        },
+        "left_elbow": {
+          "x": 0.433,
+          "y": 0.611
+        },
+        "left_foot": {
+          "x": 0.532,
+          "y": 0.107
+        },
+        "left_hand": {
+          "x": 0.46,
+          "y": 0.566
+        },
+        "left_hip": {
+          "x": 0.523,
+          "y": 0.503
+        },
+        "left_knee": {
+          "x": 0.514,
+          "y": 0.35
+        },
+        "left_shoulder": {
+          "x": 0.496,
+          "y": 0.656
+        },
+        "nose": {
+          "x": 0.595,
+          "y": 0.872
+        },
+        "right_ankle": {
+          "x": 0.649,
+          "y": 0.134
+        },
+        "right_elbow": {
+          "x": 0.757,
+          "y": 0.611
+        },
+        "right_foot": {
+          "x": 0.658,
+          "y": 0.107
+        },
+        "right_hand": {
+          "x": 0.73,
+          "y": 0.566
+        },
+        "right_hip": {
+          "x": 0.667,
+          "y": 0.503
+        },
+        "right_knee": {
+          "x": 0.676,
+          "y": 0.35
+        },
+        "right_shoulder": {
+          "x": 0.694,
+          "y": 0.656
+        }
+      },
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.9,
+        "minLuma": 0.25
+      },
+      "orientation": "threeQuarter",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.57,
+        "centerY": 0.44,
+        "subjectHeight": 0.72,
+        "subjectWidth": 0.288
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.12,
+        "y": 0.18
+      },
+      "framing": "close",
+      "headroom": 0.06,
+      "id": "product-close-v1",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "threeQuarter",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.46,
+        "subjectHeight": 0.576,
+        "subjectWidth": 0.72
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.17,
+        "y": 0.22
+      },
+      "framing": "close",
+      "headroom": 0.08,
+      "id": "product-close-v10",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "threeQuarter",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.5,
+        "subjectHeight": 0.64,
+        "subjectWidth": 0.8
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.12,
+        "y": 0.26
+      },
+      "framing": "close",
+      "headroom": 0.06,
+      "id": "product-close-v11",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "threeQuarter",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.54,
+        "subjectHeight": 0.64,
+        "subjectWidth": 0.8
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.17,
+        "y": 0.26
+      },
+      "framing": "close",
+      "headroom": 0.06,
+      "id": "product-close-v12",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "threeQuarter",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.54,
+        "subjectHeight": 0.64,
+        "subjectWidth": 0.8
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.12,
+        "y": 0.18
+      },
+      "framing": "close",
+      "headroom": 0.06,
+      "id": "product-close-v13",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "threeQuarter",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.46,
+        "subjectHeight": 0.704,
+        "subjectWidth": 0.88
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.17,
+        "y": 0.18
+      },
+      "framing": "close",
+      "headroom": 0.06,
+      "id": "product-close-v14",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "threeQuarter",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.46,
+        "subjectHeight": 0.704,
+        "subjectWidth": 0.88
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.12,
+        "y": 0.22
+      },
+      "framing": "close",
+      "headroom": 0.08,
+      "id": "product-close-v15",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "threeQuarter",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.5,
+        "subjectHeight": 0.704,
+        "subjectWidth": 0.88
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.17,
+        "y": 0.22
+      },
+      "framing": "close",
+      "headroom": 0.08,
+      "id": "product-close-v16",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "threeQuarter",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.5,
+        "subjectHeight": 0.704,
+        "subjectWidth": 0.88
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.12,
+        "y": 0.26
+      },
+      "framing": "close",
+      "headroom": 0.06,
+      "id": "product-close-v17",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "threeQuarter",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.54,
+        "subjectHeight": 0.704,
+        "subjectWidth": 0.88
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.17,
+        "y": 0.26
+      },
+      "framing": "close",
+      "headroom": 0.06,
+      "id": "product-close-v18",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "threeQuarter",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.54,
+        "subjectHeight": 0.704,
+        "subjectWidth": 0.88
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.17,
+        "y": 0.18
+      },
+      "framing": "close",
+      "headroom": 0.06,
+      "id": "product-close-v2",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "threeQuarter",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.46,
+        "subjectHeight": 0.576,
+        "subjectWidth": 0.72
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.12,
+        "y": 0.22
+      },
+      "framing": "close",
+      "headroom": 0.08,
+      "id": "product-close-v21",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.5,
+        "subjectHeight": 0.576,
+        "subjectWidth": 0.72
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.07,
+        "y": 0.22
+      },
+      "framing": "close",
+      "headroom": 0.08,
+      "id": "product-close-v22",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.45,
+        "centerY": 0.5,
+        "subjectHeight": 0.576,
+        "subjectWidth": 0.72
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.12,
+        "y": 0.26
+      },
+      "framing": "close",
+      "headroom": 0.06,
+      "id": "product-close-v23",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.54,
+        "subjectHeight": 0.576,
+        "subjectWidth": 0.72
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.07,
+        "y": 0.26
+      },
+      "framing": "close",
+      "headroom": 0.06,
+      "id": "product-close-v24",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.45,
+        "centerY": 0.54,
+        "subjectHeight": 0.576,
+        "subjectWidth": 0.72
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.12,
+        "y": 0.18
+      },
+      "framing": "close",
+      "headroom": 0.06,
+      "id": "product-close-v25",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.46,
+        "subjectHeight": 0.64,
+        "subjectWidth": 0.8
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.07,
+        "y": 0.18
+      },
+      "framing": "close",
+      "headroom": 0.06,
+      "id": "product-close-v26",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.45,
+        "centerY": 0.46,
+        "subjectHeight": 0.64,
+        "subjectWidth": 0.8
+      }
+    },
+    {
+      "cameraHints": [
+        "macro"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product",
+        "macro"
+      ],
+      "faceZone": {
+        "height": 0.5,
+        "width": 0.76,
+        "x": 0.12,
+        "y": 0.22
+      },
+      "framing": "close",
+      "headroom": 0.08,
+      "id": "product-close-v27",
+      "instructionEN": "Close-up on the product with a clean background.",
+      "instructionVI": "Cận chi tiết sản phẩm, nền gọn.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 2.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.5,
+        "subjectHeight": 0.64,
+        "subjectWidth": 0.8
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.2,
+        "y": 0.26
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "product-table-v1",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.48,
+        "subjectHeight": 0.468,
+        "subjectWidth": 0.594
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.25,
+        "y": 0.3
+      },
+      "framing": "medium",
+      "headroom": 0.1,
+      "id": "product-table-v10",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.52,
+        "subjectHeight": 0.52,
+        "subjectWidth": 0.66
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.2,
+        "y": 0.34
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "product-table-v11",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.56,
+        "subjectHeight": 0.52,
+        "subjectWidth": 0.66
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.25,
+        "y": 0.34
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "product-table-v12",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.56,
+        "subjectHeight": 0.52,
+        "subjectWidth": 0.66
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.2,
+        "y": 0.26
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "product-table-v13",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.48,
+        "subjectHeight": 0.572,
+        "subjectWidth": 0.726
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.25,
+        "y": 0.26
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "product-table-v14",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.48,
+        "subjectHeight": 0.572,
+        "subjectWidth": 0.726
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.2,
+        "y": 0.3
+      },
+      "framing": "medium",
+      "headroom": 0.1,
+      "id": "product-table-v15",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.52,
+        "subjectHeight": 0.572,
+        "subjectWidth": 0.726
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.25,
+        "y": 0.3
+      },
+      "framing": "medium",
+      "headroom": 0.1,
+      "id": "product-table-v16",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.52,
+        "subjectHeight": 0.572,
+        "subjectWidth": 0.726
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.2,
+        "y": 0.34
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "product-table-v17",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.56,
+        "subjectHeight": 0.572,
+        "subjectWidth": 0.726
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.25,
+        "y": 0.34
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "product-table-v18",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.56,
+        "subjectHeight": 0.572,
+        "subjectWidth": 0.726
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.25,
+        "y": 0.26
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "product-table-v2",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "top",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.55,
+        "centerY": 0.48,
+        "subjectHeight": 0.468,
+        "subjectWidth": 0.594
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.2,
+        "y": 0.3
+      },
+      "framing": "medium",
+      "headroom": 0.1,
+      "id": "product-table-v21",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.52,
+        "subjectHeight": 0.468,
+        "subjectWidth": 0.594
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.15,
+        "y": 0.3
+      },
+      "framing": "medium",
+      "headroom": 0.1,
+      "id": "product-table-v22",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.45,
+        "centerY": 0.52,
+        "subjectHeight": 0.468,
+        "subjectWidth": 0.594
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.2,
+        "y": 0.34
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "product-table-v23",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.56,
+        "subjectHeight": 0.468,
+        "subjectWidth": 0.594
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.15,
+        "y": 0.34
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "product-table-v24",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.45,
+        "centerY": 0.56,
+        "subjectHeight": 0.468,
+        "subjectWidth": 0.594
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.2,
+        "y": 0.26
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "product-table-v25",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.48,
+        "subjectHeight": 0.52,
+        "subjectWidth": 0.66
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.15,
+        "y": 0.26
+      },
+      "framing": "medium",
+      "headroom": 0.08,
+      "id": "product-table-v26",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.45,
+        "centerY": 0.48,
+        "subjectHeight": 0.52,
+        "subjectWidth": 0.66
+      }
+    },
+    {
+      "cameraHints": [
+        "overhead"
+      ],
+      "category": "product",
+      "contextTags": [
+        "product"
+      ],
+      "faceZone": {
+        "height": 0.4,
+        "width": 0.6,
+        "x": 0.2,
+        "y": 0.3
+      },
+      "framing": "medium",
+      "headroom": 0.1,
+      "id": "product-table-v27",
+      "instructionEN": "Center the product and shoot from above.",
+      "instructionVI": "Đặt sản phẩm giữa khung, chụp từ trên xuống.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": true,
+        "maxLuma": 0.9,
+        "minLuma": 0.3
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.4,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.52,
+        "subjectHeight": 0.52,
+        "subjectWidth": 0.66
+      }
+    },
+    {
+      "cameraHints": [
+        "level"
+      ],
+      "category": "scenery",
+      "contextTags": [
+        "scenery"
+      ],
+      "faceZone": {
+        "height": 0.3,
+        "width": 0.9,
+        "x": 0.05,
+        "y": 0.38
+      },
+      "framing": "wide",
+      "headroom": 0.16,
+      "id": "scenery-horizon-v1",
+      "instructionEN": "Keep the horizon straight and balanced.",
+      "instructionVI": "Giữ đường chân trời thẳng và cân bằng.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.51,
+        "subjectHeight": 0.495,
+        "subjectWidth": 0.846
+      }
+    },
+    {
+      "cameraHints": [
+        "level"
+      ],
+      "category": "scenery",
+      "contextTags": [
+        "scenery"
+      ],
+      "faceZone": {
+        "height": 0.3,
+        "width": 0.9,
+        "x": 0.05,
+        "y": 0.46
+      },
+      "framing": "wide",
+      "headroom": 0.16,
+      "id": "scenery-horizon-v11",
+      "instructionEN": "Keep the horizon straight and balanced.",
+      "instructionVI": "Giữ đường chân trời thẳng và cân bằng.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "front",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.59,
+        "subjectHeight": 0.55,
+        "subjectWidth": 0.94
+      }
+    },
+    {
+      "cameraHints": [
+        "level"
+      ],
+      "category": "scenery",
+      "contextTags": [
+        "scenery"
+      ],
+      "faceZone": {
+        "height": 0.3,
+        "width": 0.9,
+        "x": 0.05,
+        "y": 0.42
+      },
+      "framing": "wide",
+      "headroom": 0.18,
+      "id": "scenery-horizon-v21",
+      "instructionEN": "Keep the horizon straight and balanced.",
+      "instructionVI": "Giữ đường chân trời thẳng và cân bằng.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.55,
+        "subjectHeight": 0.495,
+        "subjectWidth": 0.846
+      }
+    },
+    {
+      "cameraHints": [
+        "level"
+      ],
+      "category": "scenery",
+      "contextTags": [
+        "scenery"
+      ],
+      "faceZone": {
+        "height": 0.3,
+        "width": 0.9,
+        "x": 0.05,
+        "y": 0.46
+      },
+      "framing": "wide",
+      "headroom": 0.16,
+      "id": "scenery-horizon-v23",
+      "instructionEN": "Keep the horizon straight and balanced.",
+      "instructionVI": "Giữ đường chân trời thẳng và cân bằng.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.59,
+        "subjectHeight": 0.495,
+        "subjectWidth": 0.846
+      }
+    },
+    {
+      "cameraHints": [
+        "level"
+      ],
+      "category": "scenery",
+      "contextTags": [
+        "scenery"
+      ],
+      "faceZone": {
+        "height": 0.3,
+        "width": 0.9,
+        "x": 0.05,
+        "y": 0.38
+      },
+      "framing": "wide",
+      "headroom": 0.16,
+      "id": "scenery-horizon-v25",
+      "instructionEN": "Keep the horizon straight and balanced.",
+      "instructionVI": "Giữ đường chân trời thẳng và cân bằng.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.51,
+        "subjectHeight": 0.55,
+        "subjectWidth": 0.94
+      }
+    },
+    {
+      "cameraHints": [
+        "level"
+      ],
+      "category": "scenery",
+      "contextTags": [
+        "scenery"
+      ],
+      "faceZone": {
+        "height": 0.3,
+        "width": 0.9,
+        "x": 0.05,
+        "y": 0.42
+      },
+      "framing": "wide",
+      "headroom": 0.18,
+      "id": "scenery-horizon-v27",
+      "instructionEN": "Keep the horizon straight and balanced.",
+      "instructionVI": "Giữ đường chân trời thẳng và cân bằng.",
+      "landmarks": {},
+      "lightingConstraints": {
+        "avoidBacklit": false,
+        "maxLuma": 0.95,
+        "minLuma": 0.35
+      },
+      "orientation": "mirror",
+      "recommendedZoom": 1.0,
+      "schemaVersion": 1,
+      "source": "owned-synthetic",
+      "subjectCount": 1,
+      "targetFraming": {
+        "centerX": 0.5,
+        "centerY": 0.55,
+        "subjectHeight": 0.55,
+        "subjectWidth": 0.94
+      }
+    }
+  ]
+}

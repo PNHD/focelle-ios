@@ -65,12 +65,15 @@ enum CameraTimer: Int, CaseIterable {
     case ten = 10
 }
 
-// The requested tier. `.maximum` means "the highest this active camera and
-// format can deliver" — never a promise of a specific pixel count, since
-// that varies by device and format. See ResolvedResolution for the
-// truthful, dimension-based value this resolves to.
+// The requested tier. `.standard` is the smallest meaningful tier, `.balanced`
+// is the 24 MP class (delivered only through deferred photo processing), and
+// `.maximum` is the highest this active camera and format can deliver — never
+// a promise of a specific pixel count, since that varies by device and format.
+// See ResolvedResolution for the truthful, dimension-based value a tier
+// resolves to.
 enum CameraResolution: String, CaseIterable, Sendable {
     case standard
+    case balanced
     case maximum
 }
 
@@ -79,9 +82,38 @@ struct PhotoDimensions: Equatable, Sendable {
     let height: Int32
 
     var pixels: Int64 { Int64(width) * Int64(height) }
+}
 
-    static func standard(in options: [PhotoDimensions]) -> PhotoDimensions? {
-        options.min { abs($0.pixels - 24_000_000) < abs($1.pixels - 24_000_000) }
+// Every meaningful photo dimension the active format exposes, preserved in
+// ascending pixel order, plus the three named tiers derived from it:
+// standard = smallest, balanced = the 24 MP class (nearest to 24 MP when it is
+// a genuinely distinct, larger tier), maximum = largest. A tier is nil when
+// the format has no such distinct option — never invented.
+struct PhotoCapabilityTiers: Equatable, Sendable {
+    let supported: [PhotoDimensions]
+    let standard: PhotoDimensions?
+    let balanced: PhotoDimensions?
+    let maximum: PhotoDimensions?
+
+    static func resolve(from options: [PhotoDimensions]) -> PhotoCapabilityTiers {
+        let supported =
+            options
+            .filter { $0.pixels > 0 }
+            .sorted { $0.pixels < $1.pixels }
+        let standard = supported.first
+        let nearestTwentyFour = supported.min {
+            abs($0.pixels - 24_000_000) < abs($1.pixels - 24_000_000)
+        }
+        let balanced =
+            nearestTwentyFour.flatMap {
+                $0.pixels > (standard?.pixels ?? 0) ? $0 : nil
+            }
+        return PhotoCapabilityTiers(
+            supported: supported,
+            standard: standard,
+            balanced: balanced,
+            maximum: supported.last
+        )
     }
 }
 
@@ -92,6 +124,13 @@ enum ResolutionDowngradeReason: String, Equatable, Sendable {
     case unsupportedByActiveFormat
     // AVCapturePhotoOutput's own ceiling capped the request further.
     case outputLimited
+    // The 24 MP tier is only serviced through deferred photo processing, and
+    // this output does not support it.
+    case deferredUnavailable
+    // A filter or non-4:3 crop must be applied to the immediately delivered
+    // photo; the deferred proxy path cannot honor that, so the capture
+    // truthfully falls back to the standard tier.
+    case immediateProcessingRequired
 }
 
 // The truthful three-way split this feature is built on: what the user
@@ -132,23 +171,43 @@ struct ResolvedResolution: Equatable, Sendable {
     }
 
     // The explicit, deterministic resolution rule: standard always maps to
-    // the standard tier; maximum maps to the distinct larger tier when one
-    // exists, else falls back to standard rather than silently claiming a
-    // capability that isn't there. The output's own ceiling is applied last.
+    // the smallest tier; balanced maps to the distinct 24 MP tier when one
+    // exists and deferred delivery is supported (else a truthful fallback to
+    // standard); maximum maps to the distinct larger tier when one exists,
+    // else falls back to standard rather than silently claiming a capability
+    // that isn't there. The output's own ceiling is applied last.
     static func resolve(
         requested: CameraResolution,
         standard: PhotoDimensions?,
+        balanced: PhotoDimensions?,
         maximum: PhotoDimensions?,
-        outputLimit: PhotoDimensions?
+        outputLimit: PhotoDimensions?,
+        deferredSupported: Bool
     ) -> ResolvedResolution {
         guard let standard else {
             return ResolvedResolution(requested: requested, dimensions: nil, downgradeReason: .none)
         }
+        let distinctBalanced = balanced.map { $0.pixels > standard.pixels } ?? false
         let distinctMaximum = hasDistinctMaximum(standard: standard, maximum: maximum)
-        var ideal = requested == .maximum ? (maximum ?? standard) : standard
+        var ideal = standard
         var reason = ResolutionDowngradeReason.none
-        if requested == .maximum, !distinctMaximum {
-            reason = .unsupportedByActiveFormat
+        switch requested {
+        case .standard:
+            break
+        case .balanced:
+            if distinctBalanced, deferredSupported {
+                ideal = balanced ?? standard
+            } else if !distinctBalanced {
+                reason = .unsupportedByActiveFormat
+            } else {
+                reason = .deferredUnavailable
+            }
+        case .maximum:
+            if distinctMaximum {
+                ideal = maximum ?? standard
+            } else {
+                reason = .unsupportedByActiveFormat
+            }
         }
         if let outputLimit, outputLimit.pixels > 0, ideal.pixels > outputLimit.pixels {
             ideal = outputLimit
@@ -159,17 +218,59 @@ struct ResolvedResolution: Equatable, Sendable {
 }
 
 // Privacy-safe record of what actually happened at capture: the requested
-// tier, what was resolved ahead of the shot, and what the saved photo turned
-// out to contain. Dimensions and enum labels only — never image bytes,
-// scene content, or identifiers.
+// tier, what the capture was configured to request, what the deferred proxy
+// contained, and what the finished photo turned out to contain. Dimensions
+// and enum labels only — never image bytes, scene content, or identifiers.
 struct CaptureResolutionRecord: Equatable, Sendable {
     let requested: CameraResolution
+    // What the capture was configured to request from AVFoundation.
     let resolvedDimensions: PhotoDimensions?
+    // Pixel dimensions of the deferred proxy JPEG the system delivered
+    // instead of the full photo (nil for the normal immediate path).
+    let proxyResolvedDimensions: PhotoDimensions?
+    // What the finished photo actually contains: the saved JPEG for the
+    // normal path, or Photos' completed asset dimensions when read access is
+    // already available. Nil for an unconfirmed deferred photo.
     let savedDimensions: PhotoDimensions?
     let downgradeReason: ResolutionDowngradeReason
 
     var isDowngraded: Bool { downgradeReason != .none }
     var requestedLabel: String { requested.rawValue }
+    var isDeferredProxy: Bool { proxyResolvedDimensions != nil }
+    var isFinalized: Bool { savedDimensions != nil }
+
+    init(
+        requested: CameraResolution,
+        resolvedDimensions: PhotoDimensions?,
+        proxyResolvedDimensions: PhotoDimensions? = nil,
+        savedDimensions: PhotoDimensions?,
+        downgradeReason: ResolutionDowngradeReason = .none
+    ) {
+        self.requested = requested
+        self.resolvedDimensions = resolvedDimensions
+        self.proxyResolvedDimensions = proxyResolvedDimensions
+        self.savedDimensions = savedDimensions
+        self.downgradeReason = downgradeReason
+    }
+
+    // Pure transition used only when existing Photos read access can observe
+    // a deferred asset. Until then the capture must not be reported as final.
+    static func deferredConfirmation(
+        for pending: CaptureResolutionRecord,
+        assetDimensions: PhotoDimensions?
+    ) -> CaptureResolutionRecord? {
+        guard pending.isDeferredProxy, !pending.isFinalized,
+            let assetDimensions, assetDimensions.pixels > 0
+        else { return nil }
+        guard assetDimensions != pending.proxyResolvedDimensions else { return nil }
+        return CaptureResolutionRecord(
+            requested: pending.requested,
+            resolvedDimensions: pending.resolvedDimensions,
+            proxyResolvedDimensions: pending.proxyResolvedDimensions,
+            savedDimensions: assetDimensions,
+            downgradeReason: pending.downgradeReason
+        )
+    }
 }
 
 // A single immutable snapshot taken on `queue` at the moment of an actual
@@ -180,6 +281,46 @@ struct CaptureResolutionRecord: Equatable, Sendable {
 struct CaptureResolutionSnapshot: Equatable, Sendable {
     let resolved: ResolvedResolution
     let capabilityGeneration: Int
+}
+
+// Bounded ownership of deferred Photos confirmations. Add-only permission can
+// create an asset but cannot reliably read it back, so production inserts only
+// when read access already exists; it never prompts for broader access merely
+// to fill telemetry.
+struct DeferredConfirmationTracker: Equatable, Sendable {
+    struct Entry: Equatable, Sendable {
+        let record: CaptureResolutionRecord
+        let deadline: TimeInterval
+    }
+
+    private(set) var entries: [String: Entry] = [:]
+
+    mutating func insert(identifier: String, record: CaptureResolutionRecord, deadline: TimeInterval) {
+        entries[identifier] = Entry(record: record, deadline: deadline)
+    }
+
+    mutating func confirm(identifier: String, dimensions: PhotoDimensions?) -> CaptureResolutionRecord? {
+        guard let entry = entries[identifier],
+            let finalized = CaptureResolutionRecord.deferredConfirmation(
+                for: entry.record,
+                assetDimensions: dimensions
+            )
+        else { return nil }
+        entries[identifier] = nil
+        return finalized
+    }
+
+    mutating func cancel(identifier: String) {
+        entries[identifier] = nil
+    }
+
+    mutating func cancelAll() {
+        entries.removeAll()
+    }
+
+    mutating func expire(now: TimeInterval) {
+        entries = entries.filter { $0.value.deadline > now }
+    }
 }
 
 enum CameraRotation {
@@ -203,6 +344,16 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         case unavailable
     }
 
+    private struct PendingCapture {
+        let snapshot: CaptureResolutionSnapshot
+        let ratio: CameraRatio
+        let filter: FilterRecipe?
+        let filterIntensity: Double
+        let saveOriginal: Bool
+        let location: CLLocation?
+        let expectsDeferred: Bool
+    }
+
     @Published private(set) var state: State = .starting
     @Published private(set) var isCapturing = false
     @Published private(set) var maxZoom: CGFloat = 1
@@ -215,19 +366,21 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     // Not directly settable from outside — setRequestedResolution(_:) is the
     // one path in, so this can no longer drift from AppSettings the way a
     // freely-writable property could.
-    @Published private(set) var resolution: CameraResolution = .standard {
+    @Published private(set) var resolution: CameraResolution = .balanced {
         didSet {
             guard resolution != oldValue else { return }
             recomputeResolvedResolution()
         }
     }
     @Published private(set) var resolvedResolution = ResolvedResolution(
-        requested: .standard,
+        requested: .balanced,
         dimensions: nil,
         downgradeReason: .none
     )
     @Published private(set) var standardModeLabel = "—"
+    @Published private(set) var balancedModeLabel = "—"
     @Published private(set) var maximumModeLabel = "—"
+    @Published private(set) var supportsBalancedResolution = false
     @Published private(set) var lastCaptureResolution: CaptureResolutionRecord?
     @Published var showsGrid = true
     @Published var savesOriginal = false
@@ -237,7 +390,12 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     @Published private(set) var filteredPreview: CGImage?
     @Published private(set) var filterThumbnails: [String: CGImage] = [:]
     @Published private(set) var measurement: SceneMeasurement?
+    @Published private(set) var sceneDescriptor: SceneDescriptor?
     @Published private(set) var guidance: Guidance?
+    @Published private(set) var coachPlans: [CoachPlan] = []
+    @Published private(set) var selectedCoachPlan: CoachPlan?
+    @Published private(set) var coachSession: PlanSession?
+    @Published private(set) var coachPlanApplied = false
     @Published private(set) var filterSaveSequence = 0
     @Published private(set) var latestThumbnail: CGImage?
     @Published var notice: String?
@@ -250,34 +408,37 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private let filterRenderer = FilterRenderer()
     private let analyzer = OnDeviceAnalyzer()
     private var input: AVCaptureDeviceInput?
+    private let deferredObserver = DeferredCompletionObserver()
+    private var deferredConfirmationTracker = DeferredConfirmationTracker()
+    private let captureStateLock = NSLock()
+    private var pendingCaptures: [Int64: PendingCapture] = [:]
+    private var captureTimeouts: [Int64: DispatchWorkItem] = [:]
     private var configured = false
     private var rotationAngle: CGFloat = 90
-    private var pendingRatio: CameraRatio = .fourThree
-    private var pendingFilter: FilterRecipe?
-    private var pendingFilterIntensity = 1.0
-    private var pendingSaveOriginal = false
-    private var pendingLocation: CLLocation?
-    private var pendingCaptureSnapshot = CaptureResolutionSnapshot(
-        resolved: ResolvedResolution(requested: .standard, dimensions: nil, downgradeReason: .none),
-        capabilityGeneration: 0
-    )
     // Queue-owned canonical capability state — currentCaptureSnapshot(for:)
     // reads these directly so a capture is never configured from stale or
     // independently-drifted dimensions. Not `private`: regression tests
     // simulate a capability change without a real device.
     var standardDimensions: PhotoDimensions?
+    var balancedDimensions: PhotoDimensions?
     var maximumDimensions: PhotoDimensions?
     var outputLimitDimensions: PhotoDimensions?
+    // Every meaningful dimension the active format exposes, ascending.
+    var supportedPhotoDimensions: [PhotoDimensions] = []
+    var deferredDeliverySupported = false
     // Bumped every time configureCapabilities(for:) runs (initial configure,
     // camera switch); ties a snapshot to the exact capability set it came from.
     var capabilityGeneration = 0
-    // Main-thread mirrors of the three dimensions above, so resolution's
+    // Main-thread mirrors of the capability state above, so resolution's
     // didSet can recompute the UI-facing resolvedResolution without reaching
     // across queue-owned state. Never used to configure an actual capture.
     // Not `private`: regression tests simulate a capability change.
     var cachedStandardDimensions: PhotoDimensions?
+    var cachedBalancedDimensions: PhotoDimensions?
     var cachedMaximumDimensions: PhotoDimensions?
     var cachedOutputLimit: PhotoDimensions?
+    var cachedDeferredDeliverySupported = false
+    private var cachedCapabilityGeneration = 0
     private var previewRecipe: FilterRecipe?
     private var previewIntensity = 1.0
     private var lastPreviewTime = CMTime.zero
@@ -285,10 +446,10 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var lastThumbnailTime = CMTime.zero
     private var lastAnalysisTime = CMTime.zero
     private var stabilizer = MeasurementStabilizer()
+    private var descriptorStabilizer = DescriptorStabilizer()
     private var guidanceEngine = GuidanceEngine()
     private var pendingAIPreview: (@Sendable (Data?) -> Void)?
     private var cloudPlan: AICompositionPlan?
-    private var selectedSubjectPoint: CGPoint?
     // Not `private`: regression tests confirm a resume can't leave this wedged.
     var analysisInFlight = false
     var analysisGeneration = 0
@@ -299,6 +460,10 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     override init() {
         super.init()
+        deferredObserver.onChange = { [weak self] change in
+            self?.handlePhotoLibraryChange(change)
+        }
+        PHPhotoLibrary.shared().register(deferredObserver)
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(sessionWasInterrupted),
@@ -320,6 +485,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     deinit {
+        cancelPendingCaptureState()
+        PHPhotoLibrary.shared().unregisterChangeObserver(deferredObserver)
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -386,6 +553,15 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     func switchCamera() {
+        // This runs before queuing reconfiguration, so an immediately
+        // following Apply sees no valid PlanSession for the old camera.
+        coachPlans = []
+        selectedCoachPlan = nil
+        coachSession = nil
+        coachPlanApplied = false
+        guidance = nil
+        deferredConfirmationTracker.cancelAll()
+        cancelPendingCaptureState()
         queue.async { [weak self] in
             guard let self, let oldInput = self.input else { return }
             let newPosition: AVCaptureDevice.Position = oldInput.device.position == .back ? .front : .back
@@ -401,7 +577,6 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             if self.session.canAddInput(newInput) {
                 self.session.addInput(newInput)
                 self.input = newInput
-                self.selectedSubjectPoint = nil
                 self.resetAnalysisForResume()
                 self.configureCapabilities(for: device)
                 self.updateVideoConnection(for: device)
@@ -422,25 +597,45 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     // Not `private`: regression tests simulate a capability change directly.
     func recomputeResolvedResolution() {
+        let balancedResolution = ResolvedResolution.resolve(
+            requested: .balanced,
+            standard: cachedStandardDimensions,
+            balanced: cachedBalancedDimensions,
+            maximum: cachedMaximumDimensions,
+            outputLimit: cachedOutputLimit,
+            deferredSupported: cachedDeferredDeliverySupported
+        )
+        balancedModeLabel = balancedResolution.label
+        supportsBalancedResolution =
+            !balancedResolution.isDowngraded && balancedResolution.dimensions != nil
+        let maximumResolution = ResolvedResolution.resolve(
+            requested: .maximum,
+            standard: cachedStandardDimensions,
+            balanced: cachedBalancedDimensions,
+            maximum: cachedMaximumDimensions,
+            outputLimit: cachedOutputLimit,
+            deferredSupported: cachedDeferredDeliverySupported
+        )
+        maximumModeLabel = maximumResolution.label
+        supportsMaximumResolution =
+            !maximumResolution.isDowngraded
+            && maximumResolution.dimensions != nil
         resolvedResolution = ResolvedResolution.resolve(
             requested: resolution,
             standard: cachedStandardDimensions,
+            balanced: cachedBalancedDimensions,
             maximum: cachedMaximumDimensions,
-            outputLimit: cachedOutputLimit
+            outputLimit: cachedOutputLimit,
+            deferredSupported: cachedDeferredDeliverySupported
         )
         standardModeLabel =
             ResolvedResolution.resolve(
                 requested: .standard,
                 standard: cachedStandardDimensions,
+                balanced: cachedBalancedDimensions,
                 maximum: cachedMaximumDimensions,
-                outputLimit: cachedOutputLimit
-            ).label
-        maximumModeLabel =
-            ResolvedResolution.resolve(
-                requested: .maximum,
-                standard: cachedStandardDimensions,
-                maximum: cachedMaximumDimensions,
-                outputLimit: cachedOutputLimit
+                outputLimit: cachedOutputLimit,
+                deferredSupported: cachedDeferredDeliverySupported
             ).label
     }
 
@@ -450,13 +645,62 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     // reconstructed a second time for the saved record (see capture()).
     // Not `private` so regression tests can drive it directly.
     func currentCaptureSnapshot(for requested: CameraResolution) -> CaptureResolutionSnapshot {
-        let resolved = ResolvedResolution.resolve(
+        Self.captureSnapshot(
             requested: requested,
+            requiresImmediateProcessing: false,
             standard: standardDimensions,
+            balanced: balancedDimensions,
             maximum: maximumDimensions,
-            outputLimit: outputLimitDimensions
+            outputLimit: outputLimitDimensions,
+            deferredSupported: deferredDeliverySupported,
+            capabilityGeneration: capabilityGeneration
         )
-        return CaptureResolutionSnapshot(resolved: resolved, capabilityGeneration: capabilityGeneration)
+    }
+
+    // The pure capture-time resolution rule, including the one constraint
+    // deferred delivery cannot honor: in-app post-processing (a filter or a
+    // non-4:3 crop) needs the immediately delivered photo, so a balanced
+    // capture with that constraint truthfully resolves to the standard tier.
+    static func captureSnapshot(
+        requested: CameraResolution,
+        requiresImmediateProcessing: Bool,
+        standard: PhotoDimensions?,
+        balanced: PhotoDimensions?,
+        maximum: PhotoDimensions?,
+        outputLimit: PhotoDimensions?,
+        deferredSupported: Bool,
+        capabilityGeneration: Int
+    ) -> CaptureResolutionSnapshot {
+        var snapshot = CaptureResolutionSnapshot(
+            resolved: ResolvedResolution.resolve(
+                requested: requested,
+                standard: standard,
+                balanced: balanced,
+                maximum: maximum,
+                outputLimit: outputLimit,
+                deferredSupported: deferredSupported
+            ),
+            capabilityGeneration: capabilityGeneration
+        )
+        if requiresImmediateProcessing, requested == .balanced, snapshot.resolved.downgradeReason == .none {
+            let fallback = ResolvedResolution.resolve(
+                requested: .standard,
+                standard: standard,
+                balanced: balanced,
+                maximum: maximum,
+                outputLimit: outputLimit,
+                deferredSupported: deferredSupported
+            )
+            snapshot = CaptureResolutionSnapshot(
+                resolved: ResolvedResolution(
+                    requested: .balanced,
+                    dimensions: fallback.dimensions,
+                    downgradeReason: .immediateProcessingRequired
+                ),
+                capabilityGeneration: capabilityGeneration
+            )
+        }
+        return snapshot
     }
 
     func setZoom(_ requested: CGFloat) {
@@ -497,6 +741,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         let selectedResolution = resolution
         let selectedFilter = activeFilter
         let selectedFilterIntensity = filterIntensity
+        let selectedSaveOriginal = savesOriginal
+        let selectedLocation = photoLocation
         isCapturing = true
 
         queue.async { [weak self] in
@@ -508,7 +754,19 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             // not a main-thread cache — so this exact snapshot is what both
             // configures the output below and becomes the saved record; a
             // concurrent camera switch can't leave the two disagreeing.
-            let snapshot = self.currentCaptureSnapshot(for: selectedResolution)
+            // A filter or a non-4:3 crop is applied to the immediately
+            // delivered photo; the deferred 24 MP proxy path cannot honor
+            // that, so the snapshot accounts for it up front.
+            let snapshot = Self.captureSnapshot(
+                requested: selectedResolution,
+                requiresImmediateProcessing: selectedFilter != nil || selectedRatio != .fourThree,
+                standard: self.standardDimensions,
+                balanced: self.balancedDimensions,
+                maximum: self.maximumDimensions,
+                outputLimit: self.outputLimitDimensions,
+                deferredSupported: self.deferredDeliverySupported,
+                capabilityGeneration: self.capabilityGeneration
+            )
             // capturePhoto raises NSInvalidArgumentException for any setting the output
             // does not allow, and an ObjC exception cannot be caught in Swift, so every
             // value below is taken from what the output itself reports.
@@ -528,12 +786,22 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             {
                 connection.videoRotationAngle = self.rotationAngle
             }
-            self.pendingRatio = selectedRatio
-            self.pendingFilter = selectedFilter
-            self.pendingFilterIntensity = selectedFilterIntensity
-            self.pendingSaveOriginal = self.savesOriginal
-            self.pendingLocation = self.photoLocation
-            self.pendingCaptureSnapshot = snapshot
+            let expectsDeferred =
+                snapshot.resolved.requested == .balanced
+                && snapshot.resolved.downgradeReason == .none
+                && self.deferredDeliverySupported
+            self.registerPendingCapture(
+                id: settings.uniqueID,
+                context: PendingCapture(
+                    snapshot: snapshot,
+                    ratio: selectedRatio,
+                    filter: selectedFilter,
+                    filterIntensity: selectedFilterIntensity,
+                    saveOriginal: selectedSaveOriginal,
+                    location: selectedLocation,
+                    expectsDeferred: expectsDeferred
+                )
+            )
             self.photoOutput.capturePhoto(with: settings, delegate: self)
         }
     }
@@ -574,16 +842,20 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     // refreshLocalGuidanceAfterSettings(), which need the same clean slate.
     // Not `private` so regression tests can drive it directly.
     func resetAnalysisForResume() {
+        cancelPendingCaptureState()
         analysisInFlight = false
         analysisGeneration += 1
         analyzer.resetTracking()
         stabilizer = MeasurementStabilizer()
+        descriptorStabilizer = DescriptorStabilizer()
         guidanceEngine = GuidanceEngine()
         #if DEBUG
             lifecycleLog.debug("analyzer reset for resume (generation=\(self.analysisGeneration, privacy: .public))")
         #endif
         DispatchQueue.main.async {
+            self.deferredConfirmationTracker.cancelAll()
             self.measurement = nil
+            self.sceneDescriptor = nil
             self.guidance = nil
         }
     }
@@ -594,6 +866,13 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         func debugSeedGuidanceForTesting(measurement: SceneMeasurement?, guidance: Guidance?) {
             self.measurement = measurement
             self.guidance = guidance
+        }
+
+        func debugSeedCoachForTesting(plan: CoachPlan, session: PlanSession, applied: Bool) {
+            coachPlans = [plan]
+            selectedCoachPlan = plan
+            coachSession = session
+            coachPlanApplied = applied
         }
     #endif
 
@@ -722,17 +1001,186 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
+    private func registerPendingCapture(id: Int64, context: PendingCapture) {
+        captureStateLock.lock()
+        pendingCaptures[id] = context
+        captureTimeouts[id]?.cancel()
+        let timeout = DispatchWorkItem { [weak self] in
+            self?.cancelPendingCapture(id: id, notice: "camera.error.capture")
+        }
+        captureTimeouts[id] = timeout
+        captureStateLock.unlock()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: timeout)
+    }
+
+    private func claimPendingCapture(id: Int64, deferred: Bool) -> PendingCapture? {
+        captureStateLock.lock()
+        defer { captureStateLock.unlock() }
+        guard let context = pendingCaptures[id], context.expectsDeferred == deferred else { return nil }
+        pendingCaptures[id] = nil
+        captureTimeouts[id]?.cancel()
+        captureTimeouts[id] = nil
+        return context
+    }
+
+    private func cancelPendingCapture(id: Int64, notice: String? = nil) {
+        captureStateLock.lock()
+        let existed = pendingCaptures.removeValue(forKey: id) != nil
+        captureTimeouts[id]?.cancel()
+        captureTimeouts[id] = nil
+        captureStateLock.unlock()
+        guard existed else { return }
+        if let notice { publish(notice: notice) }
+        finishCapture()
+    }
+
+    private func cancelPendingCaptureState() {
+        captureStateLock.lock()
+        let hadPending = !pendingCaptures.isEmpty
+        pendingCaptures.removeAll()
+        let timeouts = Array(captureTimeouts.values)
+        captureTimeouts.removeAll()
+        captureStateLock.unlock()
+        for timeout in timeouts { timeout.cancel() }
+        if hadPending { finishCapture() }
+    }
+
+    // Coach V2 local planning. Analyze only snapshots the zoom/exposure
+    // baseline and creates plans — it never mutates the camera.
+    func analyzeSceneV2() {
+        guard let descriptor = sceneDescriptor else {
+            publish(notice: "coach.error.noScene")
+            return
+        }
+        let templates = PoseTemplateStore.shared.templates
+        let capabilities = LocalPlanner.Capabilities(
+            maxZoom: Double(maxZoom),
+            aspectRatio: Double(ratio.value)
+        )
+        let plans = LocalPlanner.plan(
+            scene: descriptor,
+            intent: Self.framingIntent(for: descriptor),
+            templates: templates,
+            capabilities: capabilities,
+            selectedSubject: descriptor.subjectRect
+        )
+        guard !plans.isEmpty else {
+            publish(notice: "coach.error.noPlans")
+            return
+        }
+        coachSession = PlanSession(
+            baselineZoom: Double(zoom),
+            baselineExposureBias: Double(exposure),
+            capabilityGeneration: cachedCapabilityGeneration
+        )
+        coachPlans = plans
+        coachPlanApplied = false
+        selectCoachPlan(plans[0].id)
+    }
+
+    func selectCoachPlan(_ id: String) {
+        guard let plan = coachPlans.first(where: { $0.id == id }) else { return }
+        selectedCoachPlan = plan
+        coachPlanApplied = false
+        updateCoachGuidance(for: plan, descriptor: sceneDescriptor)
+    }
+
+    // Explicit Apply uses absolute zoom/exposure values from the plan —
+    // never relative to the current value, so repeated cycles cannot drift.
+    func applyCoachPlan(_ id: String) {
+        guard let plan = coachPlans.first(where: { $0.id == id }),
+            let session = coachSession,
+            session.isValid(for: cachedCapabilityGeneration)
+        else { return }
+        coachSession = session.applying(
+            zoom: plan.recommendedZoom,
+            exposureBias: plan.recommendedExposureBias
+        )
+        setZoom(CGFloat(plan.recommendedZoom))
+        setExposure(Float(plan.recommendedExposureBias))
+        coachPlanApplied = true
+        selectedCoachPlan = plan
+        updateCoachGuidance(for: plan, descriptor: sceneDescriptor)
+    }
+
+    // Undo restores the exact pre-Analyze baseline.
+    func undoCoachPlan() {
+        guard let session = coachSession, coachPlanApplied else { return }
+        let undo = session.undo
+        coachSession = session.undoing()
+        setZoom(CGFloat(undo.zoom))
+        setExposure(Float(undo.exposureBias))
+        coachPlanApplied = false
+        refreshLocalGuidanceAfterSettings()
+    }
+
+    // The one production transition for Settings turning Coach V2 off. Clear
+    // caller-visible V2 state first so Apply cannot race a camera switch or a
+    // stale analysis result; restore the captured baseline at most once.
+    func coachV2DidChange(from oldValue: Bool, to newValue: Bool) {
+        guard oldValue, !newValue else { return }
+        let baseline = coachPlanApplied ? coachSession?.undo : nil
+        coachPlans = []
+        selectedCoachPlan = nil
+        coachSession = nil
+        coachPlanApplied = false
+        guidance = nil
+        if let baseline {
+            setZoom(CGFloat(baseline.zoom))
+            setExposure(Float(baseline.exposureBias))
+        }
+        queue.async { [weak self] in
+            self?.resetAnalysisForResume()
+        }
+    }
+
+    static func framingIntent(for descriptor: SceneDescriptor) -> FramingIntent {
+        if descriptor.classifications.contains("group") { return .group }
+        if descriptor.classifications.contains("onePerson") {
+            let subject = descriptor.subjectRect ?? .zero
+            return subject.height > 0.65 ? .fullBody : .portrait
+        }
+        if descriptor.horizonAngle != nil, descriptor.saliencyRect == nil { return .scenery }
+        if descriptor.saliencyRect != nil { return .product }
+        return .portrait
+    }
+
+    private func updateCoachGuidance(for plan: CoachPlan, descriptor: SceneDescriptor?) {
+        guard let descriptor, let subject = descriptor.subjectRect else {
+            guidance = nil
+            return
+        }
+        let frame = plan.targetFraming
+        let targetRect = CGRect(
+            x: frame.centerX - frame.subjectWidth / 2,
+            y: 1 - frame.centerY - frame.subjectHeight / 2,
+            width: frame.subjectWidth,
+            height: frame.subjectHeight
+        )
+        let target = CGPoint(x: frame.centerX, y: 1 - frame.centerY)
+        let instruction =
+            Locale.current.language.languageCode?.identifier == "vi"
+            ? plan.instructionVI : plan.instructionEN
+        guidance = Guidance(
+            subjectRect: subject,
+            target: target,
+            targetRect: targetRect,
+            direction: .none,
+            instructionKey: "coach.v2.aligned",
+            instruction: instruction,
+            aligned: true
+        )
+    }
+
     func selectSubject(at point: CGPoint) {
         queue.async { [weak self] in
             guard let self else { return }
             let visionPoint = CGPoint(x: point.x, y: 1 - point.y)
-            self.selectedSubjectPoint = visionPoint
             guard var measurement = self.measurement,
                 let selected = measurement.subject(near: visionPoint)
             else { return }
             measurement.subjectRect = selected
-            self.selectedSubjectPoint = CGPoint(x: selected.midX, y: selected.midY)
-            self.analyzer.track(selected)
+            self.analyzer.selectSubject(selected, generation: self.analysisGeneration)
             self.stabilizer = MeasurementStabilizer()
             let guidance =
                 self.cloudPlan.map {
@@ -757,19 +1205,28 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     private func configureCapabilities(for device: AVCaptureDevice) {
-        let options = device.activeFormat.supportedMaxPhotoDimensions
-        let sorted = options.sorted {
-            Int64($0.width) * Int64($0.height) < Int64($1.width) * Int64($1.height)
-        }
-        let mapped = sorted.map { PhotoDimensions(width: $0.width, height: $0.height) }
-        let standardPhoto = PhotoDimensions.standard(in: mapped)
-        let maximumPhoto = mapped.last
-        if let maximumCMDimensions = sorted.last {
-            photoOutput.maxPhotoDimensions = maximumCMDimensions
+        let tiers = PhotoCapabilityTiers.resolve(
+            from: device.activeFormat.supportedMaxPhotoDimensions.map {
+                PhotoDimensions(width: $0.width, height: $0.height)
+            }
+        )
+        if let maximum = tiers.maximum {
+            photoOutput.maxPhotoDimensions = CMVideoDimensions(
+                width: maximum.width,
+                height: maximum.height
+            )
         }
         // Raise the ceiling here rather than per capture: the output defaults to
         // .balanced and rejects a higher value on the settings object.
         photoOutput.maxPhotoQualityPrioritization = .quality
+        // The 24 MP tier is only serviced as a fused photo through automatic
+        // deferred delivery. Enable it before the session starts or
+        // reconfigures — configure() and switchCamera() both call this inside
+        // beginConfiguration/commitConfiguration — and only when supported.
+        let deferredSupported = photoOutput.isAutoDeferredPhotoDeliverySupported
+        if deferredSupported {
+            photoOutput.isAutoDeferredPhotoDeliveryEnabled = true
+        }
         let outputLimitPhoto = PhotoDimensions(
             width: photoOutput.maxPhotoDimensions.width,
             height: photoOutput.maxPhotoDimensions.height
@@ -779,27 +1236,36 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         // generation here — rather than only replacing the values — is what
         // lets a snapshot be tied to (and a stale one told apart from) the
         // exact capability set it was resolved against.
-        standardDimensions = standardPhoto
-        maximumDimensions = maximumPhoto
+        standardDimensions = tiers.standard
+        balancedDimensions = tiers.balanced
+        maximumDimensions = tiers.maximum
+        supportedPhotoDimensions = tiers.supported
+        deferredDeliverySupported = deferredSupported
         outputLimitDimensions = outputLimitPhoto
         capabilityGeneration += 1
 
         let deviceMaxZoom = min(device.activeFormat.videoMaxZoomFactor, 10)
-        // Whether the device/format genuinely has more to offer than standard —
-        // not an arbitrary pixel-count threshold, so a modest-but-real jump
-        // (or a hardware ceiling below any "48 MP" claim) is represented truthfully.
-        let supportsMaximum = ResolvedResolution.hasDistinctMaximum(standard: standardPhoto, maximum: maximumPhoto)
+        let generation = capabilityGeneration
         DispatchQueue.main.async {
             self.maxZoom = max(deviceMaxZoom, 1)
             self.zoom = 1
             self.exposure = 0
-            self.supportsMaximumResolution = supportsMaximum
             // The requested tier is the user's intent (AppSettings.requestedResolution)
             // and survives a temporarily-incapable camera unchanged; only the
             // resolved dimensions/downgrade reason reflect this camera's limits.
-            self.cachedStandardDimensions = standardPhoto
-            self.cachedMaximumDimensions = maximumPhoto
+            self.cachedStandardDimensions = tiers.standard
+            self.cachedBalancedDimensions = tiers.balanced
+            self.cachedMaximumDimensions = tiers.maximum
             self.cachedOutputLimit = outputLimitPhoto
+            self.cachedDeferredDeliverySupported = deferredSupported
+            self.cachedCapabilityGeneration = generation
+            // A camera switch or capability-generation change invalidates any
+            // active PlanSession: its baseline and plans belong to the old
+            // camera/capability set.
+            self.coachPlans = []
+            self.selectedCoachPlan = nil
+            self.coachSession = nil
+            self.coachPlanApplied = false
             self.recomputeResolvedResolution()
         }
     }
@@ -825,8 +1291,12 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
-    private func save(_ data: Data, countsFilter: Bool, showsThumbnail: Bool) {
-        let location = pendingLocation
+    private func save(
+        _ data: Data,
+        location: CLLocation?,
+        countsFilter: Bool,
+        showsThumbnail: Bool
+    ) {
         let performSave: @Sendable () -> Void = {
             PHPhotoLibrary.shared().performChanges {
                 let creation = PHAssetCreationRequest.forAsset()
@@ -859,6 +1329,110 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
+    // The 24 MP tier arrives only as a deferred proxy; Photos fuses the full
+    // photo in the background. Save the proxy bytes verbatim — Photos expects
+    // the unmodified proxy. Final dimensions remain unconfirmed under add-only
+    // authorization and are observed only when read access already exists.
+    private func saveDeferredProxy(
+        _ data: Data,
+        record: CaptureResolutionRecord,
+        location: CLLocation?,
+        showsThumbnail: Bool
+    ) {
+        let placeholder = PlaceholderBox()
+        let performSave: @Sendable () -> Void = {
+            PHPhotoLibrary.shared().performChanges {
+                let creation = PHAssetCreationRequest.forAsset()
+                creation.location = location
+                creation.addResource(with: .photoProxy, data: data, options: nil)
+                placeholder.value = creation.placeholderForCreatedAsset
+            } completionHandler: { [weak self] saved, _ in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.publish(notice: saved ? "camera.savedDeferred" : "camera.error.save")
+                    guard saved else { return }
+                    if let identifier = placeholder.value?.localIdentifier,
+                        Self.canReadPhotoLibrary()
+                    {
+                        self.deferredConfirmationTracker.insert(
+                            identifier: identifier,
+                            record: record,
+                            deadline: ProcessInfo.processInfo.systemUptime + 30
+                        )
+                        self.expireDeferredConfirmation(identifier: identifier)
+                    }
+                    if showsThumbnail, let thumbnail = UIImage(data: data)?.cgImage {
+                        self.latestThumbnail = thumbnail
+                    }
+                }
+            }
+        }
+
+        switch PHPhotoLibrary.authorizationStatus(for: .addOnly) {
+        case .authorized, .limited:
+            performSave()
+        case .notDetermined:
+            PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+                if status == .authorized || status == .limited {
+                    performSave()
+                } else {
+                    self.publish(notice: "camera.error.photosPermission")
+                }
+            }
+        default:
+            publish(notice: "camera.error.photosPermission")
+        }
+    }
+
+    // Add-only authorization supports creation, not a reliable asset fetch.
+    // Never request read-write permission only to claim a deferred final size.
+    static func canReadPhotoLibrary() -> Bool {
+        switch PHPhotoLibrary.authorizationStatus(for: .readWrite) {
+        case .authorized, .limited: true
+        default: false
+        }
+    }
+
+    private func expireDeferredConfirmation(identifier: String) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            guard let self else { return }
+            self.deferredConfirmationTracker.expire(now: ProcessInfo.processInfo.systemUptime)
+            // The identifier may have been finalized or cancelled already.
+            self.deferredConfirmationTracker.cancel(identifier: identifier)
+        }
+    }
+
+    private func handlePhotoLibraryChange(_ change: PHChange) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.deferredConfirmationTracker.entries.isEmpty else { return }
+            self.deferredConfirmationTracker.expire(now: ProcessInfo.processInfo.systemUptime)
+            let pending = self.deferredConfirmationTracker.entries
+            for identifier in pending.keys {
+                guard
+                    let asset =
+                        PHAsset
+                        .fetchAssets(
+                            withLocalIdentifiers: [identifier], options: nil
+                        )
+                        .firstObject
+                else { continue }
+                let dimensions = PhotoDimensions(
+                    width: Int32(asset.pixelWidth),
+                    height: Int32(asset.pixelHeight)
+                )
+                guard
+                    let finalized =
+                        self.deferredConfirmationTracker
+                        .confirm(
+                            identifier: identifier,
+                            dimensions: dimensions
+                        )
+                else { continue }
+                self.lastCaptureResolution = finalized
+            }
+        }
+    }
+
     private func finishCapture() {
         DispatchQueue.main.async { self.isCapturing = false }
     }
@@ -878,38 +1452,105 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 }
 
+// Photos' placeholder is not Sendable; the box keeps the created-asset
+// identifier usable across performChanges' @Sendable closures.
+private final class PlaceholderBox: @unchecked Sendable {
+    var value: PHObjectPlaceholder?
+}
+
+// Bridges Photos change observation into CameraSession without adding a
+// MainActor-isolated protocol conformance to the camera queue class. Photos
+// calls this on the main thread; handlePhotoLibraryChange hops there
+// defensively anyway.
+private final class DeferredCompletionObserver: NSObject, PHPhotoLibraryChangeObserver {
+    var onChange: ((PHChange) -> Void)?
+
+    func photoLibraryDidChange(_ changeInstance: PHChange) {
+        onChange?(changeInstance)
+    }
+}
+
 extension CameraSession: AVCapturePhotoCaptureDelegate {
+    // With automatic deferred photo delivery enabled, a 24 MP capture arrives
+    // as a proxy instead of the full photo. The proxy is saved verbatim so
+    // Photos can fuse the final image; its final dimensions are never claimed
+    // here and may remain unconfirmed under add-only authorization.
+    func photoOutput(
+        _ output: AVCapturePhotoOutput,
+        didFinishCapturingDeferredPhotoProxy proxy: AVCaptureDeferredPhotoProxy?,
+        error: Error?
+    ) {
+        defer { finishCapture() }
+        guard let proxy else {
+            cancelPendingCaptureState()
+            publish(notice: "camera.error.capture")
+            return
+        }
+        let captureID = proxy.resolvedSettings.uniqueID
+        guard error == nil, let data = proxy.fileDataRepresentation() else {
+            cancelPendingCapture(id: captureID, notice: "camera.error.capture")
+            return
+        }
+        guard let context = claimPendingCapture(id: captureID, deferred: true) else { return }
+        let snapshot = context.snapshot
+        let record = CaptureResolutionRecord(
+            requested: snapshot.resolved.requested,
+            resolvedDimensions: snapshot.resolved.dimensions,
+            proxyResolvedDimensions: Self.pixelDimensions(of: data),
+            savedDimensions: nil,
+            downgradeReason: snapshot.resolved.downgradeReason
+        )
+        DispatchQueue.main.async { self.lastCaptureResolution = record }
+        saveDeferredProxy(data, record: record, location: context.location, showsThumbnail: true)
+    }
+
     func photoOutput(
         _ output: AVCapturePhotoOutput,
         didFinishProcessingPhoto photo: AVCapturePhoto,
         error: Error?
     ) {
         defer { finishCapture() }
+        let captureID = photo.resolvedSettings.uniqueID
         guard error == nil, let data = photo.fileDataRepresentation() else {
-            publish(notice: "camera.error.capture")
+            cancelPendingCapture(id: captureID, notice: "camera.error.capture")
             return
         }
+        guard let context = claimPendingCapture(id: captureID, deferred: false) else { return }
         let outputData =
             filterRenderer.renderedData(
                 from: data,
-                recipe: pendingFilter,
-                intensity: pendingFilterIntensity,
-                aspectRatio: pendingRatio == .fourThree ? nil : pendingRatio.value
+                recipe: context.filter,
+                intensity: context.filterIntensity,
+                aspectRatio: context.ratio == .fourThree ? nil : context.ratio.value
             ) ?? data
-        if pendingSaveOriginal, pendingFilter != nil {
-            save(data, countsFilter: false, showsThumbnail: false)
+        if context.saveOriginal, context.filter != nil {
+            save(data, location: context.location, countsFilter: false, showsThumbnail: false)
         }
         // Built from the exact snapshot capture() used to configure the
         // output — never re-derived — plus the one thing that can only be
         // known now: what ImageIO reports the saved bytes actually contain.
         let record = CaptureResolutionRecord(
-            requested: pendingCaptureSnapshot.resolved.requested,
-            resolvedDimensions: pendingCaptureSnapshot.resolved.dimensions,
+            requested: context.snapshot.resolved.requested,
+            resolvedDimensions: context.snapshot.resolved.dimensions,
             savedDimensions: Self.pixelDimensions(of: outputData),
-            downgradeReason: pendingCaptureSnapshot.resolved.downgradeReason
+            downgradeReason: context.snapshot.resolved.downgradeReason
         )
         DispatchQueue.main.async { self.lastCaptureResolution = record }
-        save(outputData, countsFilter: pendingFilter != nil, showsThumbnail: true)
+        save(
+            outputData,
+            location: context.location,
+            countsFilter: context.filter != nil,
+            showsThumbnail: true
+        )
+    }
+
+    func photoOutput(
+        _ output: AVCapturePhotoOutput,
+        didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings,
+        error: Error?
+    ) {
+        guard error != nil else { return }
+        cancelPendingCapture(id: resolvedSettings.uniqueID, notice: "camera.error.capture")
     }
 
     static func cloudGuidance(
@@ -998,14 +1639,13 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
             analysisInFlight = true
             lastAnalysisTime = timestamp
             let generation = analysisGeneration
-            let preferredPoint = selectedSubjectPoint
             #if DEBUG
                 lifecycleLog.debug("analysis started (generation=\(generation, privacy: .public))")
             #endif
             analyzer.analyze(
                 buffer,
-                preferredSubjectPoint: preferredPoint
-            ) { [weak self] measurement in
+                generation: generation
+            ) { [weak self] measurement, descriptor in
                 guard let self else { return }
                 self.queue.async {
                     guard self.acceptAnalysisCompletion(requestGeneration: generation) else {
@@ -1017,27 +1657,14 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
                         #endif
                         return
                     }
-                    guard var measurement else {
+                    guard let measurement else {
                         #if DEBUG
                             self.lifecycleLog.debug("analysis completed: no measurement")
                         #endif
                         return
                     }
-                    if let currentPoint = self.selectedSubjectPoint {
-                        if currentPoint != preferredPoint,
-                            let selected = measurement.subject(near: currentPoint)
-                        {
-                            measurement.subjectRect = selected
-                            self.analyzer.track(selected)
-                        }
-                        if let selected = measurement.subjectRect {
-                            self.selectedSubjectPoint = CGPoint(
-                                x: selected.midX,
-                                y: selected.midY
-                            )
-                        }
-                    }
                     let stable = self.stabilizer.update(measurement)
+                    let stableDescriptor = descriptor.map { self.descriptorStabilizer.update($0) }
                     let guidance =
                         self.cloudPlan.map {
                             Self.cloudGuidance($0, measurement: stable)
@@ -1050,6 +1677,7 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
                     #endif
                     DispatchQueue.main.async {
                         self.measurement = stable
+                        self.sceneDescriptor = stableDescriptor
                         self.guidance = guidance
                     }
                 }

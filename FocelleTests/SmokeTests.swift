@@ -1,6 +1,7 @@
 import AVFoundation
 import CoreImage
 import XCTest
+import simd
 
 @testable import Focelle
 
@@ -36,14 +37,31 @@ final class SmokeTests: XCTestCase {
         )
     }
 
-    func testPhotoResolutionChoosesClosestTo24Megapixels() {
-        let options = [
-            PhotoDimensions(width: 4_032, height: 3_024),
-            PhotoDimensions(width: 5_712, height: 4_284),
-            PhotoDimensions(width: 8_064, height: 6_048),
-        ]
+    func testPhotoCapabilityTiersMapTwelveTwentyFourAndFortyEightWithoutOmittingTheMiddle() {
+        let twelve = PhotoDimensions(width: 4_032, height: 3_024)
+        let twentyFour = PhotoDimensions(width: 5_712, height: 4_284)
+        let fortyEight = PhotoDimensions(width: 8_064, height: 6_048)
 
-        XCTAssertEqual(PhotoDimensions.standard(in: options), options[1])
+        let tiers = PhotoCapabilityTiers.resolve(from: [twelve, fortyEight, twentyFour])
+
+        XCTAssertEqual(tiers.supported, [twelve, twentyFour, fortyEight])
+        XCTAssertEqual(tiers.standard, twelve)
+        XCTAssertEqual(tiers.balanced, twentyFour, "24 MP must not be silently omitted as a middle tier")
+        XCTAssertEqual(tiers.maximum, fortyEight)
+    }
+
+    func testCapabilityTiersNeverInventABalancedOrMaximumTier() {
+        let twelve = PhotoDimensions(width: 4_032, height: 3_024)
+        let fortyEight = PhotoDimensions(width: 8_064, height: 6_048)
+
+        let noMiddle = PhotoCapabilityTiers.resolve(from: [twelve, fortyEight])
+        XCTAssertNil(noMiddle.balanced)
+        XCTAssertEqual(noMiddle.supported, [twelve, fortyEight])
+
+        let onlyStandard = PhotoCapabilityTiers.resolve(from: [twelve])
+        XCTAssertNil(onlyStandard.balanced)
+        XCTAssertEqual(onlyStandard.maximum, twelve)
+        XCTAssertEqual(onlyStandard.supported, [twelve])
     }
 
     func testResolutionLabelBucketsToKnownMegapixelCountsOrFallsBackToDimensions() {
@@ -79,8 +97,10 @@ final class SmokeTests: XCTestCase {
         let normalStandard = ResolvedResolution.resolve(
             requested: .standard,
             standard: standard,
+            balanced: nil,
             maximum: biggerMaximum,
-            outputLimit: nil
+            outputLimit: nil,
+            deferredSupported: true
         )
         XCTAssertEqual(normalStandard.dimensions, standard)
         XCTAssertEqual(normalStandard.downgradeReason, .none)
@@ -88,8 +108,10 @@ final class SmokeTests: XCTestCase {
         let normalMaximum = ResolvedResolution.resolve(
             requested: .maximum,
             standard: standard,
+            balanced: nil,
             maximum: biggerMaximum,
-            outputLimit: nil
+            outputLimit: nil,
+            deferredSupported: true
         )
         XCTAssertEqual(normalMaximum.dimensions, biggerMaximum)
         XCTAssertEqual(normalMaximum.downgradeReason, .none)
@@ -97,8 +119,10 @@ final class SmokeTests: XCTestCase {
         let deviceCappedMaximum = ResolvedResolution.resolve(
             requested: .maximum,
             standard: standard,
+            balanced: nil,
             maximum: standard,
-            outputLimit: nil
+            outputLimit: nil,
+            deferredSupported: true
         )
         XCTAssertEqual(deviceCappedMaximum.dimensions, standard)
         XCTAssertEqual(deviceCappedMaximum.downgradeReason, .unsupportedByActiveFormat)
@@ -107,11 +131,183 @@ final class SmokeTests: XCTestCase {
         let outputCappedMaximum = ResolvedResolution.resolve(
             requested: .maximum,
             standard: standard,
+            balanced: nil,
             maximum: biggerMaximum,
-            outputLimit: standard
+            outputLimit: standard,
+            deferredSupported: true
         )
         XCTAssertEqual(outputCappedMaximum.dimensions, standard)
         XCTAssertEqual(outputCappedMaximum.downgradeReason, .outputLimited)
+    }
+
+    func testBalancedResolvesToTwentyFourMegapixelsOnlyWhenDeferredDeliveryIsSupported() {
+        let twelve = PhotoDimensions(width: 4_032, height: 3_024)
+        let twentyFour = PhotoDimensions(width: 5_712, height: 4_284)
+        let fortyEight = PhotoDimensions(width: 8_064, height: 6_048)
+
+        let deferred = ResolvedResolution.resolve(
+            requested: .balanced,
+            standard: twelve,
+            balanced: twentyFour,
+            maximum: fortyEight,
+            outputLimit: nil,
+            deferredSupported: true
+        )
+        XCTAssertEqual(deferred.dimensions, twentyFour)
+        XCTAssertFalse(deferred.isDowngraded)
+
+        let noDeferred = ResolvedResolution.resolve(
+            requested: .balanced,
+            standard: twelve,
+            balanced: twentyFour,
+            maximum: fortyEight,
+            outputLimit: nil,
+            deferredSupported: false
+        )
+        XCTAssertEqual(
+            noDeferred.dimensions,
+            twelve,
+            "deferred unavailable must fall back to 12 MP truthfully"
+        )
+        XCTAssertEqual(noDeferred.downgradeReason, .deferredUnavailable)
+        XCTAssertTrue(noDeferred.isDowngraded)
+
+        let noTwentyFourFormat = ResolvedResolution.resolve(
+            requested: .balanced,
+            standard: twelve,
+            balanced: nil,
+            maximum: fortyEight,
+            outputLimit: nil,
+            deferredSupported: true
+        )
+        XCTAssertEqual(noTwentyFourFormat.dimensions, twelve)
+        XCTAssertEqual(noTwentyFourFormat.downgradeReason, .unsupportedByActiveFormat)
+    }
+
+    func testDeferredProxyRecordStaysPendingUntilPhotosConfirmsFinishedDimensions() {
+        let twelve = PhotoDimensions(width: 4_032, height: 3_024)
+        let twentyFour = PhotoDimensions(width: 5_712, height: 4_284)
+        let pending = CaptureResolutionRecord(
+            requested: .balanced,
+            resolvedDimensions: twentyFour,
+            proxyResolvedDimensions: twelve,
+            savedDimensions: nil,
+            downgradeReason: .none
+        )
+        XCTAssertTrue(pending.isDeferredProxy)
+        XCTAssertFalse(pending.isFinalized)
+
+        // The asset still holds only the proxy → not final.
+        XCTAssertNil(
+            CaptureResolutionRecord.deferredConfirmation(for: pending, assetDimensions: twelve)
+        )
+        // Photos completed the fused 24 MP photo → final, with requested,
+        // capture-resolved, proxy-resolved and final dimensions kept distinct.
+        let finalized = CaptureResolutionRecord.deferredConfirmation(
+            for: pending,
+            assetDimensions: twentyFour
+        )
+        XCTAssertEqual(finalized?.requested, .balanced)
+        XCTAssertEqual(finalized?.resolvedDimensions, twentyFour)
+        XCTAssertEqual(finalized?.proxyResolvedDimensions, twelve)
+        XCTAssertEqual(finalized?.savedDimensions, twentyFour)
+        XCTAssertTrue(finalized?.isFinalized ?? false)
+        // Photos finished at an unexpected size → recorded truthfully, never
+        // claimed as 24 MP.
+        let offSpec = PhotoDimensions(width: 4_000, height: 3_000)
+        XCTAssertEqual(
+            CaptureResolutionRecord.deferredConfirmation(for: pending, assetDimensions: offSpec)?
+                .savedDimensions,
+            offSpec
+        )
+        // A normal immediate capture has no proxy and is never finalized
+        // through this path.
+        let normal = CaptureResolutionRecord(
+            requested: .maximum,
+            resolvedDimensions: PhotoDimensions(width: 8_064, height: 6_048),
+            savedDimensions: PhotoDimensions(width: 8_064, height: 6_048),
+            downgradeReason: .none
+        )
+        XCTAssertFalse(normal.isDeferredProxy)
+        XCTAssertTrue(normal.isFinalized)
+        XCTAssertNil(
+            CaptureResolutionRecord.deferredConfirmation(
+                for: normal,
+                assetDimensions: PhotoDimensions(width: 8_064, height: 6_048)
+            )
+        )
+    }
+
+    func testDeferredConfirmationOwnershipCleansSuccessCancelAndTimeout() {
+        let proxy = PhotoDimensions(width: 4_032, height: 3_024)
+        let final = PhotoDimensions(width: 5_712, height: 4_284)
+        let record = CaptureResolutionRecord(
+            requested: .balanced,
+            resolvedDimensions: final,
+            proxyResolvedDimensions: proxy,
+            savedDimensions: nil
+        )
+        var pending = DeferredConfirmationTracker()
+        pending.insert(identifier: "first", record: record, deadline: 10)
+        pending.insert(identifier: "second", record: record, deadline: 10)
+
+        XCTAssertEqual(pending.confirm(identifier: "first", dimensions: final)?.savedDimensions, final)
+        XCTAssertNil(pending.entries["first"])
+        XCTAssertNotNil(pending.entries["second"])
+
+        pending.cancel(identifier: "second")
+        XCTAssertTrue(pending.entries.isEmpty)
+
+        pending.insert(identifier: "timeout", record: record, deadline: 10)
+        pending.expire(now: 10)
+        XCTAssertTrue(pending.entries.isEmpty)
+    }
+
+    func testFilteredOrCroppedBalancedCaptureFallsBackToStandardTruthfully() {
+        let twelve = PhotoDimensions(width: 4_032, height: 3_024)
+        let twentyFour = PhotoDimensions(width: 5_712, height: 4_284)
+        let fortyEight = PhotoDimensions(width: 8_064, height: 6_048)
+
+        let unfiltered = CameraSession.captureSnapshot(
+            requested: .balanced,
+            requiresImmediateProcessing: false,
+            standard: twelve,
+            balanced: twentyFour,
+            maximum: fortyEight,
+            outputLimit: fortyEight,
+            deferredSupported: true,
+            capabilityGeneration: 4
+        )
+        XCTAssertEqual(unfiltered.resolved.dimensions, twentyFour)
+        XCTAssertFalse(unfiltered.resolved.isDowngraded)
+
+        let filtered = CameraSession.captureSnapshot(
+            requested: .balanced,
+            requiresImmediateProcessing: true,
+            standard: twelve,
+            balanced: twentyFour,
+            maximum: fortyEight,
+            outputLimit: fortyEight,
+            deferredSupported: true,
+            capabilityGeneration: 4
+        )
+        XCTAssertEqual(filtered.resolved.requested, .balanced)
+        XCTAssertEqual(filtered.resolved.dimensions, twelve)
+        XCTAssertEqual(filtered.resolved.downgradeReason, .immediateProcessingRequired)
+
+        // The verified 48 MP path is untouched by the same constraint.
+        let filteredMaximum = CameraSession.captureSnapshot(
+            requested: .maximum,
+            requiresImmediateProcessing: true,
+            standard: twelve,
+            balanced: twentyFour,
+            maximum: fortyEight,
+            outputLimit: fortyEight,
+            deferredSupported: true,
+            capabilityGeneration: 4
+        )
+        XCTAssertEqual(filteredMaximum.resolved.dimensions, fortyEight)
+        XCTAssertFalse(filteredMaximum.resolved.isDowngraded)
     }
 
     func testCaptureResolutionRecordReportsSavedDimensionsEvenWhenTheyContradictTheRequest() {
@@ -132,12 +328,16 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
-    func testRequestedResolutionDefaultsToStandardAndPersistsAcrossRecreation() {
+    func testRequestedResolutionDefaultsToBalancedAndPersistsAcrossRecreation() {
         let suite = "FocelleTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        XCTAssertEqual(AppSettings(defaults: defaults).requestedResolution, .standard)
+        XCTAssertEqual(
+            AppSettings(defaults: defaults).requestedResolution,
+            .balanced,
+            "clean installs default to the balanced 24 MP tier"
+        )
 
         let settings = AppSettings(defaults: defaults)
         settings.requestedResolution = .maximum
@@ -151,7 +351,7 @@ final class SmokeTests: XCTestCase {
     func testCameraResolutionOnlyChangesThroughSetRequestedResolution() {
         let camera = CameraSession()
 
-        XCTAssertEqual(camera.resolution, .standard)
+        XCTAssertEqual(camera.resolution, .balanced)
         camera.setRequestedResolution(.maximum)
         XCTAssertEqual(camera.resolution, .maximum)
         XCTAssertEqual(camera.resolvedResolution.requested, .maximum)
@@ -255,6 +455,58 @@ final class SmokeTests: XCTestCase {
 
         XCTAssertEqual(camera.resolution, .maximum)
         XCTAssertEqual(camera.resolvedResolution.dimensions, genuineMaximum)
+        XCTAssertFalse(camera.resolvedResolution.isDowngraded)
+    }
+
+    @MainActor
+    func testCameraSwitchRecomputesTwelveTwentyFourFortyEightAvailability() {
+        let camera = CameraSession()
+        let twelve = PhotoDimensions(width: 4_032, height: 3_024)
+        let twentyFour = PhotoDimensions(width: 5_712, height: 4_284)
+        let fortyEight = PhotoDimensions(width: 8_064, height: 6_048)
+        camera.setRequestedResolution(.balanced)
+
+        // Rear camera: 12/24/48 with deferred delivery.
+        camera.cachedStandardDimensions = twelve
+        camera.cachedBalancedDimensions = twentyFour
+        camera.cachedMaximumDimensions = fortyEight
+        camera.cachedOutputLimit = fortyEight
+        camera.cachedDeferredDeliverySupported = true
+        camera.recomputeResolvedResolution()
+
+        XCTAssertTrue(camera.supportsBalancedResolution)
+        XCTAssertEqual(camera.balancedModeLabel, "24")
+        XCTAssertTrue(camera.supportsMaximumResolution)
+        XCTAssertEqual(camera.resolvedResolution.dimensions, twentyFour)
+
+        // Front camera: only 12 MP and no deferred delivery.
+        camera.cachedStandardDimensions = twelve
+        camera.cachedBalancedDimensions = nil
+        camera.cachedMaximumDimensions = twelve
+        camera.cachedOutputLimit = twelve
+        camera.cachedDeferredDeliverySupported = false
+        camera.recomputeResolvedResolution()
+
+        XCTAssertFalse(camera.supportsBalancedResolution)
+        XCTAssertFalse(camera.supportsMaximumResolution)
+        XCTAssertEqual(camera.resolution, .balanced, "the requested tier must survive the switch")
+        XCTAssertEqual(camera.resolvedResolution.dimensions, twelve)
+        XCTAssertEqual(camera.resolvedResolution.downgradeReason, .unsupportedByActiveFormat)
+
+        // A distinct maximum remains unavailable when output is capped at standard.
+        camera.cachedMaximumDimensions = fortyEight
+        camera.cachedOutputLimit = twelve
+        camera.recomputeResolvedResolution()
+        XCTAssertFalse(camera.supportsMaximumResolution)
+        // Back to the rear camera: 24 MP resolves again without user action.
+        camera.cachedBalancedDimensions = twentyFour
+        camera.cachedMaximumDimensions = fortyEight
+        camera.cachedOutputLimit = fortyEight
+        camera.cachedDeferredDeliverySupported = true
+        camera.recomputeResolvedResolution()
+
+        XCTAssertTrue(camera.supportsBalancedResolution)
+        XCTAssertEqual(camera.resolvedResolution.dimensions, twentyFour)
         XCTAssertFalse(camera.resolvedResolution.isDowngraded)
     }
 
@@ -1023,6 +1275,700 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "zh_Hant_TW")), "zh-Hant")
     }
 
+    // MARK: - FCL-M2 Batch A: PlanSession zoom/exposure contract
+
+    func testAnalyzeSnapshotsBaselineAndNeverMutatesCameraValues() {
+        let session = PlanSession(
+            baselineZoom: 1.5,
+            baselineExposureBias: 0.2,
+            capabilityGeneration: 3
+        )
+
+        XCTAssertEqual(session.baselineZoom, 1.5)
+        XCTAssertEqual(session.baselineExposureBias, 0.2)
+        XCTAssertNil(session.appliedZoom)
+        XCTAssertNil(session.appliedExposureBias)
+    }
+
+    @MainActor
+    func testCoachAnalyzeWithNoSceneLeavesZoomAndExposureUntouched() async {
+        let camera = CameraSession()
+        camera.zoom = 3.4
+        camera.exposure = 0.6
+
+        camera.analyzeSceneV2()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(camera.zoom, 3.4)
+        XCTAssertEqual(camera.exposure, 0.6, accuracy: 0.0001)
+        XCTAssertEqual(camera.notice, "coach.error.noScene")
+        XCTAssertTrue(camera.coachPlans.isEmpty)
+        XCTAssertNil(camera.coachSession)
+    }
+
+    func testApplyUsesAbsoluteValuesNeverCompounding() {
+        let session = PlanSession(
+            baselineZoom: 1.5,
+            baselineExposureBias: 0.2,
+            capabilityGeneration: 3
+        )
+
+        let applied = session.applying(zoom: 2.0, exposureBias: -0.4)
+
+        XCTAssertEqual(applied.appliedZoom, 2.0, "absolute value, not baseline + delta")
+        XCTAssertEqual(applied.appliedExposureBias, -0.4)
+        XCTAssertEqual(session.baselineZoom, 1.5, "baseline is immutable")
+    }
+
+    func testUndoRestoresExactBaseline() {
+        let session = PlanSession(
+            baselineZoom: 1.5,
+            baselineExposureBias: 0.2,
+            capabilityGeneration: 3
+        )
+        let applied = session.applying(zoom: 2.0, exposureBias: -0.4)
+
+        XCTAssertEqual(applied.undo.zoom, 1.5)
+        XCTAssertEqual(applied.undo.exposureBias, 0.2)
+        XCTAssertEqual(applied.undoing().appliedZoom, nil)
+    }
+
+    func testRepeatedApplyUndoCyclesDoNotDrift() {
+        var session = PlanSession(
+            baselineZoom: 1.5,
+            baselineExposureBias: 0.2,
+            capabilityGeneration: 3
+        )
+        for _ in 0..<10 {
+            session = session.applying(zoom: 2.0, exposureBias: -0.4)
+            session = session.undoing()
+        }
+
+        XCTAssertEqual(session.undo.zoom, 1.5)
+        XCTAssertEqual(session.undo.exposureBias, 0.2)
+        XCTAssertNil(session.appliedZoom)
+    }
+
+    func testCapabilityGenerationChangeInvalidatesPlanSession() {
+        let session = PlanSession(
+            baselineZoom: 1,
+            baselineExposureBias: 0,
+            capabilityGeneration: 7
+        )
+
+        XCTAssertTrue(session.isValid(for: 7))
+        XCTAssertFalse(session.isValid(for: 8), "a camera switch invalidates the session")
+    }
+
+    func testSceneDescriptorRejectsStaleGeneration() {
+        XCTAssertTrue(SceneDescriptor.isCurrent(generation: 2, currentGeneration: 2))
+        XCTAssertFalse(SceneDescriptor.isCurrent(generation: 1, currentGeneration: 2))
+    }
+
+    // MARK: - FCL-M2 Batch A: stabilization and identity
+
+    func testLandmarkStabilizationIsDeterministicAndSmoothsScalars() {
+        var stabilizer = DescriptorStabilizer()
+        let first = makeDescriptor(luma: 0.4, quality: 0.5)
+        let second = makeDescriptor(luma: 0.6, quality: 0.9)
+
+        _ = stabilizer.update(first)
+        let result = stabilizer.update(second)
+
+        var repeatStabilizer = DescriptorStabilizer()
+        _ = repeatStabilizer.update(first)
+        let repeatResult = repeatStabilizer.update(second)
+
+        XCTAssertEqual(result, repeatResult, "same input sequence must give the same output")
+        XCTAssertEqual(result.luma, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(result.faceCaptureQuality ?? 0, 0.7, accuracy: 0.0001)
+    }
+
+    func testSelectedSubjectOwnershipCrossingAndLossNeverFallBackToFirstCandidate() {
+        var tracker = SubjectIdentityTracker()
+        let subject = CGRect(x: 0.3, y: 0.2, width: 0.3, height: 0.5)
+        let unrelated = CGRect(x: 0.7, y: 0.6, width: 0.15, height: 0.15)
+
+        // Detector ordering is deliberately hostile: selection, not index 0,
+        // establishes the first identity.
+        let adopted = tracker.update(
+            candidates: [unrelated, subject],
+            selectedCandidate: subject,
+            featurePrints: [],
+            now: 1
+        )
+        XCTAssertEqual(adopted?.id, 1)
+        XCTAssertEqual(adopted?.rect, subject)
+
+        let crossedSubject = CGRect(x: 0.34, y: 0.2, width: 0.3, height: 0.5)
+        let crossing = tracker.update(
+            candidates: [unrelated, crossedSubject],
+            selectedCandidate: nil,
+            featurePrints: [],
+            now: 1.2
+        )
+        XCTAssertEqual(crossing?.id, 1)
+        XCTAssertEqual(crossing?.rect, crossedSubject)
+
+        let preserved = tracker.update(
+            candidates: [unrelated],
+            selectedCandidate: nil,
+            featurePrints: [],
+            now: 1.4
+        )
+        XCTAssertEqual(preserved?.id, 1)
+        XCTAssertEqual(preserved?.rect, crossedSubject)
+
+        let lost = tracker.update(
+            candidates: [unrelated],
+            selectedCandidate: nil,
+            featurePrints: [],
+            now: 2.5
+        )
+        XCTAssertNil(lost)
+    }
+
+    func testPendingTapRejectsNearbyReplacementBeforeInitialIdentityConfirmation() {
+        let selected = CGRect(x: 0.2, y: 0.2, width: 0.25, height: 0.55)
+        let nearbyReplacement = CGRect(x: 0.48, y: 0.2, width: 0.25, height: 0.55)
+        var pending = PendingSubjectSelection(rect: selected, generation: 4, timestamp: 10)
+
+        XCTAssertNil(
+            pending.confirm(
+                candidates: [nearbyReplacement],
+                featureDistances: [],
+                generation: 4,
+                now: 10.1
+            )
+        )
+        XCTAssertEqual(pending.state, .lost)
+
+        // A lost tap cannot later adopt an unrelated detector result.
+        XCTAssertNil(
+            pending.confirm(
+                candidates: [selected],
+                featureDistances: [],
+                generation: 4,
+                now: 10.2
+            )
+        )
+    }
+
+    func testPendingTapRequiresSameGenerationAndExpiresBeforeLateConfirmation() {
+        let selected = CGRect(x: 0.2, y: 0.2, width: 0.25, height: 0.55)
+        var invalidated = PendingSubjectSelection(rect: selected, generation: 4, timestamp: 10)
+        XCTAssertNil(
+            invalidated.confirm(
+                candidates: [selected],
+                featureDistances: [],
+                generation: 5,
+                now: 10.1
+            )
+        )
+        XCTAssertEqual(invalidated.state, .lost)
+
+        var expired = PendingSubjectSelection(rect: selected, generation: 4, timestamp: 10)
+        XCTAssertNil(
+            expired.confirm(
+                candidates: [selected],
+                featureDistances: [],
+                generation: 4,
+                now: 10.9
+            )
+        )
+        XCTAssertEqual(expired.state, .lost)
+    }
+
+    func testPendingTapConfirmsOnlyTheTappedCandidateByGeometry() {
+        let selected = CGRect(x: 0.2, y: 0.2, width: 0.25, height: 0.55)
+        let unrelated = CGRect(x: 0.65, y: 0.2, width: 0.2, height: 0.5)
+        var pending = PendingSubjectSelection(rect: selected, generation: 4, timestamp: 10)
+
+        let confirmed = pending.confirm(
+            candidates: [unrelated, selected],
+            featureDistances: [],
+            generation: 4,
+            now: 10.1
+        )
+
+        XCTAssertEqual(confirmed, selected)
+        XCTAssertEqual(pending.state, .confirmed)
+    }
+
+    func testFeaturePrintDistanceUsesLowerValuesForAdoption() {
+        XCTAssertTrue(SubjectFeaturePrint.canAdopt(distance: 0.1))
+        XCTAssertFalse(SubjectFeaturePrint.canAdopt(distance: 0.5))
+    }
+
+    func testFaceLandmarkPointConvertsFromFaceRelativeToWholeImage() {
+        let converted = OnDeviceAnalyzer.fullImagePoint(
+            CGPoint(x: 0.25, y: 0.75),
+            faceBounds: CGRect(x: 0.2, y: 0.3, width: 0.4, height: 0.2)
+        )
+
+        XCTAssertEqual(converted.x, 0.3, accuracy: 0.0001)
+        XCTAssertEqual(converted.y, 0.45, accuracy: 0.0001)
+    }
+
+    func testPose3DHelperProjectsImageCoordinatesAndReadsTransformDepth() {
+        var transform = matrix_identity_float4x4
+        transform.columns.3 = SIMD4<Float>(0.4, 0.5, 1.25, 1)
+
+        let landmark = OnDeviceAnalyzer.pose3DLandmark(
+            name: "root",
+            projected: CGPoint(x: 0.2, y: 0.8),
+            transform: transform,
+            confidence: 0.75
+        )
+
+        XCTAssertEqual(landmark.point, NormalizedPoint(x: 0.2, y: 0.8))
+        XCTAssertEqual(landmark.depth, 1.25)
+        XCTAssertEqual(landmark.confidence, 0.75)
+    }
+
+    // MARK: - FCL-M2 Batch A: pose templates
+
+    func testTemplateSchemaValidatesGeneratedBundle() throws {
+        let bundle = try makeBundle()
+
+        XCTAssertEqual(bundle.schemaVersion, 1)
+        XCTAssertEqual(bundle.seedCount, 14)
+        XCTAssertGreaterThanOrEqual(bundle.generatedCount, 72)
+        XCTAssertLessThanOrEqual(bundle.generatedCount, 96)
+        XCTAssertEqual(bundle.templates.count, bundle.generatedCount)
+        XCTAssertEqual(Set(bundle.templates.map(\.id)).count, bundle.templates.count)
+        for template in bundle.templates {
+            XCTAssertTrue(PoseTemplateValidation.validate(template), template.id)
+            XCTAssertEqual(template.source, "owned-synthetic")
+        }
+    }
+
+    func testGeneratorOutputIsCanonicalAndMirrorDeduplicated() throws {
+        let bundle = try makeBundle()
+
+        let keys = bundle.templates.map(PoseTemplateDedup.canonicalKey)
+        XCTAssertEqual(
+            Set(keys).count,
+            keys.count,
+            "mirror-equivalent templates must not both survive"
+        )
+        XCTAssertEqual(
+            PoseTemplateDedup.deduplicated(bundle.templates).count,
+            bundle.templates.count,
+            "the bundle must already be deduplicated"
+        )
+        let template = try XCTUnwrap(
+            bundle.templates.first { $0.category == "onePerson" && !$0.landmarks.isEmpty }
+        )
+        XCTAssertEqual(
+            PoseTemplateDedup.canonicalKey(template),
+            PoseTemplateDedup.canonicalKey(template.mirrored),
+            "canonicalization must treat a template and its mirror as equal"
+        )
+    }
+
+    func testImplausibleAndCropUnsafeTemplatesAreRejected() {
+        var foldedLegs = makeTemplate(
+            landmarks: [
+                "left_shoulder": NormalizedPoint(x: 0.39, y: 0.72),
+                "right_shoulder": NormalizedPoint(x: 0.61, y: 0.72),
+                "left_elbow": NormalizedPoint(x: 0.32, y: 0.67),
+                "right_elbow": NormalizedPoint(x: 0.68, y: 0.67),
+                "left_hand": NormalizedPoint(x: 0.35, y: 0.62),
+                "right_hand": NormalizedPoint(x: 0.65, y: 0.62),
+                "left_hip": NormalizedPoint(x: 0.42, y: 0.55),
+                "right_hip": NormalizedPoint(x: 0.58, y: 0.55),
+                "left_knee": NormalizedPoint(x: 0.5, y: 0.4),
+                "right_knee": NormalizedPoint(x: 0.5, y: 0.4),
+                "left_ankle": NormalizedPoint(x: 0.484, y: 0.43),
+                "right_ankle": NormalizedPoint(x: 0.516, y: 0.43),
+                "left_foot": NormalizedPoint(x: 0.49, y: 0.39),
+                "right_foot": NormalizedPoint(x: 0.51, y: 0.39),
+            ]
+        )
+        XCTAssertFalse(
+            PoseTemplateValidation.validate(foldedLegs),
+            "a hyperflexed knee must be rejected"
+        )
+
+        let cropUnsafe = makeTemplate(
+            faceZone: Frame(x: 0.1, y: 0.95, width: 0.2, height: 0.1)
+        )
+        XCTAssertFalse(
+            PoseTemplateValidation.validate(cropUnsafe),
+            "a face zone without crop safety margin must be rejected"
+        )
+    }
+
+    func testMirrorEquivalentTemplatesAreRemoved() throws {
+        let bundle = try makeBundle()
+        let template = try XCTUnwrap(
+            bundle.templates.first { $0.category == "onePerson" && !$0.landmarks.isEmpty }
+        )
+
+        let deduplicated = PoseTemplateDedup.deduplicated([template, template.mirrored])
+
+        XCTAssertEqual(deduplicated.count, 1)
+    }
+
+    // MARK: - FCL-M2 Batch A: local planner
+
+    func testHardCropConstraintsRunBeforeScoring() {
+        let scene = makeDescriptor(nose: NormalizedPoint(x: 0.9, y: 0.8))
+        let templates = [
+            makeTemplate(
+                id: "crop-unsafe",
+                faceZone: Frame(x: 0.2, y: 0.5, width: 0.3, height: 0.2)
+            )
+        ]
+
+        let plans = LocalPlanner.plan(
+            scene: scene,
+            intent: .portrait,
+            templates: templates,
+            capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 4.0 / 3.0),
+            selectedSubject: nil
+        )
+
+        XCTAssertTrue(
+            plans.isEmpty,
+            "a template that crops the face must be rejected before scoring"
+        )
+    }
+
+    func testZoomBeyondCapabilityIsHardRejected() {
+        let scene = makeDescriptor()
+        let templates = [makeTemplate(id: "too-zoomed", zoom: 5)]
+
+        let plans = LocalPlanner.plan(
+            scene: scene,
+            intent: .portrait,
+            templates: templates,
+            capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 4.0 / 3.0),
+            selectedSubject: nil
+        )
+
+        XCTAssertTrue(plans.isEmpty)
+    }
+
+    func testPlannerReturnsFeasibleAndDiversePrimarySafeCreativePlans() {
+        let scene = makeDescriptor()
+        let templates = [
+            makeTemplate(id: "t1", zoom: 1.0),
+            makeTemplate(
+                id: "t2",
+                centerX: 0.35,
+                subjectWidth: 0.44,
+                faceZone: Frame(x: 0.25, y: 0.6, width: 0.3, height: 0.22),
+                zoom: 1.4
+            ),
+            makeTemplate(
+                id: "t3",
+                centerX: 0.65,
+                subjectWidth: 0.30,
+                subjectHeight: 0.70,
+                faceZone: Frame(x: 0.5, y: 0.6, width: 0.3, height: 0.22),
+                zoom: 1.8
+            ),
+        ]
+
+        XCTAssertTrue(
+            templates.allSatisfy(PoseTemplateValidation.validate),
+            "all feasible planner fixtures must pass production validation"
+        )
+
+        let plans = LocalPlanner.plan(
+            scene: scene,
+            intent: .portrait,
+            templates: templates,
+            capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 4.0 / 3.0),
+            selectedSubject: nil
+        )
+
+        XCTAssertEqual(plans.count, 3)
+        let planIDs = Set(plans.map { $0.id })
+        let templateIDs = Set(plans.map { $0.templateID })
+        XCTAssertEqual(planIDs, Set(["primary", "safe", "creative"]))
+        XCTAssertEqual(templateIDs.count, 3, "plans must be meaningfully diverse")
+        XCTAssertTrue(plans.allSatisfy { $0.recommendedZoom <= 3 })
+        XCTAssertEqual(plans.first(where: { $0.id == "safe" })?.motion, 0, "safe needs the least motion")
+    }
+
+    func testPlannerRejectsAspectCropUnsafeTemplatesBeforeScoring() {
+        let scene = makeDescriptor()
+        let sideEdge = makeTemplate(id: "side", centerX: 0.16, subjectWidth: 0.2)
+        let topEdge = makeTemplate(id: "top", centerY: 0.84, subjectHeight: 0.25)
+
+        XCTAssertTrue(
+            PoseTemplateValidation.validate(sideEdge),
+            "planner fixture side must be valid"
+        )
+
+        XCTAssertFalse(
+            LocalPlanner.isHardRejected(
+                sideEdge,
+                scene: scene,
+                intent: .portrait,
+                capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 4.0 / 3.0),
+                selectedSubject: nil
+            )
+        )
+        XCTAssertTrue(
+            LocalPlanner.isHardRejected(
+                sideEdge,
+                scene: scene,
+                intent: .portrait,
+                capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 1),
+                selectedSubject: nil
+            )
+        )
+        XCTAssertTrue(
+            LocalPlanner.isHardRejected(
+                topEdge,
+                scene: scene,
+                intent: .portrait,
+                capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 16.0 / 9.0),
+                selectedSubject: nil
+            )
+        )
+    }
+
+    func testPlannerRejectsEdgePeopleAndFacesForTheActiveCrop() {
+        let edgePerson = makeDescriptor(
+            humanRects: [CGRect(x: 0.02, y: 0.2, width: 0.2, height: 0.6)],
+            nose: nil
+        )
+        let normal = makeTemplate(id: "normal")
+        XCTAssertTrue(
+            LocalPlanner.isHardRejected(
+                normal,
+                scene: edgePerson,
+                intent: .portrait,
+                capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 1),
+                selectedSubject: edgePerson.subjectRect
+            )
+        )
+
+        let edgeFace = makeDescriptor(nose: NormalizedPoint(x: 0.5, y: 0.9))
+        let faceSafeInFourThree = makeTemplate(
+            id: "face-edge",
+            faceZone: Frame(x: 0.3, y: 0.8, width: 0.4, height: 0.15)
+        )
+        XCTAssertTrue(
+            LocalPlanner.isHardRejected(
+                faceSafeInFourThree,
+                scene: edgeFace,
+                intent: .portrait,
+                capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 16.0 / 9.0),
+                selectedSubject: nil
+            )
+        )
+    }
+
+    func testPlannerReturnsOnlyAvailableDistinctTemplatePlans() {
+        let scene = makeDescriptor()
+        let oneTemplate = makeTemplate(id: "one")
+        XCTAssertTrue(
+            PoseTemplateValidation.validate(oneTemplate),
+            "planner fixture one must be valid"
+        )
+        let one = LocalPlanner.plan(
+            scene: scene,
+            intent: .portrait,
+            templates: [oneTemplate],
+            capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 4.0 / 3.0),
+            selectedSubject: nil
+        )
+        XCTAssertEqual(one.map(\.templateID), ["one"])
+
+        let twoTemplates = [oneTemplate, makeTemplate(id: "two", zoom: 1.2)]
+        XCTAssertTrue(
+            twoTemplates.allSatisfy(PoseTemplateValidation.validate),
+            "all two-plan planner fixtures must be valid"
+        )
+        let two = LocalPlanner.plan(
+            scene: scene,
+            intent: .portrait,
+            templates: twoTemplates,
+            capabilities: LocalPlanner.Capabilities(maxZoom: 3, aspectRatio: 4.0 / 3.0),
+            selectedSubject: nil
+        )
+        XCTAssertEqual(two.count, 2)
+        XCTAssertEqual(Set(two.map(\.templateID)).count, 2)
+    }
+
+    // MARK: - FCL-M2 Batch A: feature flags
+
+    @MainActor
+    func testCoachFeatureFlagsDefaultOffPersistAndKeepFallbackStateClean() {
+        let suite = "FocelleTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertFalse(settings.coachV2Enabled, "Coach V2 must default OFF")
+        XCTAssertFalse(settings.aestheticsEnabled)
+
+        settings.coachV2Enabled = true
+        settings.aestheticsEnabled = true
+        XCTAssertTrue(AppSettings(defaults: defaults).coachV2Enabled)
+        XCTAssertTrue(AppSettings(defaults: defaults).aestheticsEnabled)
+
+        let camera = CameraSession()
+        XCTAssertTrue(camera.coachPlans.isEmpty)
+        XCTAssertNil(camera.coachSession)
+        XCTAssertFalse(camera.coachPlanApplied)
+    }
+
+    @MainActor
+    func testCoachDisableClearsAppliedV2StateAndInvalidatesAnalysis() async {
+        let camera = CameraSession()
+        let plan = makeCoachPlan()
+        let session = PlanSession(
+            baselineZoom: 1,
+            baselineExposureBias: 0,
+            capabilityGeneration: 0
+        ).applying(zoom: plan.recommendedZoom, exposureBias: plan.recommendedExposureBias)
+        camera.debugSeedCoachForTesting(plan: plan, session: session, applied: true)
+
+        camera.coachV2DidChange(from: true, to: false)
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertTrue(camera.coachPlans.isEmpty)
+        XCTAssertNil(camera.selectedCoachPlan)
+        XCTAssertNil(camera.coachSession)
+        XCTAssertFalse(camera.coachPlanApplied)
+        XCTAssertNil(camera.guidance)
+    }
+
+    @MainActor
+    func testCameraSwitchInvalidatesVisiblePlanBeforeImmediateApply() {
+        let camera = CameraSession()
+        let plan = makeCoachPlan()
+        camera.debugSeedCoachForTesting(
+            plan: plan,
+            session: PlanSession(
+                baselineZoom: 1,
+                baselineExposureBias: 0,
+                capabilityGeneration: 0
+            ),
+            applied: false
+        )
+
+        camera.switchCamera()
+        camera.applyCoachPlan(plan.id)
+
+        XCTAssertNil(camera.coachSession)
+        XCTAssertTrue(camera.coachPlans.isEmpty)
+        XCTAssertFalse(camera.coachPlanApplied)
+    }
+
+    private func makeBundle() throws -> PoseTemplateBundle {
+        let resourceURL = try XCTUnwrap(
+            Bundle.main.url(
+                forResource: PoseTemplateStore.resourceName,
+                withExtension: PoseTemplateStore.resourceExtension
+            )
+        )
+        XCTAssertEqual(resourceURL.lastPathComponent, "PoseTemplates.json")
+        let bundle = PoseTemplateStore.load(in: .main)
+        XCTAssertNotEqual(bundle.generation, "missing")
+        return bundle
+    }
+
+    private func makeTemplate(
+        id: String = "t1",
+        category: String = "onePerson",
+        subjectCount: Int = 1,
+        centerX: Double = 0.5,
+        centerY: Double = 0.5,
+        subjectWidth: Double = 0.34,
+        subjectHeight: Double = 0.82,
+        faceZone: Frame = Frame(x: 0.35, y: 0.6, width: 0.3, height: 0.22),
+        landmarks: [String: NormalizedPoint]? = nil,
+        zoom: Double = 1.0
+    ) -> PoseTemplate {
+        PoseTemplate(
+            schemaVersion: 1,
+            id: id,
+            category: category,
+            framing: "full",
+            orientation: "front",
+            subjectCount: subjectCount,
+            cameraHints: [],
+            landmarks: landmarks ?? standingLandmarks(),
+            targetFraming: TargetFraming(
+                subjectWidth: subjectWidth,
+                subjectHeight: subjectHeight,
+                centerX: centerX,
+                centerY: centerY
+            ),
+            headroom: 0.12,
+            faceZone: faceZone,
+            recommendedZoom: zoom,
+            contextTags: [],
+            lightingConstraints: LightingConstraints(
+                minLuma: 0.2,
+                maxLuma: 0.9,
+                avoidBacklit: false
+            ),
+            instructionVI: "Giữ khung.",
+            instructionEN: "Hold the frame.",
+            source: "owned-synthetic"
+        )
+    }
+
+    private func standingLandmarks(centerX: Double = 0.5) -> [String: NormalizedPoint] {
+        [
+            "head_top": NormalizedPoint(x: centerX, y: 0.92),
+            "nose": NormalizedPoint(x: centerX, y: 0.85),
+            "left_shoulder": NormalizedPoint(x: centerX - 0.11, y: 0.72),
+            "right_shoulder": NormalizedPoint(x: centerX + 0.11, y: 0.72),
+            "left_elbow": NormalizedPoint(x: centerX - 0.18, y: 0.67),
+            "right_elbow": NormalizedPoint(x: centerX + 0.18, y: 0.67),
+            "left_hand": NormalizedPoint(x: centerX - 0.15, y: 0.62),
+            "right_hand": NormalizedPoint(x: centerX + 0.15, y: 0.62),
+            "left_hip": NormalizedPoint(x: centerX - 0.08, y: 0.55),
+            "right_hip": NormalizedPoint(x: centerX + 0.08, y: 0.55),
+            "left_knee": NormalizedPoint(x: centerX - 0.09, y: 0.38),
+            "right_knee": NormalizedPoint(x: centerX + 0.09, y: 0.38),
+            "left_ankle": NormalizedPoint(x: centerX - 0.06, y: 0.14),
+            "right_ankle": NormalizedPoint(x: centerX + 0.06, y: 0.14),
+            "left_foot": NormalizedPoint(x: centerX - 0.07, y: 0.11),
+            "right_foot": NormalizedPoint(x: centerX + 0.07, y: 0.11),
+        ]
+    }
+
+    private func makeDescriptor(
+        humanRects: [CGRect] = [CGRect(x: 0.2, y: 0.2, width: 0.3, height: 0.6)],
+        nose: NormalizedPoint? = NormalizedPoint(x: 0.5, y: 0.7),
+        luma: Double = 0.5,
+        quality: Double? = 0.8
+    ) -> SceneDescriptor {
+        let pose = standingLandmarks()
+        return SceneDescriptor(
+            subjectRect: humanRects.first,
+            subjectIdentityID: 1,
+            humanRects: humanRects,
+            poseLandmarks: pose.map { PoseLandmark(name: $0.key, point: $0.value, confidence: 0.8) },
+            pose3D: nil,
+            faceLandmarks: nose.map { [FaceLandmark(name: "nose", point: $0, confidence: 0.9)] } ?? [],
+            faceCaptureQuality: quality,
+            saliencyRect: nil,
+            horizonAngle: nil,
+            luma: luma,
+            lighting: LightingInfo(
+                histogram: LightingInfo.histogram(fromLumaSamples: [0.2, 0.4, 0.6, 0.8]),
+                backlit: false,
+                contrast: 0.05
+            ),
+            blurProxy: 0.4,
+            classifications: ["onePerson"],
+            generation: 1,
+            timestamp: 1
+        )
+    }
+
     private func makeAIResponse() -> AICompositionResponse {
         AICompositionResponse(
             schemaVersion: 2,
@@ -1046,6 +1992,27 @@ final class SmokeTests: XCTestCase {
             flash: .off,
             presetIDs: ["neutral-skin"],
             pose: "Relax shoulders"
+        )
+    }
+
+    private func makeCoachPlan() -> CoachPlan {
+        CoachPlan(
+            id: "primary",
+            templateID: "test-template",
+            titleVI: "Đẹp nhất",
+            titleEN: "Best",
+            targetFraming: TargetFraming(
+                subjectWidth: 0.3,
+                subjectHeight: 0.6,
+                centerX: 0.5,
+                centerY: 0.5
+            ),
+            recommendedZoom: 1.2,
+            recommendedExposureBias: 0.2,
+            instructionVI: "Giữ khung.",
+            instructionEN: "Hold the frame.",
+            score: 1,
+            motion: 0.2
         )
     }
 }

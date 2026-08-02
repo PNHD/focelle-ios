@@ -108,6 +108,20 @@ Status as of `5532063`. Conservative by rule: when in doubt, the lower level win
   was found during this check — local guidance/target overlay disappears
   after a Settings round-trip and after force-close/relaunch — tracked as
   `FCL-003` below; it does not reopen FCL-002.
+- **`FCL-M2 — AI Photography Coach (Build Batch A)`**: `IN IMPLEMENTATION`.
+  Branch: `task/FCL-M2-batch-a-local-coach`, based on the exact
+  `feat/focelle-beta` HEAD at `82c94c09a70a8533dc44bc2655e97d9c59b4b354`.
+  Includes the Prerequisite A0 12/24/48 MP capture work (deferred 24 MP
+  delivery, proxy save via `PHAssetResourceType.photoProxy`, Photos
+  completion tracking) plus the local coach foundation: `PlanSession`
+  zoom/exposure contract, `SceneDescriptor` analysis output, selected-subject
+  identity, pose-template bundle (14 seeds → 92 variants), deterministic
+  local planner, and an experimental `coachV2Enabled` toggle (default OFF).
+  Highest evidence at this status: `CODE EXISTS` +
+  `AUTOMATED TESTED` (unit tests included in the branch; macOS CI and
+  physical-device validation are separate pending gates). The feature does
+  not claim improved photographs, thermal pass, or production readiness.
+  Batch B is not started.
 - **`FCL-M1 — Camera Core Stabilization`**: `COMPLETE — CI AND PHYSICAL
   DEVICE VERIFIED`. Branch: `task/FCL-M1-camera-core-stabilization`, created
   from the exact `feat/focelle-beta` HEAD at

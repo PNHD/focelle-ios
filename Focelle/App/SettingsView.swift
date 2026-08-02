@@ -6,7 +6,7 @@ struct SettingsView: View {
     @EnvironmentObject private var location: LocationProvider
     @EnvironmentObject private var beta: BetaAccess
     @EnvironmentObject private var account: Account
-    let supportsMaximumResolution: Bool
+    @ObservedObject var camera: CameraSession
 
     var body: some View {
         NavigationStack {
@@ -22,6 +22,7 @@ struct SettingsView: View {
                 Section {
                     Toggle("settings.onDeviceOnly", isOn: $settings.onDeviceOnly)
                     Toggle("guidance.toggle", isOn: $settings.guidanceEnabled)
+                    Toggle("settings.coachV2", isOn: $settings.coachV2Enabled)
                     Toggle("voice.toggle", isOn: $settings.voiceGuidance)
                     Toggle("autoCapture.toggle", isOn: $settings.autoCapture)
                 } header: {
@@ -33,14 +34,17 @@ struct SettingsView: View {
                 Section("settings.camera") {
                     Toggle("settings.saveOriginal", isOn: $settings.saveOriginal)
                     Toggle("settings.saveLocation", isOn: $settings.saveLocation)
-                    if supportsMaximumResolution {
-                        Toggle(
-                            "settings.maximumResolution",
-                            isOn: Binding(
-                                get: { settings.requestedResolution == .maximum },
-                                set: { settings.requestedResolution = $0 ? .maximum : .standard }
-                            )
-                        )
+                    if camera.standardModeLabel != "—" {
+                        Picker("settings.resolution", selection: $settings.requestedResolution) {
+                            Text("\(camera.standardModeLabel) MP").tag(CameraResolution.standard)
+                            if camera.supportsBalancedResolution {
+                                Text("\(camera.balancedModeLabel) MP").tag(CameraResolution.balanced)
+                            }
+                            if camera.supportsMaximumResolution {
+                                Text("\(camera.maximumModeLabel) MP").tag(CameraResolution.maximum)
+                            }
+                        }
+                        .pickerStyle(.segmented)
                     }
                 }
 
