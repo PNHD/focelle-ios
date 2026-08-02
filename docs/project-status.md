@@ -6,6 +6,9 @@ Baseline B0 — established 2026-07-30 by task FCL-001B.
 
 - **This file is the current source of project status.** Read it before
   planning or claiming progress.
+- `docs/AI_WORKFLOW.md` is the canonical multi-agent workflow authority:
+  agent roles, risk-based review policy, evidence levels, and task
+  lifecycle. This file records status; it does not restate that governance.
 - `docs/focelle-spec.md` is the source of truth for **scope**. It defines what
   the product must do. It says nothing about what currently works.
 - `docs/focelle-plan.md` is a **historical implementation plan**. Its
@@ -126,6 +129,24 @@ Status as of `5532063`. Conservative by rule: when in doubt, the lower level win
     `backend`, `simulator-test`, `device-package` — 3/3 success.
 - **`FCL-005`**: a separate, later AI-product milestone. Not started, not
   scoped by FCL-M1, and not to begin before FCL-M1 closes.
+- **`FCL-M2 Batch A — Local Coach`**: `PHYSICAL FAIL — recovery audit
+  required`. Branch `task/FCL-M2-batch-a-local-coach`, HEAD
+  `dbe9996431e988345f9914c8b6fac76a7848f5d6`. Draft PR #3 targets
+  `feat/focelle-beta` and is **not merged**. GitHub Actions run
+  `30703230859` passed at this SHA — `backend`, Swift format lint, simulator
+  build, 93 XCTest tests (zero failures), `device-package` — this is CI
+  success, not product acceptance. User-observed physical evidence on
+  iPhone 17e recorded a failing result: capture appeared to complete with no
+  new asset visible in Photos; broad Photo Library access requested at
+  launch; resolution UI showed 12 MP/48 MP but not 24 MP with selection
+  sometimes ineffective; Coach Creative appeared to mainly change zoom
+  (~2x) with no apparent pose/composition improvement; the Coach popup
+  obscured the preview and remained after selection/Apply; a person/child
+  scene received product-oriented coaching text; a no-suitable-plan message
+  could coexist with plans or an Apply control. Root cause is **not
+  established** — these are user-observed symptoms, not diagnosed causes.
+  iPhone 12 Pro physical validation: **NOT RUN**. Batch B: **NOT STARTED**.
+  See `.ai/SESSION.md` for the full current handoff.
 
 ### FCL-M1 integration record
 
@@ -182,12 +203,14 @@ FCL-003 and FCL-004 are closed inside it:
 - FCL-004 — 12/48 MP UI truthful and saved output verified: a 48 MP capture
   in Photos is `6048 × 8064` pixels, 48 MP, JPEG, approximately 16–17 MB.
 
-**`FCL-005 / FCL-M2 — AI Photography Coach`** remains **NOT STARTED**:
-unscheduled, not scoped, and no implementation begun. The tested build still
-displays `AI đám mây chưa được cấu hình.` — semantic/cloud AI is unavailable
-and local guidance remains heuristic/object-tracking. Closing FCL-M1 does
-**not** imply that AI coaching improves photographic quality; that is the
-separate FCL-M2 product milestone.
+**`FCL-M2 Batch A — Local Coach`** has since started and is now
+**`PHYSICAL FAIL — recovery audit required`** (see §5). Closing FCL-M1 did
+not imply that AI coaching improves photographic quality, and Batch A's
+physical result confirms that Coach UX and behavior are not yet acceptable.
+The **next gate is a read-only recovery audit** of the FCL-M2 Batch A
+symptoms in §5 — not new implementation. New product implementation is not
+authorized until the PM issues a scoped task contract from that audit's
+findings, per `docs/AI_WORKFLOW.md` §L. Batch B remains **NOT STARTED**.
 
 If the agent is on a documentation-only branch, it must stop before running
 any physical check — a gate does not close from a documentation branch.

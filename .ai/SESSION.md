@@ -1,179 +1,88 @@
 # Focelle iOS — Agent Handoff
 
-Updated: 2026-07-30 (task FCL-001C)
+Updated: 2026-08-02 (task FCL-WF-001)
 
-Read `docs/project-status.md` for the full status matrix. This file is the
-short operational handoff: where you are, what is proven, what not to break.
+Read `docs/project-status.md` for the full status matrix and
+`docs/AI_WORKFLOW.md` for the multi-agent workflow authority (roles, review
+policy, evidence levels, task-lifecycle rules). This file is the short
+operational handoff: where you are, what is proven, what not to break.
 
 ## Identity
 
 - Repository: `PNHD/focelle-ios` (`https://github.com/PNHD/focelle-ios.git`)
-- Correct worktree (absolute):
+- Protected product worktree (absolute) — do not edit, switch, clean, reset,
+  stage, or commit in this from any other session:
   `C:\Users\phamn\Documents\Codex\2026-07-22\build-1-app-ch-p-h\.worktrees\focelle-beta`
-- Integration branch: `feat/focelle-beta` (tracks `origin/feat/focelle-beta`)
-- Current task branch: `task/FCL-001C-status-transition`
-- Baseline commit: `5532063cfe03bb3de65220c3e95b50265273b709`
-  (`fix: recolour the last target frame shadow`)
-- Pull request: <https://github.com/PNHD/focelle-ios/pull/1> (draft, do not merge)
-- CI baseline: workflow `iOS`, run number 64, run ID `30368976476`,
-  conclusion success, jobs `backend` + `simulator-test` + `device-package`
-  all success.
+- Integration branch: `feat/focelle-beta`, integration SHA
+  `82c94c09a70a8533dc44bc2655e97d9c59b4b354` (`docs: record camera core
+  physical pass`)
+- Active product branch: `task/FCL-M2-batch-a-local-coach`, HEAD
+  `dbe9996431e988345f9914c8b6fac76a7848f5d6`
+- Pull request: draft PR #3, targets `feat/focelle-beta`, **not merged**
+- `D:\Focelle` is not a repository and must never be used for this project.
 
-Provenance note on CI: the run-64 numbers above were recorded by the FCL-001A
-audit. `gh` is **not authenticated** in the current session, so this session
-could not re-query the Actions API. Before downloading or installing the run-64
-IPA, confirm that run 64's head SHA is exactly `5532063…`.
+## FCL-M2 Batch A — current verdict
 
-## Critical directory warning
+**`FCL-M2 Batch A — PHYSICAL FAIL; recovery audit required.`**
 
-- `D:\Focelle` is **not** a repository. It is not a checkout, not a worktree,
-  and not a mirror of this project.
-- Never create source, docs, or task output at `D:\Focelle`.
-- Never run a beta task from the root `main` checkout
-  (`…\build-1-app-ch-p-h`). That checkout is a separate worktree on `main`
-  and does not contain this branch's work.
-- Always confirm `git rev-parse --show-toplevel` before editing.
+Two separate, non-contradictory facts:
 
-## Current evidence
+- **CI VERIFIED**: GitHub Actions run `30703230859` passed at
+  `dbe9996431e988345f9914c8b6fac76a7848f5d6` — `backend`, Swift format lint,
+  simulator build, 93 XCTest tests (zero failures), `device-package`. This is
+  CI success, not product acceptance.
+- **USER-OBSERVED FAILURE** on iPhone 17e (physical device): capture appeared
+  to complete but no new asset was visible in Photos; broad Photo Library
+  access was requested at launch; the resolution UI showed 12 MP and 48 MP
+  but not 24 MP, and resolution selection sometimes appeared ineffective or
+  unclear; Coach Creative appeared to mainly change zoom to roughly 2x with
+  no apparent pose/composition improvement; the Coach popup obscured the
+  preview and stayed open after selection or Apply; a person/child scene
+  received product-oriented coaching text; a "no suitable plan" message could
+  coexist with plans or an Apply control. Overall Coach UI/UX was judged
+  unacceptable relative to the intended product value.
 
-Use these four levels; do not blur them.
+These are user-observed physical symptoms, not diagnosed root causes. Root
+cause is **not established**. Do not infer a source-level cause from this
+list without investigation.
 
-- **CI verified** — proven by a green GitHub Actions run on a known SHA.
-  Covers: backend unit tests, Swift lint, iPhone 17e *simulator* build/test,
-  simulator onboarding launch, unsigned device IPA packaging.
-- **Physical device verified** — proven by observation on the real iPhone 17e.
-  At HEAD `5532063` there is **nothing** at this level.
-- **Not physically verified** — everything the app does on real hardware:
-  launch, camera preview, shutter, photo saving, filters, guidance,
-  on-device Vision, CloudKit, StoreKit, ads.
-- **Blocked by external credentials or infrastructure** — Cloudflare Worker
-  deployment, Apple Developer signing/TestFlight, CloudKit production
-  container, StoreKit sandbox, AdMob, second iCloud device.
+## Next product action
 
-Simulator success is **not** physical evidence. Code presence is **not**
-evidence of anything.
+The next gate is a **read-only recovery audit** of FCL-M2 Batch A against the
+symptoms above. New product implementation is **not authorized** by any task
+completed so far. Do not begin recovery implementation until the PM issues a
+new task contract with a scoped slice, acceptance criteria, and risk
+classification per `docs/AI_WORKFLOW.md` §L.
 
-## Known physical history
+Do not merge PR #3. Do not start Batch B — it is **NOT STARTED** and stays
+that way until the recovery audit and its follow-up are resolved.
 
-Two crashes were observed on the real iPhone earlier in the project, each with
-a crash report, and each patched:
-
-1. **CloudKit launch crash.** The app exited immediately at launch on the
-   sideloaded build. Patched by `1e81b2a`
-   (`fix: skip CloudKit when the container is unset`) — touches
-   `Focelle/Filters/PresetSync.swift`, `PresetStore.swift`, `Info.plist`,
-   `.github/workflows/testflight.yml`, plus a regression test.
-2. **Shutter crash.** The app crashed on capture. Patched by `8712f04`
-   (`fix: keep photo settings inside what the output allows`) — touches
-   `Focelle/Camera/CameraSession.swift` plus a regression test.
-
-Both commits are ancestors of HEAD (verified with `git merge-base
---is-ancestor`). **Neither patch has been re-verified on a physical device at
-the current HEAD.** There is no evidence that the app launches successfully on
-the iPhone at `5532063`, and no evidence that any photo has been captured or
-saved to Photos on the device. Do not write or imply otherwise.
-
-## Current gate
-
-`FCL-001B — Baseline Documentation Rebuild` passed independent Codex review
-on commit `eac6bd2` and its three commits (`45b1868`, `74b1109`, `eac6bd2`)
-have been fast-forwarded into the local `feat/focelle-beta` integration
-branch. Not pushed to `origin` in this task.
-
-`FCL-001C — Integrate Baseline Documentation and Establish Transition State`
-is now on task branch `task/FCL-001C-status-transition`, based on the
-integrated FCL-001B head, currently in review. This is the state as of this
-document commit — it is not a permanent instruction for every future
-session. Check the actual branch/PR state before trusting it.
-
-**Stop condition:** if you are on `task/FCL-001B-project-status` or
-`task/FCL-001C-status-transition` and about to run a device smoke test,
-stop. FCL-002 must not run on a documentation branch.
-
-### B0 artifact source (fixed, does not move)
-
-- CI run: `64`, run ID `30368976476`
-- Artifact source SHA: `5532063cfe03bb3de65220c3e95b50265273b709`
-- Artifact names: `focelle-ios-tests`, `focelle-ios-ipa`
-
-Run 64 is the artifact of baseline B0. It was built from `5532063` and stays
-built from `5532063` forever — it is not rebuilt by later commits, docs or
-otherwise. Do not describe it as an artifact of "the integration HEAD" or of
-this transition commit at any later point in time.
-
-### Post-FCL-001C integration state (moves on every merge)
-
-Once `FCL-001C` is approved and fast-forwarded into `feat/focelle-beta`:
-
-- `task/FCL-001B-project-status` and `task/FCL-001C-status-transition` must
-  **not** be reused for FCL-002.
-- The FCL-002 session must open or update `feat/focelle-beta` and verify the
-  **current** integration HEAD by reading Git directly — do not assume it is
-  still `eac6bd2` or any SHA named in this document; the FCL-001C merge
-  itself moves it to a new SHA.
-- The transition record in `docs/project-status.md` §5 already records:
-  - `Integrated FCL-001B head: eac6bd2…`
-  - `Device artifact source SHA: 5532063…`
-  - `Device artifact run: 64 / 30368976476`
-  - `Artifact reuse decision: ALLOWED` (docs-only diff)
-  - `Transition commit:` and `FCL-002 branch base:` — both intentionally
-    left to be resolved from Git, not hardcoded, since a commit cannot
-    reliably contain its own final SHA.
-- Before running FCL-002, re-verify the artifact reuse decision against the
-  actual diff from `5532063` to the current integration HEAD — do not trust
-  the recorded decision without re-checking the changed paths.
-- Only then create a new branch from the verified integration HEAD, named
-  `task/FCL-002-physical-smoke`.
-- FCL-002 is not Active until that branch/task contract actually starts. It
-  is the next gate, not a started one.
-
-**The post-merge integration SHA and the B0 artifact source SHA are two
-different SHAs by design and are never required to be equal.** The FCL-001B
-merge changes only documentation, so the integration HEAD moving does not by
-itself invalidate run 64 as a source of device evidence — but it must be
-re-checked with the rule below, not assumed.
-
-### Artifact reuse decision rule
-
-Before FCL-002 uses the run-64 IPA, diff B0 (`5532063`) against the verified
-post-merge integration HEAD:
-
-- **Run 64 remains usable** if every changed path is documentation/project
-  control only — `.ai/**`, `docs/**`, other plain Markdown not consumed by
-  the build.
-- **Run 64 must not be used**, and FCL-002 must wait for a fresh CI run built
-  from the current integration HEAD, if the diff touches any of: `Focelle/**`,
-  `FocelleTests/**`, `backend/**`, `Focelle.xcodeproj/**`,
-  `.github/workflows/**`, package/dependency configuration, or any plist,
-  entitlement, signing, or build-configuration file — anything that can change
-  binary or runtime behavior.
-
-Record the outcome of this check in the status-transition commit's
-`Artifact reuse decision` field.
+iPhone 12 Pro physical validation has **NOT RUN** at any commit referenced in
+this handoff.
 
 ## Safety warnings
 
 - There is one old stash (`stash@{0}: On main: move camera controls to
-  focelle-beta worktree`). Do **not** apply, pop, or drop it.
-- `.analysis/` at the `main` checkout is local untracked data. Never stage it.
-- Never run `git add -A`, especially from the `main` checkout. Stage explicit
-  paths only.
-- Never treat the simulator as physical evidence.
-- Do not resume feature implementation before the physical smoke checkpoint
-  passes, unless the PM issues a new task contract that reorders the work.
-- Do not merge PR #1. Do not push directly to `feat/focelle-beta`; use a
+  focelle-beta worktree`) at the root `main` checkout. Do **not** apply, pop,
+  or drop it.
+- `.analysis/` at the `main` checkout is local untracked data. Never stage
+  it.
+- Never run `git add -A`. Stage explicit paths only.
+- Never treat simulator or CI success as physical or product evidence.
+- Do not merge PR #3. Do not push directly to `feat/focelle-beta`; use a
   `task/…` branch.
 - Do not enable real charges, production ads, referral, TestFlight upload, or
-  App Store submission without explicit user authorization at the action point.
+  App Store submission without explicit user authorization at the action
+  point.
 - Never place provider keys, Apple credentials, certificates, provisioning
   profiles, or tokens in source, logs, or docs.
 
 ## Product constraints that still bind
 
 - Communicate with the user in Vietnamese; the user is not a programmer.
-- Target device: iPhone 17e, iOS 26.x. The user is on Windows with no Mac —
-  all iOS builds go through GitHub Actions macOS runners. Do not attempt local
-  iOS compilation.
+- Target device: iPhone 17e, iOS 26.x, with iPhone 12 Pro as a compatibility
+  target. The user is on Windows with no Mac — all iOS builds go through
+  GitHub Actions macOS runners. Do not attempt local iOS compilation.
 - The camera must stay usable with no login, cloud, ads, quota, or purchases.
 - Continuous realtime geometry stays on-device; the cloud model is only for a
   user-triggered semantic analysis.
@@ -181,6 +90,8 @@ Record the outcome of this check in the status-transition commit's
 
 ## Document authority
 
+- `docs/AI_WORKFLOW.md` — **canonical multi-agent workflow.** Roles, review
+  policy, evidence levels, task-lifecycle, worktree rules.
 - `docs/project-status.md` — **current project status.** Start here.
 - `docs/focelle-spec.md` — source of truth for **scope**, not status.
 - `docs/focelle-plan.md` — historical implementation plan. Its checkboxes do
@@ -190,7 +101,7 @@ Record the outcome of this check in the status-transition commit's
 
 ## Commands
 
-From the worktree root:
+From a worktree root:
 
 ```powershell
 git status --short --branch
