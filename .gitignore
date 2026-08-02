@@ -1,5 +1,10 @@
 DerivedData/
+DerivedDataDevice/
+SourcePackages/
 .worktrees/
 *.xcuserstate
 xcuserdata/
 .DS_Store
+backend/node_modules/
+backend/.dev.vars*
+backend/.wrangler/

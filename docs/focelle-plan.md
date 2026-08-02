@@ -57,16 +57,18 @@ macOS CI project
 
 ### Task 2: Deliver a real camera capture path
 
+**Status:** Implemented; CI passed in run `30191478180`. Physical iPhone verification pending.
+
 **Description:** Replace the placeholder with an AVFoundation preview, permissions, front/rear switching, shutter, and save-to-Photos flow.
 
 **Acceptance criteria:**
-- [ ] Permission denial and recovery show clear, non-blocking states.
+- [x] Permission denial and recovery show clear, non-blocking states.
 - [ ] Front/rear capture saves a correctly oriented unfiltered image to Photos.
-- [ ] Camera and save failures leave the screen usable.
+- [x] Camera and save failures leave the screen usable.
 
 **Verification:**
-- [ ] Unit-test permission/capture state transitions.
-- [ ] CI build/test passes.
+- [x] Unit-test permission/capture state transitions.
+- [x] CI build/test passes.
 - [ ] Physical check on iPhone 17e: permissions, switching, capture, save, orientation.
 
 **Dependencies:** Task 1.
@@ -77,15 +79,17 @@ macOS CI project
 
 ### Task 3: Add essential native camera controls
 
+**Status:** Implemented; CI passed in run `30191478180`. Physical iPhone verification pending.
+
 **Description:** Add zoom, tap focus, exposure bias, flash choice, timer, grid, aspect ratio, volume shutter, and supported resolution selection without changing the capture architecture.
 
 **Acceptance criteria:**
-- [ ] Unsupported controls are hidden or safely downgraded per device.
-- [ ] Default capture is 24 MP where available; 48 MP is opt-in.
-- [ ] Portrait/landscape controls and output orientation agree.
+- [x] Unsupported controls are hidden or safely downgraded per device.
+- [x] Default capture is 24 MP where available; 48 MP is opt-in.
+- [x] Portrait/landscape controls and output orientation agree in automated mapping tests.
 
 **Verification:**
-- [ ] Unit-test capability mapping and orientation transforms.
+- [x] Unit-test capability mapping and orientation transforms.
 - [ ] Physical matrix on iPhone 17e for 4:3, 1:1, 16:9, zoom, focus, flash, timer, and 24/48 MP.
 
 **Dependencies:** Task 2.
@@ -425,6 +429,8 @@ macOS CI project
 
 ### Task 19: Harden camera, AI, and render performance
 
+**Status:** Camera interruption and app lifecycle recovery implemented; CI and physical 10-minute/device evidence pending.
+
 **Description:** Fix measured memory, orientation, thermal, latency, and interruption issues from extended device sessions; do not add speculative optimizations.
 
 **Acceptance criteria:**
@@ -443,6 +449,8 @@ macOS CI project
 **Estimated scope:** Multiple small targeted fixes, not one bulk rewrite.
 
 ### Task 20: Prepare TestFlight beta and support materials
+
+**Status:** Original app icon, release/privacy drafts, device checklist, and manual TestFlight CI workflow prepared. Signed upload is blocked on the named Apple/API credentials and explicit upload authorization.
 
 **Description:** Finalize icon/launch assets, privacy/support copy, App Store privacy answers, TestFlight notes, signed cloud archive, and a staged internal beta release.
 

@@ -5,25 +5,71 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-test-screenshot:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+
+  # The simulator test and the device package share no build products, so they
+  # run as separate jobs. Run 55 spent 393s + 132s on them back to back.
+  simulator-test:
     runs-on: macos-26
     timeout-minutes: 20
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Boot iPhone 17e simulator
+      - name: Validate app configuration
+        run: /usr/libexec/PlistBuddy -c 'Print :GADApplicationIdentifier' Focelle/Info.plist
+
+      - name: Lint Swift
+        run: swift format lint --recursive --strict Focelle FocelleTests
+
+      - name: Cache Swift packages
+        continue-on-error: true
+        uses: actions/cache@v4
+        with:
+          path: SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('Focelle.xcodeproj/project.pbxproj') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Start iPhone 17e simulator
         run: |
           DEVICE_ID=$(xcrun simctl list devices available -j | jq -r '.devices["com.apple.CoreSimulator.SimRuntime.iOS-26-4"][] | select(.name == "iPhone 17e") | .udid')
           echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
           xcrun simctl shutdown all 2>/dev/null || true
+          # Deliberately no bootstatus here: booting takes ~2 minutes and the
+          # build below does not need the device. Wait for it after the build.
           xcrun simctl boot "$DEVICE_ID"
-          xcrun simctl bootstatus "$DEVICE_ID" -b
 
-      - name: Build without signing
+      # Run 56 measured build-for-testing + test-without-building at 448s + 69s
+      # against 393s for one combined invocation. Splitting them cost more than
+      # it saved, so this stays a single pass; xcodebuild compiles before it
+      # needs the device, which is what hides the boot started above.
+      - name: Build and test on iPhone 17e simulator
         run: |
           set -o pipefail
           mkdir -p artifacts logs
@@ -31,38 +77,113 @@ jobs:
             -project Focelle.xcodeproj \
             -scheme Focelle \
             -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath DerivedData \
-            CODE_SIGNING_ALLOWED=NO \
-            build | tee logs/build.log
-
-      - name: Test on iPhone 17e simulator
-        run: |
-          set -o pipefail
-          xcodebuild \
-            -project Focelle.xcodeproj \
-            -scheme Focelle \
-            -configuration Debug \
             -destination "platform=iOS Simulator,id=$DEVICE_ID" \
             -derivedDataPath DerivedData \
+            -clonedSourcePackagesDirPath SourcePackages \
             -resultBundlePath artifacts/FocelleTests.xcresult \
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 30 \
             CODE_SIGNING_ALLOWED=NO \
             test | tee logs/test.log
 
-      - name: Capture placeholder screen
+      - name: Capture onboarding screen
         run: |
           xcrun simctl install "$DEVICE_ID" DerivedData/Build/Products/Debug-iphonesimulator/Focelle.app
-          xcrun simctl launch "$DEVICE_ID" com.pnhd.focelle
+          LAUNCH_OUTPUT=$(xcrun simctl launch --terminate-running-process "$DEVICE_ID" com.pnhd.focelle)
+          echo "$LAUNCH_OUTPUT"
+          APP_PID=${LAUNCH_OUTPUT##*: }
           sleep 2
-          xcrun simctl io "$DEVICE_ID" screenshot artifacts/focelle-placeholder.png
+          if ! kill -0 "$APP_PID" 2>/dev/null; then
+            xcrun simctl spawn "$DEVICE_ID" log show \
+              --last 3m \
+              --style compact \
+              --predicate 'process == "Focelle"' | tee logs/app-launch.log || true
+            find "$HOME/Library/Logs/DiagnosticReports" \
+              -maxdepth 1 \
+              -name 'Focelle*' \
+              -exec cp {} logs/ \;
+            exit 1
+          fi
+          xcrun simctl io "$DEVICE_ID" screenshot artifacts/focelle-onboarding.png
 
-      - name: Upload logs and screenshot
+      - name: Upload test results and screenshot
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: focelle-ios-ci
+          name: focelle-ios-tests
+          path: |
+            artifacts/
+            logs/
+          if-no-files-found: warn
+
+  device-package:
+    runs-on: macos-26
+    timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache Swift packages
+        continue-on-error: true
+        uses: actions/cache@v4
+        with:
+          path: SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('Focelle.xcodeproj/project.pbxproj') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Build unsigned device IPA
+        run: |
+          set -o pipefail
+          mkdir -p artifacts logs
+          xcodebuild \
+            -project Focelle.xcodeproj \
+            -scheme Focelle \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath DerivedDataDevice \
+            -clonedSourcePackagesDirPath SourcePackages \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee logs/release-device.log
+          mkdir -p artifacts/Payload
+          cp -R DerivedDataDevice/Build/Products/Release-iphoneos/Focelle.app artifacts/Payload/
+          (
+            cd artifacts
+            ditto -c -k --sequesterRsrc --keepParent Payload Focelle-unsigned.ipa
+            rm -rf Payload
+          )
+
+      # ponytail: report only; assert once a known-good device layout exists.
+      - name: Report device app linkage
+        continue-on-error: true
+        run: |
+          APP=DerivedDataDevice/Build/Products/Release-iphoneos/Focelle.app
+          {
+            echo "== embedded frameworks =="
+            ls -1 "$APP/Frameworks" 2>/dev/null || echo "(none)"
+            echo "== linked dylibs =="
+            otool -L "$APP/Focelle"
+            echo "== rpaths =="
+            otool -l "$APP/Focelle" | grep -A2 LC_RPATH || echo "(none)"
+            echo "== signed entitlements =="
+            codesign -d --entitlements :- "$APP" 2>&1 || true
+            echo "== Info.plist =="
+            for key in FocelleCloudKitContainer GADApplicationIdentifier; do
+              printf '%s = ' "$key"
+              /usr/libexec/PlistBuddy -c "Print :$key" "$APP/Info.plist" 2>/dev/null || echo "(missing)"
+            done
+            for key in FocelleAIEndpoint FocelleAISharedToken; do
+              value=$(/usr/libexec/PlistBuddy -c "Print :$key" "$APP/Info.plist" 2>/dev/null || true)
+              echo "$key = ${#value} chars"
+            done
+          } | tee logs/device-linkage.log
+
+      - name: Upload unsigned IPA
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: focelle-ios-ipa
           path: |
             artifacts/
             logs/

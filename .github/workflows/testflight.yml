@@ -1,0 +1,146 @@
+name: TestFlight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: macos-26
+    timeout-minutes: 30
+    environment: testflight-internal
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+      APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_PROVISION_PROFILE_BASE64: ${{ secrets.APPLE_PROVISION_PROFILE_BASE64 }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+      FOCELLE_AI_ENDPOINT: ${{ secrets.FOCELLE_AI_ENDPOINT }}
+      FOCELLE_AI_SHARED_TOKEN: ${{ secrets.FOCELLE_AI_SHARED_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate required secrets
+        run: |
+          : "${APPLE_CERTIFICATE_BASE64:?Missing APPLE_CERTIFICATE_BASE64}"
+          : "${APPLE_CERTIFICATE_PASSWORD:?Missing APPLE_CERTIFICATE_PASSWORD}"
+          : "${APPLE_PROVISION_PROFILE_BASE64:?Missing APPLE_PROVISION_PROFILE_BASE64}"
+          : "${APPLE_TEAM_ID:?Missing APPLE_TEAM_ID}"
+          : "${APP_STORE_CONNECT_KEY_ID:?Missing APP_STORE_CONNECT_KEY_ID}"
+          : "${APP_STORE_CONNECT_ISSUER_ID:?Missing APP_STORE_CONNECT_ISSUER_ID}"
+          : "${APP_STORE_CONNECT_PRIVATE_KEY:?Missing APP_STORE_CONNECT_PRIVATE_KEY}"
+          : "${FOCELLE_AI_ENDPOINT:?Missing FOCELLE_AI_ENDPOINT}"
+          : "${FOCELLE_AI_SHARED_TOKEN:?Missing FOCELLE_AI_SHARED_TOKEN}"
+
+      - name: Install signing material
+        run: |
+          CERTIFICATE_PATH="$RUNNER_TEMP/distribution.p12"
+          PROFILE_PATH="$RUNNER_TEMP/focelle.mobileprovision"
+          KEYCHAIN_PATH="$RUNNER_TEMP/focelle-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+
+          printf '%s' "$APPLE_CERTIFICATE_BASE64" | base64 -D > "$CERTIFICATE_PATH"
+          printf '%s' "$APPLE_PROVISION_PROFILE_BASE64" | base64 -D > "$PROFILE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+          PROFILE_UUID="$(security cms -D -i "$PROFILE_PATH" | plutil -extract UUID raw -)"
+          PROFILE_DIRECTORY="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILE_DIRECTORY"
+          cp "$PROFILE_PATH" "$PROFILE_DIRECTORY/$PROFILE_UUID.mobileprovision"
+
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+          echo "INSTALLED_PROFILE=$PROFILE_DIRECTORY/$PROFILE_UUID.mobileprovision" >> "$GITHUB_ENV"
+
+      - name: Archive
+        run: |
+          set -o pipefail
+          # Only a signed build carries the iCloud container in its profile, so only this
+          # workflow fills FocelleCloudKitContainer. Unsigned/sideloaded builds leave it
+          # empty and skip CloudKit, which would otherwise trap at launch.
+          CLOUDKIT_CONTAINER="$(/usr/libexec/PlistBuddy \
+            -c 'Print :com.apple.developer.icloud-container-identifiers:0' \
+            Focelle/Focelle.entitlements)"
+          xcodebuild \
+            -project Focelle.xcodeproj \
+            -scheme Focelle \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Focelle.xcarchive \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY='Apple Distribution' \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            FOCELLE_AI_ENDPOINT="$FOCELLE_AI_ENDPOINT" \
+            FOCELLE_AI_SHARED_TOKEN="$FOCELLE_AI_SHARED_TOKEN" \
+            FOCELLE_CLOUDKIT_CONTAINER="$CLOUDKIT_CONTAINER" \
+            archive
+
+      - name: Export signed IPA
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>provisioningProfiles</key>
+            <dict><key>com.pnhd.focelle</key><string>$PROFILE_UUID</string></dict>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild \
+            -exportArchive \
+            -archivePath build/Focelle.xcarchive \
+            -exportPath build/export \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Validate and upload to TestFlight
+        run: |
+          KEY_DIRECTORY="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$KEY_DIRECTORY"
+          printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$KEY_DIRECTORY/AuthKey_$APP_STORE_CONNECT_KEY_ID.p8"
+          xcrun altool \
+            --validate-app \
+            --type ios \
+            --file build/export/Focelle.ipa \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+          xcrun altool \
+            --upload-app \
+            --type ios \
+            --file build/export/Focelle.ipa \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+
+      - name: Upload archive logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: focelle-testflight-${{ github.run_number }}
+          path: |
+            build/export/DistributionSummary.plist
+            build/export/ExportOptions.plist
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Remove signing material
+        if: always()
+        run: |
+          if [[ -n "${KEYCHAIN_PATH:-}" ]]; then security delete-keychain "$KEYCHAIN_PATH" || true; fi
+          if [[ -n "${INSTALLED_PROFILE:-}" ]]; then rm -f "$INSTALLED_PROFILE"; fi
+          rm -f "$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
