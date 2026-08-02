@@ -9,21 +9,50 @@ Read [`docs/project-status.md`](project-status.md) for current status and
 [`docs/focelle-spec.md`](focelle-spec.md) for product scope before acting on
 anything below.
 
-## A. PM / Technical Lead
+## A. Roles: PM / Technical Lead vs. Human Product Owner
 
-The PM (human) owns every task-defining decision:
+Two distinct roles govern this workflow. They are not interchangeable.
 
-- task selection, scope, and acceptance criteria
-- risk classification (see §I)
-- tool and model selection, reasoning effort
-- session naming, worktree and branch assignment
-- commit/diff boundary and permissions
-- stop conditions
-- evidence verification
-- PASS / PASS WITH CONDITIONS / FAIL decision
-- status and handoff updates
+### A.1 PM / Technical Lead
 
-No agent self-assigns scope, risk level, or merge/release authority.
+The PM / Technical Lead is **ChatGPT in the active project conversation**.
+It owns every task-defining decision:
+
+- identifying the next task
+- defining scope and acceptance criteria
+- classifying risk (see §I)
+- choosing Codex or Claude Code
+- choosing model and reasoning effort
+- deciding whether a new session is required
+- naming the session
+- assigning repository, worktree, branch, and commit range
+- defining edit, commit, push, merge, and CI permissions
+- defining stop conditions
+- checking agent reports against evidence
+- issuing PASS / PASS WITH CONDITIONS / FAIL
+- preventing scope creep and overlapping writers
+- maintaining project status and handoff
+
+### A.2 Human Product Owner / Operator
+
+The human user:
+
+- sets or changes product priorities
+- supplies product feedback and user-observed physical evidence
+- performs physical-device operations that agents cannot perform
+- supplies credentials or access only when explicitly required
+- authorizes consequential actions such as push, merge, signing,
+  TestFlight, App Store publication, real billing, or production
+  deployment
+- may override product direction, but is **not required** to select
+  models, effort, agents, worktrees, or session names for ordinary tasks —
+  that is the PM / Technical Lead's job
+
+### A.3 Codex and Claude Code
+
+Codex and Claude Code **execute task contracts issued by the PM /
+Technical Lead**. They do not self-assign scope, risk level, model,
+branch, or merge/release authority.
 
 ## B. Codex
 
@@ -66,10 +95,32 @@ Do not use a third model by default. Use one only when:
 - Review is always against an immutable `BASE..HEAD` (or equivalent)
   boundary.
 - Every session reports Git state at start and end.
-- No destructive Git (`reset --hard`, `push --force`, `clean -f`,
-  `branch -D`) unless the PM explicitly authorizes it for that action.
-- No cleanup of unknown/untracked changes without PM authorization.
 - Explicit staging only — **never `git add -A`**.
+
+### E.1 Destructive Git is prohibited, absolutely
+
+Agents (Codex and Claude Code) must **never execute**, under any prompt or
+PM authorization, ordinary or otherwise:
+
+- `git reset --hard`
+- `git clean -f` / `-fd` / `-fdx`
+- `git push --force` / `--force-with-lease`
+- destructive branch deletion (`branch -D`, deleting a remote branch)
+- discarding, restoring, or checking out over unknown/uncommitted changes
+- applying, popping, or dropping an existing stash, outside a dedicated,
+  explicitly reviewed recovery process
+
+PM authorization for an ordinary task **never** extends to these
+operations. If an exceptional repository recovery appears necessary, the
+agent must:
+
+1. stop;
+2. report the exact Git state and the proposed recovery;
+3. not execute the destructive operation;
+4. wait for a separate, human-controlled recovery decision.
+
+This rule does not weaken the one-writer, explicit-staging, or
+unknown-change rules elsewhere in this document — it is additive.
 
 ## F. Task lifecycle
 

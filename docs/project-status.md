@@ -162,7 +162,7 @@ Status as of `5532063`. Conservative by rule: when in doubt, the lower level win
 | Verified 48 MP output | `6048 × 8064` pixels, 48 MP, JPEG, approximately 16–17 MB |
 | Integration method | `git merge --ff-only` from `fd08ed2…` to `f2b20ed…`, no merge commit |
 | Integration docs commit | resolve with `git rev-parse HEAD` after this commit is created — not hardcoded here |
-| FCL-005 / FCL-M2 | `NOT STARTED` — semantic/cloud AI remains unavailable in the tested build |
+| FCL-005 / FCL-M2 at the FCL-M1 integration SHA | Historical state: `NOT STARTED` in the FCL-M1 build (`f2b20ed9c585fb782c7c0a9c394649a2c178a17c`) — semantic/cloud AI was unavailable in that tested build. Current FCL-M2 Batch A status is `PHYSICAL FAIL`; see §5 and §6. |
 
 ### FCL-001C transition record
 
