@@ -298,12 +298,6 @@ final class CaptureCoordinator<Context>: @unchecked Sendable {
         return CaptureTimeout(captureID: captureID, stage: entry.stage, context: entry.context)
     }
 
-    func cancelAll() -> [CaptureTimeout<Context>] {
-        lock.lock()
-        defer { lock.unlock() }
-        return cancelEntries { _ in true }
-    }
-
     func cancelBeforeSaving() -> [CaptureTimeout<Context>] {
         lock.lock()
         defer { lock.unlock() }
@@ -486,7 +480,6 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     deinit {
-        cancelPendingCaptures(cause: "camera session deinitialized", notifyUser: false, includeSaving: true)
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -1064,10 +1057,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     private func cancelPendingCaptures(
         cause: String,
-        notifyUser: Bool = true,
-        includeSaving: Bool = false
+        notifyUser: Bool = true
     ) {
-        let cancelled = includeSaving ? captureCoordinator.cancelAll() : captureCoordinator.cancelBeforeSaving()
+        let cancelled = captureCoordinator.cancelBeforeSaving()
         guard !cancelled.isEmpty else { return }
         for cancelledCapture in cancelled {
             #if DEBUG
