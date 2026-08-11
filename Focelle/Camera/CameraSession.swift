@@ -833,7 +833,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     @objc private func sessionRuntimeError(_ notification: Notification) {
         let error = notification.userInfo?[AVCaptureSessionErrorKey] as? AVError
-        let cancellationCause = Self.canRestart(after: error)
+        let cancellationCause =
+            Self.canRestart(after: error)
             ? "media services reset"
             : "fatal session runtime error"
         cancelPendingCaptures(cause: cancellationCause)
