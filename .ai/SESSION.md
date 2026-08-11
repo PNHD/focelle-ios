@@ -1,6 +1,6 @@
 # Focelle iOS — Agent Handoff
 
-Updated: 2026-08-02 (task FCL-WF-001)
+Updated: 2026-08-11 (task FCL-M2-R1)
 
 Read `docs/project-status.md` for the full status matrix and
 `docs/AI_WORKFLOW.md` for the multi-agent workflow authority (roles, review
@@ -16,9 +16,11 @@ operational handoff: where you are, what is proven, what not to break.
 - Integration branch: `feat/focelle-beta`, integration SHA
   `82c94c09a70a8533dc44bc2655e97d9c59b4b354` (`docs: record camera core
   physical pass`)
-- Active product branch: `task/FCL-M2-batch-a-local-coach`, HEAD
-  `dbe9996431e988345f9914c8b6fac76a7848f5d6`
-- Pull request: draft PR #3, targets `feat/focelle-beta`, **not merged**
+- Current task branch: `task/FCL-M2-R1-capture-save-privacy`, CI-tested
+  implementation HEAD `788f41301b074f13e9319e1c6eab8e4a44dad52d`
+- Current pull request: draft PR #5, targets `feat/focelle-beta`, **not
+  merged**. Batch A remains on `task/FCL-M2-batch-a-local-coach`, HEAD
+  `dbe9996431e988345f9914c8b6fac76a7848f5d6`, draft PR #3, **not merged**.
 - `D:\Focelle` is not a repository and must never be used for this project.
 
 ## FCL-M2 Batch A — current verdict
@@ -46,16 +48,29 @@ These are user-observed physical symptoms, not diagnosed root causes. Root
 cause is **not established**. Do not infer a source-level cause from this
 list without investigation.
 
+## FCL-M2-R1 — Capture, Save, and Privacy Reliability
+
+**`FCL-M2-R1 — CI VERIFIED; physical validation pending.`** The scoped
+capture/save/privacy repair is implemented at
+`788f41301b074f13e9319e1c6eab8e4a44dad52d`. GitHub Actions run
+`31451486572` passed at that exact SHA: `backend`, `simulator-test` (including
+Swift format lint and XCTest), and `device-package` — 3/3 success. This is CI
+evidence only; no real-device Photos or permission observation was performed.
+
+The implementation keeps Photo Library access add-only and requests it only
+on an explicit save; capture completion is correlated by the actual callback
+identifier and guarded for exactly-once terminal handling. It does not read,
+enumerate, observe, or otherwise broad-access the photo library. This task
+does not change the unresolved Batch A Coach finding or start Batch B.
+
 ## Next product action
 
-The next gate is a **read-only recovery audit** of FCL-M2 Batch A against the
-symptoms above. New product implementation is **not authorized** by any task
-completed so far. Do not begin recovery implementation until the PM issues a
-new task contract with a scoped slice, acceptance criteria, and risk
-classification per `docs/AI_WORKFLOW.md` §L.
+The next required evidence for FCL-M2-R1 is the human physical checklist on
+an iPhone: permission timing, save visibility in Photos, rapid/repeated
+capture behavior, lifecycle interruption, and user-facing error copy. These
+checks are **PENDING**. Do not represent the CI result as product acceptance.
 
-Do not merge PR #3. Do not start Batch B — it is **NOT STARTED** and stays
-that way until the recovery audit and its follow-up are resolved.
+Do not merge PR #3 or PR #5. Do not start Batch B — it is **NOT STARTED**.
 
 iPhone 12 Pro physical validation has **NOT RUN** at any commit referenced in
 this handoff.
