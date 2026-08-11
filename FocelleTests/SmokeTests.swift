@@ -138,7 +138,7 @@ final class SmokeTests: XCTestCase {
         let coordinator = CaptureCoordinator<String>()
         XCTAssertTrue(coordinator.register(captureID: 101, context: "immediate"))
 
-        guard case let .success(claim) = coordinator.claim(captureID: 101, callbackType: .immediatePhoto) else {
+        guard case .success(let claim) = coordinator.claim(captureID: 101, callbackType: .immediatePhoto) else {
             return XCTFail("the immediate callback must claim its registered capture")
         }
         XCTAssertEqual(claim.context, "immediate")
@@ -150,7 +150,7 @@ final class SmokeTests: XCTestCase {
         let coordinator = CaptureCoordinator<String>()
         XCTAssertTrue(coordinator.register(captureID: 102, context: "deferred"))
 
-        guard case let .success(claim) = coordinator.claim(captureID: 102, callbackType: .deferredProxy) else {
+        guard case .success(let claim) = coordinator.claim(captureID: 102, callbackType: .deferredProxy) else {
             return XCTFail("actual deferred delivery must not depend on a predicted mode")
         }
         XCTAssertEqual(claim.context, "deferred")
@@ -174,7 +174,7 @@ final class SmokeTests: XCTestCase {
         guard case .success = coordinator.claim(captureID: 105, callbackType: .immediatePhoto) else {
             return XCTFail("first callback must claim")
         }
-        guard case let .failure(duplicate) = coordinator.claim(captureID: 105, callbackType: .deferredProxy) else {
+        guard case .failure(let duplicate) = coordinator.claim(captureID: 105, callbackType: .deferredProxy) else {
             return XCTFail("second callback must be rejected")
         }
         XCTAssertEqual(duplicate.currentStage, .processing)
@@ -188,7 +188,7 @@ final class SmokeTests: XCTestCase {
 
     func testUnknownCallbackProducesADiagnosticInsteadOfSuccess() {
         let coordinator = CaptureCoordinator<String>()
-        guard case let .failure(diagnostic) = coordinator.claim(captureID: 404, callbackType: .immediatePhoto) else {
+        guard case .failure(let diagnostic) = coordinator.claim(captureID: 404, callbackType: .immediatePhoto) else {
             return XCTFail("unknown callbacks cannot be accepted")
         }
         XCTAssertEqual(diagnostic.captureID, 404)

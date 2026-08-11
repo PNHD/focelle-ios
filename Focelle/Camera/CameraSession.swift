@@ -833,7 +833,10 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     @objc private func sessionRuntimeError(_ notification: Notification) {
         let error = notification.userInfo?[AVCaptureSessionErrorKey] as? AVError
-        cancelPendingCaptures(cause: Self.canRestart(after: error) ? "media services reset" : "fatal session runtime error")
+        let cancellationCause = Self.canRestart(after: error)
+            ? "media services reset"
+            : "fatal session runtime error"
+        cancelPendingCaptures(cause: cancellationCause)
         if Self.canRestart(after: error) {
             configureAndStart()
         } else {
@@ -1040,9 +1043,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         callbackType: CaptureCallbackType
     ) -> CaptureClaim<PendingCapture>? {
         switch captureCoordinator.claim(captureID: id, callbackType: callbackType) {
-        case let .success(claim):
+        case .success(let claim):
             return claim
-        case let .failure(diagnostic):
+        case .failure(let diagnostic):
             recordCaptureDiagnostic(diagnostic)
             if diagnostic.reason == .unknownCapture {
                 publish(notice: "camera.error.captureCancelled")
