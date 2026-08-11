@@ -182,6 +182,161 @@ struct CaptureResolutionSnapshot: Equatable, Sendable {
     let capabilityGeneration: Int
 }
 
+enum CaptureCallbackType: String, Equatable, Sendable {
+    case immediatePhoto
+    case deferredProxy
+}
+
+enum CaptureLifecycleStage: String, Equatable, Sendable {
+    case awaitingDelivery
+    case processing
+    case saving
+    case terminal
+}
+
+enum CaptureClaimFailure: String, Equatable, Sendable {
+    case unknownCapture
+    case alreadyClaimed
+    case alreadyTerminal
+}
+
+struct CaptureDiagnostic: Error, Equatable, Sendable {
+    let captureID: Int64
+    let callbackType: CaptureCallbackType
+    let currentStage: CaptureLifecycleStage?
+    let reason: CaptureClaimFailure
+}
+
+struct CaptureClaim<Context> {
+    let captureID: Int64
+    let callbackType: CaptureCallbackType
+    let context: Context
+}
+
+struct CaptureTimeout<Context> {
+    let captureID: Int64
+    let stage: CaptureLifecycleStage
+    let context: Context
+}
+
+// This small lock-backed state machine is the capture ownership boundary. Its
+// context is opaque so the protocol can be exercised with synthetic values in
+// tests while CameraSession keeps the immutable AVFoundation snapshot locally.
+final class CaptureCoordinator<Context>: @unchecked Sendable {
+    private struct Entry {
+        let context: Context
+        var stage: CaptureLifecycleStage
+    }
+
+    private let lock = NSLock()
+    private var entries: [Int64: Entry] = [:]
+    private var terminalIDs: [Int64] = []
+    private let terminalHistoryLimit = 64
+
+    func register(captureID: Int64, context: Context) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard entries[captureID] == nil, !terminalIDs.contains(captureID) else { return false }
+        entries[captureID] = Entry(context: context, stage: .awaitingDelivery)
+        return true
+    }
+
+    func claim(
+        captureID: Int64,
+        callbackType: CaptureCallbackType
+    ) -> Result<CaptureClaim<Context>, CaptureDiagnostic> {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var entry = entries[captureID] else {
+            return .failure(
+                CaptureDiagnostic(
+                    captureID: captureID,
+                    callbackType: callbackType,
+                    currentStage: terminalIDs.contains(captureID) ? .terminal : nil,
+                    reason: terminalIDs.contains(captureID) ? .alreadyTerminal : .unknownCapture
+                )
+            )
+        }
+        guard entry.stage == .awaitingDelivery else {
+            return .failure(
+                CaptureDiagnostic(
+                    captureID: captureID,
+                    callbackType: callbackType,
+                    currentStage: entry.stage,
+                    reason: .alreadyClaimed
+                )
+            )
+        }
+        entry.stage = .processing
+        entries[captureID] = entry
+        return .success(CaptureClaim(captureID: captureID, callbackType: callbackType, context: entry.context))
+    }
+
+    func beginSaving(captureID: Int64) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var entry = entries[captureID], entry.stage == .processing else { return false }
+        entry.stage = .saving
+        entries[captureID] = entry
+        return true
+    }
+
+    func complete(captureID: Int64, expectedStage: CaptureLifecycleStage) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let entry = entries[captureID], entry.stage == expectedStage else { return false }
+        entries[captureID] = nil
+        rememberTerminal(captureID)
+        return true
+    }
+
+    func timeout(captureID: Int64) -> CaptureTimeout<Context>? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let entry = entries.removeValue(forKey: captureID) else { return nil }
+        rememberTerminal(captureID)
+        return CaptureTimeout(captureID: captureID, stage: entry.stage, context: entry.context)
+    }
+
+    func cancelAll() -> [CaptureTimeout<Context>] {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelEntries { _ in true }
+    }
+
+    func cancelBeforeSaving() -> [CaptureTimeout<Context>] {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelEntries { $0 != .saving }
+    }
+
+    private func cancelEntries(
+        matching shouldCancel: (CaptureLifecycleStage) -> Bool
+    ) -> [CaptureTimeout<Context>] {
+        let captureIDs = entries.compactMap { shouldCancel($0.value.stage) ? $0.key : nil }
+        let cancelled = captureIDs.compactMap { captureID -> CaptureTimeout<Context>? in
+            guard let entry = entries.removeValue(forKey: captureID) else { return nil }
+            rememberTerminal(captureID)
+            return CaptureTimeout(captureID: captureID, stage: entry.stage, context: entry.context)
+        }
+        return cancelled
+    }
+
+    var pendingCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries.count
+    }
+
+    private func rememberTerminal(_ captureID: Int64) {
+        terminalIDs.removeAll { $0 == captureID }
+        terminalIDs.append(captureID)
+        if terminalIDs.count > terminalHistoryLimit {
+            terminalIDs.removeFirst(terminalIDs.count - terminalHistoryLimit)
+        }
+    }
+}
+
 enum CameraRotation {
     static func angle(for orientation: UIInterfaceOrientation) -> CGFloat {
         switch orientation {
@@ -201,6 +356,24 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         case interrupted
         case permissionDenied
         case unavailable
+    }
+
+    private struct PendingCapture {
+        let snapshot: CaptureResolutionSnapshot
+        let ratio: CameraRatio
+        let filter: FilterRecipe?
+        let filterIntensity: Double
+        let saveOriginal: Bool
+        let location: CLLocation?
+    }
+
+    private struct SaveRequest {
+        let primaryData: Data
+        let originalData: Data?
+        let location: CLLocation?
+        let record: CaptureResolutionRecord
+        let countsFilter: Bool
+        let filterFallback: Bool
     }
 
     @Published private(set) var state: State = .starting
@@ -250,17 +423,10 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private let filterRenderer = FilterRenderer()
     private let analyzer = OnDeviceAnalyzer()
     private var input: AVCaptureDeviceInput?
+    private let captureCoordinator = CaptureCoordinator<PendingCapture>()
+    private var captureTimeouts: [Int64: DispatchWorkItem] = [:]
     private var configured = false
     private var rotationAngle: CGFloat = 90
-    private var pendingRatio: CameraRatio = .fourThree
-    private var pendingFilter: FilterRecipe?
-    private var pendingFilterIntensity = 1.0
-    private var pendingSaveOriginal = false
-    private var pendingLocation: CLLocation?
-    private var pendingCaptureSnapshot = CaptureResolutionSnapshot(
-        resolved: ResolvedResolution(requested: .standard, dimensions: nil, downgradeReason: .none),
-        capabilityGeneration: 0
-    )
     // Queue-owned canonical capability state — currentCaptureSnapshot(for:)
     // reads these directly so a capture is never configured from stale or
     // independently-drifted dimensions. Not `private`: regression tests
@@ -320,6 +486,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     deinit {
+        cancelPendingCaptures(cause: "camera session deinitialized", notifyUser: false, includeSaving: true)
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -346,7 +513,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     func stop() {
         queue.async { [weak self] in
-            guard let self, self.session.isRunning else { return }
+            guard let self else { return }
+            self.cancelPendingCaptures(cause: "camera session stopped")
+            guard self.session.isRunning else { return }
             #if DEBUG
                 self.lifecycleLog.debug("session stop")
             #endif
@@ -388,6 +557,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     func switchCamera() {
         queue.async { [weak self] in
             guard let self, let oldInput = self.input else { return }
+            self.cancelPendingCaptures(cause: "camera switch")
             let newPosition: AVCaptureDevice.Position = oldInput.device.position == .back ? .front : .back
             guard let device = Self.device(position: newPosition),
                 let newInput = try? AVCaptureDeviceInput(device: device)
@@ -497,11 +667,15 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         let selectedResolution = resolution
         let selectedFilter = activeFilter
         let selectedFilterIntensity = filterIntensity
+        let selectedSaveOriginal = savesOriginal
+        let selectedLocation = photoLocation
         isCapturing = true
 
         queue.async { [weak self] in
-            guard let self, self.session.isRunning else {
-                self?.finishCapture()
+            guard let self else { return }
+            guard self.session.isRunning else {
+                self.publish(notice: "camera.error.capture")
+                self.finishCapture()
                 return
             }
             // Taken on `queue` right now, from queue-owned capability state —
@@ -528,12 +702,19 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             {
                 connection.videoRotationAngle = self.rotationAngle
             }
-            self.pendingRatio = selectedRatio
-            self.pendingFilter = selectedFilter
-            self.pendingFilterIntensity = selectedFilterIntensity
-            self.pendingSaveOriginal = self.savesOriginal
-            self.pendingLocation = self.photoLocation
-            self.pendingCaptureSnapshot = snapshot
+            let context = PendingCapture(
+                snapshot: snapshot,
+                ratio: selectedRatio,
+                filter: selectedFilter,
+                filterIntensity: selectedFilterIntensity,
+                saveOriginal: selectedSaveOriginal,
+                location: selectedLocation
+            )
+            guard self.registerPendingCapture(id: settings.uniqueID, context: context) else {
+                self.publish(notice: Self.cancellationNotice)
+                self.finishCapture()
+                return
+            }
             self.photoOutput.capturePhoto(with: settings, delegate: self)
         }
     }
@@ -595,6 +776,23 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             self.measurement = measurement
             self.guidance = guidance
         }
+
+        func debugRegisterPendingCaptureForTesting(id: Int64) {
+            let context = PendingCapture(
+                snapshot: CaptureResolutionSnapshot(
+                    resolved: ResolvedResolution(requested: .standard, dimensions: nil, downgradeReason: .none),
+                    capabilityGeneration: 0
+                ),
+                ratio: .fourThree,
+                filter: nil,
+                filterIntensity: 1,
+                saveOriginal: false,
+                location: nil
+            )
+            _ = captureCoordinator.register(captureID: id, context: context)
+        }
+
+        var debugPendingCaptureCount: Int { captureCoordinator.pendingCount }
     #endif
 
     private func configure() -> Bool {
@@ -635,6 +833,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     @objc private func sessionRuntimeError(_ notification: Notification) {
         let error = notification.userInfo?[AVCaptureSessionErrorKey] as? AVError
+        cancelPendingCaptures(cause: Self.canRestart(after: error) ? "media services reset" : "fatal session runtime error")
         if Self.canRestart(after: error) {
             configureAndStart()
         } else {
@@ -825,21 +1024,160 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
-    private func save(_ data: Data, countsFilter: Bool, showsThumbnail: Bool) {
-        let location = pendingLocation
-        let performSave: @Sendable () -> Void = {
+    private func registerPendingCapture(id: Int64, context: PendingCapture) -> Bool {
+        guard captureCoordinator.register(captureID: id, context: context) else { return false }
+        let timeout = DispatchWorkItem { [weak self] in
+            self?.handleCaptureTimeout(id: id)
+        }
+        captureTimeouts[id]?.cancel()
+        captureTimeouts[id] = timeout
+        queue.asyncAfter(deadline: .now() + 15, execute: timeout)
+        return true
+    }
+
+    private func claimCapture(
+        id: Int64,
+        callbackType: CaptureCallbackType
+    ) -> CaptureClaim<PendingCapture>? {
+        switch captureCoordinator.claim(captureID: id, callbackType: callbackType) {
+        case let .success(claim):
+            return claim
+        case let .failure(diagnostic):
+            recordCaptureDiagnostic(diagnostic)
+            if diagnostic.reason == .unknownCapture {
+                publish(notice: "camera.error.captureCancelled")
+            }
+            return nil
+        }
+    }
+
+    private func cancelCapture(id: Int64, notice: String) {
+        guard captureCoordinator.timeout(captureID: id) != nil else { return }
+        retireCaptureTimeout(id: id)
+        publish(notice: notice)
+        finishCapture()
+    }
+
+    private func cancelPendingCaptures(
+        cause: String,
+        notifyUser: Bool = true,
+        includeSaving: Bool = false
+    ) {
+        let cancelled = includeSaving ? captureCoordinator.cancelAll() : captureCoordinator.cancelBeforeSaving()
+        guard !cancelled.isEmpty else { return }
+        for cancelledCapture in cancelled {
+            #if DEBUG
+                lifecycleLog.debug(
+                    "capture cancelled id=\(cancelledCapture.captureID, privacy: .public) stage=\(cancelledCapture.stage.rawValue, privacy: .public) cause=\(cause, privacy: .public)"
+                )
+            #endif
+            retireCaptureTimeout(id: cancelledCapture.captureID)
+            if notifyUser { publish(notice: Self.cancellationNotice) }
+        }
+        finishCapture()
+    }
+
+    private func handleCaptureTimeout(id: Int64) {
+        guard let timeout = captureCoordinator.timeout(captureID: id) else { return }
+        captureTimeouts[id] = nil
+        publish(notice: Self.timeoutNotice(for: timeout.stage))
+        finishCapture()
+    }
+
+    private func retireCaptureTimeout(id: Int64) {
+        queue.async { [weak self] in
+            self?.captureTimeouts.removeValue(forKey: id)?.cancel()
+        }
+    }
+
+    private func recordCaptureDiagnostic(_ diagnostic: CaptureDiagnostic) {
+        #if DEBUG
+            lifecycleLog.debug(
+                "capture callback rejected id=\(diagnostic.captureID, privacy: .public) callback=\(diagnostic.callbackType.rawValue, privacy: .public) state=\(diagnostic.currentStage?.rawValue ?? "unknown", privacy: .public) reason=\(diagnostic.reason.rawValue, privacy: .public)"
+            )
+        #endif
+    }
+
+    static func timeoutNotice(for stage: CaptureLifecycleStage) -> String {
+        switch stage {
+        case .awaitingDelivery: "camera.error.captureTimeoutDelivery"
+        case .processing: "camera.error.captureTimeoutProcessing"
+        case .saving: "camera.error.captureTimeoutSaving"
+        case .terminal: "camera.error.captureTimeoutDelivery"
+        }
+    }
+
+    static let cancellationNotice = "camera.error.captureCancelled"
+    static let filterFallbackNotice = "camera.warning.filterFallbackSaved"
+
+    static func canSaveUnfilteredFallback(hasFilter: Bool, requiresAspectProcessing: Bool) -> Bool {
+        hasFilter && !requiresAspectProcessing
+    }
+
+    static func photoAuthorizationNotice(for status: PHAuthorizationStatus) -> String? {
+        switch status {
+        case .authorized, .limited: nil
+        case .denied: "camera.error.photosPermissionDenied"
+        case .restricted: "camera.error.photosRestricted"
+        case .notDetermined: "camera.error.photosPermissionDenied"
+        @unknown default: "camera.error.photosPermissionDenied"
+        }
+    }
+
+    static func photoWriteNotice(for success: Bool) -> String? {
+        success ? nil : "camera.error.photosWrite"
+    }
+
+    private func save(captureID: Int64, request: SaveRequest) {
+        guard captureCoordinator.beginSaving(captureID: captureID) else { return }
+
+        let primaryData = request.primaryData
+        let originalData = request.originalData
+        let location = request.location
+        let record = request.record
+        let countsFilter = request.countsFilter
+        let filterFallback = request.filterFallback
+        let performSave: @Sendable () -> Void = { [weak self] in
             PHPhotoLibrary.shared().performChanges {
+                if let originalData {
+                    let original = PHAssetCreationRequest.forAsset()
+                    original.location = location
+                    original.addResource(with: .photo, data: originalData, options: nil)
+                }
                 let creation = PHAssetCreationRequest.forAsset()
                 creation.location = location
-                creation.addResource(with: .photo, data: data, options: nil)
-            } completionHandler: { [weak self] saved, _ in
-                self?.publish(notice: saved ? "camera.saved" : "camera.error.save")
-                if saved, showsThumbnail, let thumbnail = UIImage(data: data)?.cgImage {
-                    DispatchQueue.main.async { self?.latestThumbnail = thumbnail }
+                creation.addResource(with: .photo, data: primaryData, options: nil)
+            } completionHandler: { [weak self] saved, error in
+                guard let self, self.captureCoordinator.complete(captureID: captureID, expectedStage: .saving) else {
+                    return
                 }
-                if saved, countsFilter {
-                    DispatchQueue.main.async { self?.filterSaveSequence += 1 }
+                self.retireCaptureTimeout(id: captureID)
+                if saved {
+                    self.publish(notice: filterFallback ? Self.filterFallbackNotice : "camera.saved")
+                    if let thumbnail = UIImage(data: primaryData)?.cgImage {
+                        DispatchQueue.main.async {
+                            self.latestThumbnail = thumbnail
+                            self.lastCaptureResolution = record
+                        }
+                    } else {
+                        DispatchQueue.main.async { self.lastCaptureResolution = record }
+                    }
+                    if countsFilter {
+                        DispatchQueue.main.async { self.filterSaveSequence += 1 }
+                    }
+                } else {
+                    if let error = error as NSError? {
+                        #if DEBUG
+                            self.lifecycleLog.error(
+                                "Photos save failed domain=\(error.domain, privacy: .public) code=\(error.code, privacy: .public) message=\(error.localizedDescription, privacy: .public)"
+                            )
+                        #endif
+                    }
+                    if let notice = Self.photoWriteNotice(for: saved) {
+                        self.publish(notice: notice)
+                    }
                 }
+                self.finishCapture()
             }
         }
 
@@ -847,15 +1185,25 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         case .authorized, .limited:
             performSave()
         case .notDetermined:
-            PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
-                if status == .authorized || status == .limited {
-                    performSave()
+            PHPhotoLibrary.requestAuthorization(for: .addOnly) { [weak self] status in
+                guard let self else { return }
+                if let notice = Self.photoAuthorizationNotice(for: status) {
+                    guard self.captureCoordinator.complete(captureID: captureID, expectedStage: .saving) else { return }
+                    self.retireCaptureTimeout(id: captureID)
+                    self.publish(notice: notice)
+                    self.finishCapture()
                 } else {
-                    self.publish(notice: "camera.error.photosPermission")
+                    performSave()
                 }
             }
         default:
-            publish(notice: "camera.error.photosPermission")
+            let status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+            guard let notice = Self.photoAuthorizationNotice(for: status),
+                captureCoordinator.complete(captureID: captureID, expectedStage: .saving)
+            else { return }
+            retireCaptureTimeout(id: captureID)
+            publish(notice: notice)
+            finishCapture()
         }
     }
 
@@ -881,35 +1229,101 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 extension CameraSession: AVCapturePhotoCaptureDelegate {
     func photoOutput(
         _ output: AVCapturePhotoOutput,
+        didFinishCapturingDeferredPhotoProxy proxy: AVCaptureDeferredPhotoProxy?,
+        error: Error?
+    ) {
+        guard let proxy else {
+            cancelPendingCaptures(cause: "deferred proxy callback omitted its payload")
+            publish(notice: "camera.error.capture")
+            finishCapture()
+            return
+        }
+        let captureID = proxy.resolvedSettings.uniqueID
+        guard error == nil, let data = proxy.fileDataRepresentation() else {
+            cancelCapture(id: captureID, notice: "camera.error.capture")
+            return
+        }
+        guard let claim = claimCapture(id: captureID, callbackType: .deferredProxy) else { return }
+        defer { finishCapture() }
+
+        let record = CaptureResolutionRecord(
+            requested: claim.context.snapshot.resolved.requested,
+            resolvedDimensions: claim.context.snapshot.resolved.dimensions,
+            savedDimensions: nil,
+            downgradeReason: claim.context.snapshot.resolved.downgradeReason
+        )
+        save(
+            captureID: captureID,
+            request: SaveRequest(
+                primaryData: data,
+                originalData: nil,
+                location: claim.context.location,
+                record: record,
+                countsFilter: false,
+                filterFallback: false
+            )
+        )
+    }
+
+    func photoOutput(
+        _ output: AVCapturePhotoOutput,
         didFinishProcessingPhoto photo: AVCapturePhoto,
         error: Error?
     ) {
-        defer { finishCapture() }
+        let captureID = photo.resolvedSettings.uniqueID
         guard error == nil, let data = photo.fileDataRepresentation() else {
-            publish(notice: "camera.error.capture")
+            cancelCapture(id: captureID, notice: "camera.error.capture")
             return
         }
-        let outputData =
-            filterRenderer.renderedData(
-                from: data,
-                recipe: pendingFilter,
-                intensity: pendingFilterIntensity,
-                aspectRatio: pendingRatio == .fourThree ? nil : pendingRatio.value
-            ) ?? data
-        if pendingSaveOriginal, pendingFilter != nil {
-            save(data, countsFilter: false, showsThumbnail: false)
+        guard let claim = claimCapture(id: captureID, callbackType: .immediatePhoto) else { return }
+        defer { finishCapture() }
+        let requiresAspectProcessing = claim.context.ratio != .fourThree
+        let renderedData = filterRenderer.renderedData(
+            from: data,
+            recipe: claim.context.filter,
+            intensity: claim.context.filterIntensity,
+            aspectRatio: requiresAspectProcessing ? claim.context.ratio.value : nil
+        )
+        let canSaveUnfilteredFallback = Self.canSaveUnfilteredFallback(
+            hasFilter: claim.context.filter != nil,
+            requiresAspectProcessing: requiresAspectProcessing
+        )
+        guard let outputData = renderedData ?? (canSaveUnfilteredFallback ? data : nil) else {
+            guard captureCoordinator.complete(captureID: captureID, expectedStage: .processing) else { return }
+            retireCaptureTimeout(id: captureID)
+            publish(notice: "camera.error.processing")
+            return
         }
+        let filterFallback = renderedData == nil && canSaveUnfilteredFallback
         // Built from the exact snapshot capture() used to configure the
         // output — never re-derived — plus the one thing that can only be
         // known now: what ImageIO reports the saved bytes actually contain.
         let record = CaptureResolutionRecord(
-            requested: pendingCaptureSnapshot.resolved.requested,
-            resolvedDimensions: pendingCaptureSnapshot.resolved.dimensions,
+            requested: claim.context.snapshot.resolved.requested,
+            resolvedDimensions: claim.context.snapshot.resolved.dimensions,
             savedDimensions: Self.pixelDimensions(of: outputData),
-            downgradeReason: pendingCaptureSnapshot.resolved.downgradeReason
+            downgradeReason: claim.context.snapshot.resolved.downgradeReason
         )
-        DispatchQueue.main.async { self.lastCaptureResolution = record }
-        save(outputData, countsFilter: pendingFilter != nil, showsThumbnail: true)
+        save(
+            captureID: captureID,
+            request: SaveRequest(
+                primaryData: outputData,
+                originalData: claim.context.saveOriginal && claim.context.filter != nil && !filterFallback ? data : nil,
+                location: claim.context.location,
+                record: record,
+                countsFilter: claim.context.filter != nil && !filterFallback,
+                filterFallback: filterFallback
+            )
+        )
+    }
+
+    func photoOutput(
+        _ output: AVCapturePhotoOutput,
+        didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings,
+        error: Error?
+    ) {
+        guard error != nil else { return }
+        cancelCapture(id: resolvedSettings.uniqueID, notice: "camera.error.capture")
     }
 
     static func cloudGuidance(
