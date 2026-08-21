@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreImage
+import Photos
 import XCTest
 
 @testable import Focelle
@@ -129,6 +130,207 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(record.resolvedDimensions, requested)
         XCTAssertEqual(record.savedDimensions, actuallySaved)
         XCTAssertNotEqual(record.resolvedDimensions, record.savedDimensions)
+    }
+
+    // MARK: - FCL-M2-R1 capture ownership and add-only privacy
+
+    func testCaptureCoordinatorClaimsImmediateDeliveryExactlyOnce() {
+        let coordinator = CaptureCoordinator<String>()
+        XCTAssertTrue(coordinator.register(captureID: 101, context: "immediate"))
+
+        guard case .success(let claim) = coordinator.claim(captureID: 101, callbackType: .immediatePhoto) else {
+            return XCTFail("the immediate callback must claim its registered capture")
+        }
+        XCTAssertEqual(claim.context, "immediate")
+        XCTAssertEqual(claim.callbackType, .immediatePhoto)
+        XCTAssertEqual(coordinator.pendingCount, 1)
+    }
+
+    func testCaptureCoordinatorClaimsDeferredDeliveryWithoutPrediction() {
+        let coordinator = CaptureCoordinator<String>()
+        XCTAssertTrue(coordinator.register(captureID: 102, context: "deferred"))
+
+        guard case .success(let claim) = coordinator.claim(captureID: 102, callbackType: .deferredProxy) else {
+            return XCTFail("actual deferred delivery must not depend on a predicted mode")
+        }
+        XCTAssertEqual(claim.context, "deferred")
+        XCTAssertEqual(claim.callbackType, .deferredProxy)
+    }
+
+    func testCaptureCoordinatorAcceptsEitherActualDeliveryPath() {
+        let immediate = CaptureCoordinator<String>()
+        let deferred = CaptureCoordinator<String>()
+        XCTAssertTrue(immediate.register(captureID: 103, context: "same snapshot"))
+        XCTAssertTrue(deferred.register(captureID: 104, context: "same snapshot"))
+
+        guard case .success = immediate.claim(captureID: 103, callbackType: .immediatePhoto),
+            case .success = deferred.claim(captureID: 104, callbackType: .deferredProxy)
+        else { return XCTFail("both real delegate payload types must be claimable") }
+    }
+
+    func testDuplicateDeliveryCannotClaimOrCompleteASaveTwice() {
+        let coordinator = CaptureCoordinator<String>()
+        XCTAssertTrue(coordinator.register(captureID: 105, context: "one save"))
+        guard case .success = coordinator.claim(captureID: 105, callbackType: .immediatePhoto) else {
+            return XCTFail("first callback must claim")
+        }
+        guard case .failure(let duplicate) = coordinator.claim(captureID: 105, callbackType: .deferredProxy) else {
+            return XCTFail("second callback must be rejected")
+        }
+        XCTAssertEqual(duplicate.currentStage, .processing)
+        XCTAssertEqual(duplicate.reason, .alreadyClaimed)
+
+        XCTAssertTrue(coordinator.beginSaving(captureID: 105))
+        XCTAssertTrue(coordinator.complete(captureID: 105, expectedStage: .saving))
+        XCTAssertFalse(coordinator.complete(captureID: 105, expectedStage: .saving))
+        XCTAssertEqual(coordinator.pendingCount, 0)
+    }
+
+    func testUnknownCallbackProducesADiagnosticInsteadOfSuccess() {
+        let coordinator = CaptureCoordinator<String>()
+        guard case .failure(let diagnostic) = coordinator.claim(captureID: 404, callbackType: .immediatePhoto) else {
+            return XCTFail("unknown callbacks cannot be accepted")
+        }
+        XCTAssertEqual(diagnostic.captureID, 404)
+        XCTAssertNil(diagnostic.currentStage)
+        XCTAssertEqual(diagnostic.reason, .unknownCapture)
+    }
+
+    @MainActor
+    func testAnalysisResetPreservesPendingCaptures() {
+        let camera = CameraSession()
+        camera.debugRegisterPendingCaptureForTesting(id: 106)
+
+        camera.resetAnalysisForResume()
+
+        XCTAssertEqual(camera.debugPendingCaptureCount, 1)
+    }
+
+    func testCaptureTimeoutTerminatesAwaitingDeliveryAndProcessingExactlyOnce() {
+        let coordinator = CaptureCoordinator<String>()
+        XCTAssertTrue(coordinator.register(captureID: 107, context: "delivery"))
+        XCTAssertEqual(coordinator.timeout(captureID: 107)?.stage, .awaitingDelivery)
+        XCTAssertNil(coordinator.timeout(captureID: 107))
+        XCTAssertEqual(CameraSession.timeoutNotice(for: .awaitingDelivery), "camera.error.captureTimeoutDelivery")
+
+        XCTAssertTrue(coordinator.register(captureID: 108, context: "processing"))
+        guard case .success = coordinator.claim(captureID: 108, callbackType: .immediatePhoto) else {
+            return XCTFail("capture must enter processing")
+        }
+        XCTAssertEqual(coordinator.timeout(captureID: 108)?.stage, .processing)
+        XCTAssertNil(coordinator.timeout(captureID: 108))
+        XCTAssertEqual(CameraSession.timeoutNotice(for: .processing), "camera.error.captureTimeoutProcessing")
+    }
+
+    func testSavingOwnershipSurvivesTimeoutAndCompletesExactlyOnce() {
+        let coordinator = CaptureCoordinator<String>()
+        XCTAssertTrue(coordinator.register(captureID: 109, context: "saving"))
+        guard case .success = coordinator.claim(captureID: 109, callbackType: .deferredProxy) else {
+            return XCTFail("capture must claim deferred delivery")
+        }
+        XCTAssertTrue(coordinator.beginSaving(captureID: 109))
+        XCTAssertNil(coordinator.timeout(captureID: 109))
+        XCTAssertEqual(coordinator.pendingCount, 1)
+        XCTAssertTrue(coordinator.complete(captureID: 109, expectedStage: .saving))
+        XCTAssertFalse(coordinator.complete(captureID: 109, expectedStage: .saving))
+        XCTAssertEqual(coordinator.pendingCount, 0)
+    }
+
+    func testFinalCaptureCancellationCannotRevokeSavingOwnership() {
+        let coordinator = CaptureCoordinator<String>()
+        XCTAssertTrue(coordinator.register(captureID: 110, context: "final error"))
+        guard case .success = coordinator.claim(captureID: 110, callbackType: .immediatePhoto) else {
+            return XCTFail("capture must enter processing")
+        }
+        XCTAssertTrue(coordinator.beginSaving(captureID: 110))
+
+        // CameraSession routes a final AVFoundation error through this same
+        // cancellation boundary, so it must not revoke a PhotoKit owner.
+        XCTAssertNil(coordinator.timeout(captureID: 110))
+        XCTAssertTrue(coordinator.complete(captureID: 110, expectedStage: .saving))
+    }
+
+    func testLifecycleCancellationTerminatesOnlyCapturesThatHaveNotReachedPhotos() {
+        let coordinator = CaptureCoordinator<String>()
+        XCTAssertTrue(coordinator.register(captureID: 111, context: "awaiting"))
+        XCTAssertTrue(coordinator.register(captureID: 112, context: "processing"))
+        XCTAssertTrue(coordinator.register(captureID: 113, context: "saving"))
+        guard case .success = coordinator.claim(captureID: 112, callbackType: .immediatePhoto),
+            case .success = coordinator.claim(captureID: 113, callbackType: .immediatePhoto)
+        else {
+            return XCTFail("captures must enter processing")
+        }
+        XCTAssertTrue(coordinator.beginSaving(captureID: 113))
+
+        let cancelled = coordinator.cancelBeforeSaving()
+
+        XCTAssertEqual(Set(cancelled.map(\.captureID)), Set([111, 112]))
+        XCTAssertEqual(Set(cancelled.map(\.stage)), Set([.awaitingDelivery, .processing]))
+        XCTAssertEqual(coordinator.pendingCount, 1)
+        XCTAssertEqual(CameraSession.cancellationNotice, "camera.error.captureCancelled")
+    }
+
+    func testIndependentCaptureIDsDoNotInterfereAfterSavingBegins() {
+        let coordinator = CaptureCoordinator<String>()
+        XCTAssertTrue(coordinator.register(captureID: 114, context: "first"))
+        XCTAssertTrue(coordinator.register(captureID: 115, context: "second"))
+        guard case .success = coordinator.claim(captureID: 114, callbackType: .immediatePhoto),
+            case .success = coordinator.claim(captureID: 115, callbackType: .deferredProxy)
+        else {
+            return XCTFail("both captures must claim their own delivery")
+        }
+        XCTAssertTrue(coordinator.beginSaving(captureID: 114))
+        XCTAssertTrue(coordinator.beginSaving(captureID: 115))
+
+        XCTAssertNil(coordinator.timeout(captureID: 114))
+        XCTAssertTrue(coordinator.complete(captureID: 115, expectedStage: .saving))
+        XCTAssertTrue(coordinator.complete(captureID: 114, expectedStage: .saving))
+    }
+
+    func testPhotoAuthorizationFailuresRemainDistinct() {
+        XCTAssertNil(CameraSession.photoAuthorizationNotice(for: .authorized))
+        XCTAssertNil(CameraSession.photoAuthorizationNotice(for: .limited))
+        XCTAssertEqual(
+            CameraSession.photoAuthorizationNotice(for: .denied),
+            "camera.error.photosPermissionDenied"
+        )
+        XCTAssertEqual(
+            CameraSession.photoAuthorizationNotice(for: .restricted),
+            "camera.error.photosRestricted"
+        )
+        XCTAssertNil(CameraSession.photoWriteNotice(for: true))
+        XCTAssertEqual(CameraSession.photoWriteNotice(for: false), "camera.error.photosWrite")
+    }
+
+    func testUnfilteredFallbackIsTruthfulAndDoesNotClaimFilterSuccess() {
+        XCTAssertTrue(CameraSession.canSaveUnfilteredFallback(hasFilter: true, requiresAspectProcessing: false))
+        XCTAssertFalse(CameraSession.canSaveUnfilteredFallback(hasFilter: false, requiresAspectProcessing: false))
+        XCTAssertFalse(CameraSession.canSaveUnfilteredFallback(hasFilter: true, requiresAspectProcessing: true))
+        XCTAssertEqual(CameraSession.filterFallbackNotice, "camera.warning.filterFallbackSaved")
+    }
+
+    func testPhotoLibraryConfigurationIsAddOnlyAndHasNoObserverOrReadback() throws {
+        let repository = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let infoData = try Data(contentsOf: repository.appending(path: "Focelle/Info.plist"))
+        let info = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: infoData, format: nil) as? [String: Any]
+        )
+        XCTAssertNil(info["NSPhotoLibraryUsageDescription"])
+        XCTAssertNotNil(info["NSPhotoLibraryAddUsageDescription"])
+
+        let cameraSource = try String(
+            contentsOf: repository.appending(path: "Focelle/Camera/CameraSession.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(cameraSource.contains("requestAuthorization(for: .addOnly)"))
+        XCTAssertFalse(cameraSource.contains("requestAuthorization(for: .readWrite)"))
+        XCTAssertFalse(cameraSource.contains("registerChangeObserver"))
+        XCTAssertFalse(cameraSource.contains("PHPhotoLibraryChangeObserver"))
+        XCTAssertFalse(cameraSource.contains("PHAsset.fetch"))
+        XCTAssertTrue(cameraSource.contains("error.domain"))
+        XCTAssertTrue(cameraSource.contains("error.code"))
     }
 
     @MainActor
