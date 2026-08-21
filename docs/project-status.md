@@ -160,6 +160,12 @@ Status as of `5532063`. Conservative by rule: when in doubt, the lower level win
   declarations. No physical permission or Photos save result was observed in
   this task; therefore this is not product acceptance. It changes neither the
   unresolved Batch A Coach verdict nor Batch B (`NOT STARTED`).
+- **`FCL-M2-R1-R2 — Saving ownership and timeout repair`**: `IMPLEMENTED
+  LOCALLY; CI AND INDEPENDENT RE-REVIEW PENDING`. Implementation commit
+  `493dd83` retires the delivery/processing timeout when a capture enters
+  `.saving` and prevents stale timeout or final-capture cancellation from
+  revoking Photos save ownership. This repair has no new CI or physical-device
+  evidence and does not close FCL-M2-R1.
 
 ### FCL-M1 integration record
 
@@ -231,6 +237,11 @@ scoped repair task and is **CI VERIFIED; PHYSICAL VALIDATION PENDING** at
 `31451486572` (`backend`, `simulator-test`, `device-package` — 3/3 success).
 The next gate for this task is a real-device permission/save/lifecycle check;
 it is not closed by simulator or CI evidence. Draft PR #5 is not merged.
+
+**`FCL-M2-R1-R2 — Saving ownership and timeout repair`** is implemented at
+`493dd83`, but **CI and independent re-review are pending**. It retains
+Photos save ownership after `.saving` begins; it has no new physical evidence
+and does not close FCL-M2-R1.
 
 If the agent is on a documentation-only branch, it must stop before running
 any physical check — a gate does not close from a documentation branch.

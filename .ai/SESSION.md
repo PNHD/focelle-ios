@@ -1,6 +1,6 @@
 # Focelle iOS — Agent Handoff
 
-Updated: 2026-08-11 (task FCL-M2-R1)
+Updated: 2026-08-21 (task FCL-M2-R1-R2)
 
 Read `docs/project-status.md` for the full status matrix and
 `docs/AI_WORKFLOW.md` for the multi-agent workflow authority (roles, review
@@ -14,10 +14,9 @@ operational handoff: where you are, what is proven, what not to break.
   stage, or commit in this from any other session:
   `C:\Users\phamn\Documents\Codex\2026-07-22\build-1-app-ch-p-h\.worktrees\focelle-beta`
 - Integration branch: `feat/focelle-beta`, integration SHA
-  `82c94c09a70a8533dc44bc2655e97d9c59b4b354` (`docs: record camera core
-  physical pass`)
-- Current task branch: `task/FCL-M2-R1-capture-save-privacy`, CI-tested
-  implementation HEAD `788f41301b074f13e9319e1c6eab8e4a44dad52d`
+  `07f2a553a45b9234757731596efdd32933736b41`
+- Current task branch: `task/FCL-M2-R1-capture-save-privacy`; FCL-M2-R1-R2
+  implementation commit `493dd83` is pending CI and independent re-review
 - Current pull request: draft PR #5, targets `feat/focelle-beta`, **not
   merged**. Batch A remains on `task/FCL-M2-batch-a-local-coach`, HEAD
   `dbe9996431e988345f9914c8b6fac76a7848f5d6`, draft PR #3, **not merged**.
@@ -62,6 +61,13 @@ on an explicit save; capture completion is correlated by the actual callback
 identifier and guarded for exactly-once terminal handling. It does not read,
 enumerate, observe, or otherwise broad-access the photo library. This task
 does not change the unresolved Batch A Coach finding or start Batch B.
+
+**`FCL-M2-R1-R2 — IMPLEMENTED LOCALLY; CI and independent re-review
+pending.`** Commit `493dd83` repairs a reviewed timeout race: after a capture
+enters `.saving`, the original delivery/processing timer is retired and stale
+timeout or final-capture cancellation attempts cannot revoke Photos save
+ownership. No physical permission or Photos save validation was performed for
+this repair.
 
 ## Next product action
 
