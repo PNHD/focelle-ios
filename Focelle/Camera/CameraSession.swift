@@ -293,7 +293,11 @@ final class CaptureCoordinator<Context>: @unchecked Sendable {
     func timeout(captureID: Int64) -> CaptureTimeout<Context>? {
         lock.lock()
         defer { lock.unlock() }
-        guard let entry = entries.removeValue(forKey: captureID) else { return nil }
+        // Photos authorization and writes own completion once saving begins.
+        // A dequeued delivery timeout or late AVFoundation error must not
+        // revoke that owner after the original timer has been retired.
+        guard let entry = entries[captureID], entry.stage != .saving else { return nil }
+        entries[captureID] = nil
         rememberTerminal(captureID)
         return CaptureTimeout(captureID: captureID, stage: entry.stage, context: entry.context)
     }
@@ -1126,6 +1130,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     private func save(captureID: Int64, request: SaveRequest) {
         guard captureCoordinator.beginSaving(captureID: captureID) else { return }
+        retireCaptureTimeout(id: captureID)
 
         let primaryData = request.primaryData
         let originalData = request.originalData

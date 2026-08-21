@@ -206,10 +206,11 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(camera.debugPendingCaptureCount, 1)
     }
 
-    func testCaptureTimeoutIsStageSpecificAndTerminal() {
+    func testCaptureTimeoutTerminatesAwaitingDeliveryAndProcessingExactlyOnce() {
         let coordinator = CaptureCoordinator<String>()
         XCTAssertTrue(coordinator.register(captureID: 107, context: "delivery"))
         XCTAssertEqual(coordinator.timeout(captureID: 107)?.stage, .awaitingDelivery)
+        XCTAssertNil(coordinator.timeout(captureID: 107))
         XCTAssertEqual(CameraSession.timeoutNotice(for: .awaitingDelivery), "camera.error.captureTimeoutDelivery")
 
         XCTAssertTrue(coordinator.register(captureID: 108, context: "processing"))
@@ -217,32 +218,73 @@ final class SmokeTests: XCTestCase {
             return XCTFail("capture must enter processing")
         }
         XCTAssertEqual(coordinator.timeout(captureID: 108)?.stage, .processing)
+        XCTAssertNil(coordinator.timeout(captureID: 108))
         XCTAssertEqual(CameraSession.timeoutNotice(for: .processing), "camera.error.captureTimeoutProcessing")
+    }
 
+    func testSavingOwnershipSurvivesTimeoutAndCompletesExactlyOnce() {
+        let coordinator = CaptureCoordinator<String>()
         XCTAssertTrue(coordinator.register(captureID: 109, context: "saving"))
         guard case .success = coordinator.claim(captureID: 109, callbackType: .deferredProxy) else {
             return XCTFail("capture must claim deferred delivery")
         }
         XCTAssertTrue(coordinator.beginSaving(captureID: 109))
-        XCTAssertEqual(coordinator.timeout(captureID: 109)?.stage, .saving)
-        XCTAssertEqual(CameraSession.timeoutNotice(for: .saving), "camera.error.captureTimeoutSaving")
+        XCTAssertNil(coordinator.timeout(captureID: 109))
+        XCTAssertEqual(coordinator.pendingCount, 1)
+        XCTAssertTrue(coordinator.complete(captureID: 109, expectedStage: .saving))
+        XCTAssertFalse(coordinator.complete(captureID: 109, expectedStage: .saving))
+        XCTAssertEqual(coordinator.pendingCount, 0)
+    }
+
+    func testFinalCaptureCancellationCannotRevokeSavingOwnership() {
+        let coordinator = CaptureCoordinator<String>()
+        XCTAssertTrue(coordinator.register(captureID: 110, context: "final error"))
+        guard case .success = coordinator.claim(captureID: 110, callbackType: .immediatePhoto) else {
+            return XCTFail("capture must enter processing")
+        }
+        XCTAssertTrue(coordinator.beginSaving(captureID: 110))
+
+        // CameraSession routes a final AVFoundation error through this same
+        // cancellation boundary, so it must not revoke a PhotoKit owner.
+        XCTAssertNil(coordinator.timeout(captureID: 110))
+        XCTAssertTrue(coordinator.complete(captureID: 110, expectedStage: .saving))
     }
 
     func testLifecycleCancellationTerminatesOnlyCapturesThatHaveNotReachedPhotos() {
         let coordinator = CaptureCoordinator<String>()
-        XCTAssertTrue(coordinator.register(captureID: 110, context: "awaiting"))
-        XCTAssertTrue(coordinator.register(captureID: 111, context: "saving"))
-        guard case .success = coordinator.claim(captureID: 111, callbackType: .immediatePhoto) else {
-            return XCTFail("capture must enter processing")
+        XCTAssertTrue(coordinator.register(captureID: 111, context: "awaiting"))
+        XCTAssertTrue(coordinator.register(captureID: 112, context: "processing"))
+        XCTAssertTrue(coordinator.register(captureID: 113, context: "saving"))
+        guard case .success = coordinator.claim(captureID: 112, callbackType: .immediatePhoto),
+            case .success = coordinator.claim(captureID: 113, callbackType: .immediatePhoto)
+        else {
+            return XCTFail("captures must enter processing")
         }
-        XCTAssertTrue(coordinator.beginSaving(captureID: 111))
+        XCTAssertTrue(coordinator.beginSaving(captureID: 113))
 
         let cancelled = coordinator.cancelBeforeSaving()
 
-        XCTAssertEqual(cancelled.map(\.captureID), [110])
-        XCTAssertEqual(cancelled.first?.stage, .awaitingDelivery)
+        XCTAssertEqual(Set(cancelled.map(\.captureID)), Set([111, 112]))
+        XCTAssertEqual(Set(cancelled.map(\.stage)), Set([.awaitingDelivery, .processing]))
         XCTAssertEqual(coordinator.pendingCount, 1)
         XCTAssertEqual(CameraSession.cancellationNotice, "camera.error.captureCancelled")
+    }
+
+    func testIndependentCaptureIDsDoNotInterfereAfterSavingBegins() {
+        let coordinator = CaptureCoordinator<String>()
+        XCTAssertTrue(coordinator.register(captureID: 114, context: "first"))
+        XCTAssertTrue(coordinator.register(captureID: 115, context: "second"))
+        guard case .success = coordinator.claim(captureID: 114, callbackType: .immediatePhoto),
+            case .success = coordinator.claim(captureID: 115, callbackType: .deferredProxy)
+        else {
+            return XCTFail("both captures must claim their own delivery")
+        }
+        XCTAssertTrue(coordinator.beginSaving(captureID: 114))
+        XCTAssertTrue(coordinator.beginSaving(captureID: 115))
+
+        XCTAssertNil(coordinator.timeout(captureID: 114))
+        XCTAssertTrue(coordinator.complete(captureID: 115, expectedStage: .saving))
+        XCTAssertTrue(coordinator.complete(captureID: 114, expectedStage: .saving))
     }
 
     func testPhotoAuthorizationFailuresRemainDistinct() {
