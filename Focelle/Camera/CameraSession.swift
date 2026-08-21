@@ -409,6 +409,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     @Published private(set) var filterThumbnails: [String: CGImage] = [:]
     @Published private(set) var measurement: SceneMeasurement?
     @Published private(set) var guidance: Guidance?
+    @Published private(set) var captureIntent: CaptureIntent = .auto
     @Published private(set) var filterSaveSequence = 0
     @Published private(set) var latestThumbnail: CGImage?
     @Published var notice: String?
@@ -453,6 +454,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var pendingAIPreview: (@Sendable (Data?) -> Void)?
     private var cloudPlan: AICompositionPlan?
     private var selectedSubjectPoint: CGPoint?
+    private var selectedSubjectID: SubjectTrackID?
     // Not `private`: regression tests confirm a resume can't leave this wedged.
     var analysisInFlight = false
     var analysisGeneration = 0
@@ -670,7 +672,10 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
         queue.async { [weak self] in
             guard let self else { return }
+            self.guidanceEngine.beginCapture()
+            DispatchQueue.main.async { self.guidance = nil }
             guard self.session.isRunning else {
+                self.guidanceEngine.completeCapture(recoverableFailure: true)
                 self.publish(notice: "camera.error.capture")
                 self.finishCapture()
                 return
@@ -748,6 +753,14 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
+    func setCaptureIntent(_ intent: CaptureIntent) {
+        guard captureIntent != intent else { return }
+        captureIntent = intent
+        queue.async { [weak self] in
+            self?.resetAnalysisForResume()
+        }
+    }
+
     // Runs on `queue`. Also used by switchCamera() and
     // refreshLocalGuidanceAfterSettings(), which need the same clean slate.
     // Not `private` so regression tests can drive it directly.
@@ -756,7 +769,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         analysisGeneration += 1
         analyzer.resetTracking()
         stabilizer = MeasurementStabilizer()
-        guidanceEngine = GuidanceEngine()
+        guidanceEngine.reset()
+        selectedSubjectID = nil
+        selectedSubjectPoint = nil
         #if DEBUG
             lifecycleLog.debug("analyzer reset for resume (generation=\(self.analysisGeneration, privacy: .public))")
         #endif
@@ -846,6 +861,21 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         error?.code == .mediaServicesWereReset
     }
 
+    // Manual capture depends solely on live camera/capture state. Quota and
+    // filter-credit accounting run after a save attempt and cannot veto the
+    // user's shutter request.
+    static func manualCaptureAllowed(
+        state: State,
+        isCapturing: Bool,
+        countdownActive: Bool,
+        filterQuotaExhausted: Bool
+    ) -> Bool {
+        // Deliberately read and discard this accounting signal: no entitlement
+        // or exhausted filter credit is allowed to become a shutter lock.
+        _ = filterQuotaExhausted
+        state == .running && !isCapturing && !countdownActive
+    }
+
     // A result that started before the most recent reset (camera switch, resume
     // from a stopped session, Settings dismissal) belongs to a scene that no
     // longer applies.
@@ -908,7 +938,13 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         queue.async {
             self.cloudPlan = plan
             guard let measurement = self.measurement else { return }
-            let guidance = Self.cloudGuidance(plan, measurement: measurement)
+            let guidance = self.guidanceEngine.update(
+                measurement,
+                intent: self.captureIntent,
+                generation: self.analysisGeneration,
+                selectedSubjectID: self.selectedSubjectID,
+                semanticTarget: Self.semanticTarget(for: plan)
+            )
             DispatchQueue.main.async { self.guidance = guidance }
         }
     }
@@ -917,7 +953,12 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         queue.async {
             self.cloudPlan = nil
             guard let measurement = self.measurement else { return }
-            let guidance = self.guidanceEngine.update(measurement)
+            let guidance = self.guidanceEngine.update(
+                measurement,
+                intent: self.captureIntent,
+                generation: self.analysisGeneration,
+                selectedSubjectID: self.selectedSubjectID
+            )
             DispatchQueue.main.async { self.guidance = guidance }
         }
     }
@@ -928,16 +969,20 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             let visionPoint = CGPoint(x: point.x, y: 1 - point.y)
             self.selectedSubjectPoint = visionPoint
             guard var measurement = self.measurement,
-                let selected = measurement.subject(near: visionPoint)
+                let selected = measurement.person(near: visionPoint)
             else { return }
-            measurement.subjectRect = selected
-            self.selectedSubjectPoint = CGPoint(x: selected.midX, y: selected.midY)
-            self.analyzer.track(selected)
-            self.stabilizer = MeasurementStabilizer()
-            let guidance =
-                self.cloudPlan.map {
-                    Self.cloudGuidance($0, measurement: measurement)
-                } ?? self.guidanceEngine.update(measurement)
+            self.selectedSubjectID = selected.id
+            measurement.selectedSubjectID = selected.id
+            measurement.subjectRect = selected.humanRect
+            self.selectedSubjectPoint = CGPoint(x: selected.humanRect.midX, y: selected.humanRect.midY)
+            self.analyzer.track(selected.humanRect)
+            let guidance = self.guidanceEngine.update(
+                measurement,
+                intent: self.captureIntent,
+                generation: self.analysisGeneration,
+                selectedSubjectID: selected.id,
+                semanticTarget: self.cloudPlan.map { Self.semanticTarget(for: $0) }
+            )
             DispatchQueue.main.async {
                 self.measurement = measurement
                 self.guidance = guidance
@@ -1209,6 +1254,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     private func finishCapture() {
+        queue.async { [weak self] in
+            self?.guidanceEngine.completeCapture()
+        }
         DispatchQueue.main.async { self.isCapturing = false }
     }
 
@@ -1327,66 +1375,18 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         cancelCapture(id: resolvedSettings.uniqueID, notice: "camera.error.capture")
     }
 
-    static func cloudGuidance(
-        _ plan: AICompositionPlan,
-        measurement: SceneMeasurement
-    ) -> Guidance {
-        let target = CGPoint(x: plan.target.cgRect.midX, y: plan.target.cgRect.midY)
-        guard let visionRect = measurement.primaryRect else {
-            return Guidance(
-                target: target,
-                direction: .none,
-                instructionKey: "guidance.findSubject",
-                aligned: false
-            )
-        }
-        let subject = CGRect(
-            x: visionRect.minX,
-            y: 1 - visionRect.maxY,
-            width: visionRect.width,
-            height: visionRect.height
-        )
-        let x = subject.midX - target.x
-        let y = subject.midY - target.y
-        let areaRatio =
-            subject.width * subject.height
-            / max(plan.target.cgRect.width * plan.target.cgRect.height, 0.01)
+    static func semanticTarget(for plan: AICompositionPlan) -> SemanticGuidanceTarget {
+        SemanticGuidanceTarget(targetFrame: plan.target.cgRect, instruction: plan.instruction)
+    }
 
-        let direction: GuidanceDirection
-        let key: String
-        if let horizon = measurement.horizonAngle, abs(horizon) > 0.05 {
-            direction = .level
-            key = "guidance.level"
-        } else if areaRatio < 0.65 {
-            direction = .closer
-            key = "guidance.closer"
-        } else if areaRatio > 1.45 {
-            direction = .farther
-            key = "guidance.farther"
-        } else if x < -0.06 {
-            direction = .left
-            key = "guidance.left"
-        } else if x > 0.06 {
-            direction = .right
-            key = "guidance.right"
-        } else if y < -0.07 {
-            direction = .up
-            key = "guidance.up"
-        } else if y > 0.07 {
-            direction = .down
-            key = "guidance.down"
-        } else {
-            direction = .none
-            key = "guidance.ready"
-        }
-        return Guidance(
-            subjectRect: subject,
-            target: target,
-            targetRect: plan.target.cgRect,
-            direction: direction,
-            instructionKey: key,
-            instruction: direction == .none ? nil : plan.instruction,
-            aligned: direction == .none
+    // Compatibility entry point for the existing cloud-plan regression. The
+    // plan is only an immutable target input; it never bypasses the reducer.
+    static func cloudGuidance(_ plan: AICompositionPlan, measurement: SceneMeasurement) -> Guidance {
+        var engine = GuidanceEngine()
+        return engine.update(
+            measurement,
+            intent: .auto,
+            semanticTarget: semanticTarget(for: plan)
         )
     }
 }
@@ -1438,25 +1438,39 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
                         #endif
                         return
                     }
-                    if let currentPoint = self.selectedSubjectPoint {
-                        if currentPoint != preferredPoint,
-                            let selected = measurement.subject(near: currentPoint)
-                        {
-                            measurement.subjectRect = selected
-                            self.analyzer.track(selected)
-                        }
-                        if let selected = measurement.subjectRect {
-                            self.selectedSubjectPoint = CGPoint(
-                                x: selected.midX,
-                                y: selected.midY
-                            )
-                        }
+                    if let currentPoint = self.selectedSubjectPoint,
+                        currentPoint != preferredPoint,
+                        let selected = measurement.person(near: currentPoint)
+                    {
+                        measurement.subjectRect = selected.humanRect
+                        self.analyzer.track(selected.humanRect)
                     }
-                    let stable = self.stabilizer.update(measurement)
-                    let guidance =
-                        self.cloudPlan.map {
-                            Self.cloudGuidance($0, measurement: stable)
-                        } ?? self.guidanceEngine.update(stable)
+                    var stable = self.stabilizer.update(measurement, generation: generation)
+                    if let selectedID = self.selectedSubjectID,
+                        stable.people.contains(where: { $0.id == selectedID })
+                    {
+                        stable.selectedSubjectID = selectedID
+                        stable.subjectRect = stable.selectedPerson?.humanRect
+                    } else if let point = self.selectedSubjectPoint,
+                        let selected = stable.person(near: point)
+                    {
+                        self.selectedSubjectID = selected.id
+                        stable.selectedSubjectID = selected.id
+                        stable.subjectRect = selected.humanRect
+                        self.selectedSubjectPoint = CGPoint(
+                            x: selected.humanRect.midX,
+                            y: selected.humanRect.midY
+                        )
+                    } else {
+                        self.selectedSubjectID = nil
+                    }
+                    let guidance = self.guidanceEngine.update(
+                        stable,
+                        intent: self.captureIntent,
+                        generation: generation,
+                        selectedSubjectID: self.selectedSubjectID,
+                        semanticTarget: self.cloudPlan.map { Self.semanticTarget(for: $0) }
+                    )
                     #if DEBUG
                         let directionName = String(describing: guidance.direction)
                         self.lifecycleLog.debug(

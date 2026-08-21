@@ -33,6 +33,7 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
                     }
                 } else if var measurement = self.lastMeasurement {
                     measurement.exposure = Self.averageLuma(pixelBuffer)
+                    measurement.scene.luma = measurement.exposure
                     measurement.timestamp = now
                     self.lastMeasurement = measurement
                     completion(measurement)
@@ -54,11 +55,15 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
             do {
                 try handler.perform([faces, humans, bodyPoses, horizon, saliency])
                 let humanRects = humans.results?.map(\.boundingBox) ?? []
-                var measurement = SceneMeasurement(
-                    subjectRect: Self.combinedRect(humanRects),
+                let faceObservations = faces.results ?? []
+                let poseObservations = bodyPoses.results ?? []
+                let people = Self.people(
                     humanRects: humanRects,
-                    faceRects: faces.results?.map(\.boundingBox) ?? [],
-                    bodyPoseCount: bodyPoses.results?.count ?? 0,
+                    faces: faceObservations,
+                    poses: poseObservations
+                )
+                var measurement = SceneMeasurement(
+                    people: people,
                     salientRect: saliency.results?
                         .first?
                         .salientObjects?
@@ -66,15 +71,15 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
                         .boundingBox,
                     horizonAngle: horizon.results?.first.map { Double($0.angle) },
                     exposure: Self.averageLuma(pixelBuffer),
-                    faceReady: faces.results?.allSatisfy {
-                        ($0.faceCaptureQuality ?? 0) >= 0.35
-                    } ?? true,
+                    faceReady: people.allSatisfy(\.faceReady),
                     timestamp: now
                 )
+                measurement.bodyPoseCount = poseObservations.count
                 if let point = preferredSubjectPoint,
-                    let selected = measurement.subject(near: point)
+                    let selected = measurement.person(near: point)
                 {
-                    measurement.subjectRect = selected
+                    measurement.selectedSubjectID = selected.id
+                    measurement.subjectRect = selected.humanRect
                 }
                 self.lastDetectionTime = now
                 self.lastMeasurement = measurement
@@ -117,6 +122,64 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
         hasMeasurement && elapsed < (thermallyConstrained ? 1.4 : 0.7)
     }
 
+    private static func people(
+        humanRects: [CGRect],
+        faces: [VNFaceObservation],
+        poses: [VNHumanBodyPoseObservation]
+    ) -> [PersonGeometry] {
+        humanRects.map { humanRect in
+            let face = faces
+                .filter { !$0.boundingBox.intersection(humanRect).isNull }
+                .max { area($0.boundingBox.intersection(humanRect)) < area($1.boundingBox.intersection(humanRect)) }
+            let pose = poses
+                .map { poseGeometry($0) }
+                .min { poseDistance($0, to: humanRect) < poseDistance($1, to: humanRect) }
+            let joints = pose ?? []
+            return PersonGeometry(
+                id: SubjectTrackID(generation: 0),
+                humanRect: humanRect,
+                faceRect: face?.boundingBox,
+                joints: joints,
+                shoulderAxis: axis(.leftShoulder, .rightShoulder, in: joints),
+                hipAxis: axis(.leftHip, .rightHip, in: joints),
+                faceVisible: face != nil,
+                faceReady: face.map { ($0.faceCaptureQuality ?? 0) >= 0.35 } ?? false
+            )
+        }
+    }
+
+    private static func poseGeometry(_ observation: VNHumanBodyPoseObservation) -> [PoseJoint] {
+        PersonJoint.allCases.compactMap { kind in
+            let joint: VNHumanBodyPoseObservation.JointName
+            switch kind {
+            case .leftShoulder: joint = .leftShoulder
+            case .rightShoulder: joint = .rightShoulder
+            case .leftHip: joint = .leftHip
+            case .rightHip: joint = .rightHip
+            }
+            guard let point = try? observation.recognizedPoint(joint), point.confidence >= 0.20 else {
+                return nil
+            }
+            return PoseJoint(kind: kind, point: point.location, confidence: Double(point.confidence))
+        }
+    }
+
+    private static func axis(_ first: PersonJoint, _ second: PersonJoint, in joints: [PoseJoint]) -> BodyAxis? {
+        guard let start = joints.first(where: { $0.kind == first }),
+            let end = joints.first(where: { $0.kind == second })
+        else { return nil }
+        return BodyAxis(start: start.point, end: end.point, confidence: min(start.confidence, end.confidence))
+    }
+
+    private static func poseDistance(_ joints: [PoseJoint], to rect: CGRect) -> CGFloat {
+        guard !joints.isEmpty else { return .greatestFiniteMagnitude }
+        let center = CGPoint(
+            x: joints.map(\.point.x).reduce(0, +) / CGFloat(joints.count),
+            y: joints.map(\.point.y).reduce(0, +) / CGFloat(joints.count)
+        )
+        return hypot(center.x - rect.midX, center.y - rect.midY)
+    }
+
     private func track(_ buffer: CVPixelBuffer, now: TimeInterval) -> SceneMeasurement? {
         guard let tracker else { return nil }
         do {
@@ -132,7 +195,14 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
             }
             tracker.inputObservation = observation
             measurement.subjectRect = observation.boundingBox
+            if let selected = measurement.selectedSubjectID,
+                let index = measurement.people.firstIndex(where: { $0.id == selected })
+            {
+                measurement.people[index].humanRect = observation.boundingBox
+                measurement.humanRects = measurement.people.map(\.humanRect)
+            }
             measurement.exposure = Self.averageLuma(buffer)
+            measurement.scene.luma = measurement.exposure
             measurement.timestamp = now
             lastMeasurement = measurement
             return measurement

@@ -11,6 +11,44 @@ struct GuidanceOverlay: View {
             )
 
             ZStack {
+                ForEach(guidance.people, id: \.id) { person in
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(
+                            person.isSelected ? Color.orange : .white.opacity(0.38),
+                            lineWidth: person.isSelected ? 2.5 : 1
+                        )
+                        .frame(
+                            width: person.frame.width * geometry.size.width,
+                            height: person.frame.height * geometry.size.height
+                        )
+                        .position(
+                            x: person.frame.midX * geometry.size.width,
+                            y: person.frame.midY * geometry.size.height
+                        )
+
+                    if let face = person.faceFrame {
+                        Circle()
+                            .stroke(.white.opacity(0.55), lineWidth: 1)
+                            .frame(
+                                width: face.width * geometry.size.width,
+                                height: face.height * geometry.size.height
+                            )
+                            .position(
+                                x: face.midX * geometry.size.width,
+                                y: face.midY * geometry.size.height
+                            )
+                    }
+                }
+
+                if let horizon = guidance.horizonAngle, abs(horizon) > 0.001 {
+                    Path { path in
+                        let rise = CGFloat(horizon) * geometry.size.width
+                        path.move(to: CGPoint(x: 0, y: geometry.size.height * 0.5 + rise))
+                        path.addLine(to: CGPoint(x: geometry.size.width, y: geometry.size.height * 0.5 - rise))
+                    }
+                    .stroke(.yellow.opacity(0.8), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                }
+
                 if let rect = guidance.subjectRect {
                     let current = CGPoint(
                         x: rect.midX * geometry.size.width,
@@ -28,10 +66,20 @@ struct GuidanceOverlay: View {
                         )
                         .position(current)
 
-                    if guidance.direction.usesAimRing {
-                        Path { path in
-                            path.move(to: current)
-                            path.addLine(to: target)
+                    if let movement = guidance.movementPath {
+                        Path { drawing in
+                            drawing.move(
+                                to: CGPoint(
+                                    x: movement.start.x * geometry.size.width,
+                                    y: movement.start.y * geometry.size.height
+                                )
+                            )
+                            drawing.addLine(
+                                to: CGPoint(
+                                    x: movement.end.x * geometry.size.width,
+                                    y: movement.end.y * geometry.size.height
+                                )
+                            )
                         }
                         .stroke(
                             .white.opacity(0.75),
@@ -44,7 +92,7 @@ struct GuidanceOverlay: View {
                             Circle().fill(.orange).frame(width: 6, height: 6)
                         }
                         .frame(width: 22, height: 22)
-                        .position(current)
+                            .position(current)
 
                         Circle()
                             .stroke(

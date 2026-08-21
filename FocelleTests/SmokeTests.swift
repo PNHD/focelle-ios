@@ -848,6 +848,162 @@ final class SmokeTests: XCTestCase {
         )
     }
 
+    // MARK: - FCL-M2-R2-S1 local geometry and Blueprint guidance kernel
+
+    func testPersonTracksKeepIdentityAcrossSmallMovement() {
+        var stabilizer = MeasurementStabilizer()
+        let first = stabilizer.update(
+            peopleMeasurement([person(x: 0.20, y: 0.20)]),
+            generation: 8
+        )
+        let second = stabilizer.update(
+            peopleMeasurement([person(x: 0.23, y: 0.21)]),
+            generation: 8
+        )
+
+        XCTAssertEqual(first.people.first?.id, second.people.first?.id)
+    }
+
+    func testExpiredTrackDoesNotBecomeANewPersonsIdentity() {
+        var stabilizer = MeasurementStabilizer()
+        let first = stabilizer.update(peopleMeasurement([person(x: 0.2, y: 0.2)]), generation: 3)
+        for timestamp in 2...5 {
+            _ = stabilizer.update(peopleMeasurement([], timestamp: TimeInterval(timestamp)), generation: 3)
+        }
+        let replacement = stabilizer.update(
+            peopleMeasurement([person(x: 0.2, y: 0.2, timestamp: 6)], timestamp: 6),
+            generation: 3
+        )
+        let newGeneration = stabilizer.update(
+            peopleMeasurement([person(x: 0.2, y: 0.2, timestamp: 7)], timestamp: 7),
+            generation: 4
+        )
+
+        XCTAssertNotEqual(first.people.first?.id, replacement.people.first?.id)
+        XCTAssertNotEqual(replacement.people.first?.id, newGeneration.people.first?.id)
+    }
+
+    func testSelectedSubjectIdentitySurvivesRefreshWhenItsTrackMatches() {
+        var stabilizer = MeasurementStabilizer()
+        let first = stabilizer.update(
+            peopleMeasurement([person(x: 0.12, y: 0.2), person(x: 0.58, y: 0.2)]),
+            generation: 2
+        )
+        let selected = try! XCTUnwrap(first.people.last?.id)
+        var next = peopleMeasurement(
+            [person(x: 0.15, y: 0.2), person(x: 0.61, y: 0.2)],
+            timestamp: 2
+        )
+        next.selectedSubjectID = selected
+        let refreshed = stabilizer.update(next, generation: 2)
+
+        XCTAssertEqual(refreshed.selectedSubjectID, selected)
+        XCTAssertEqual(refreshed.selectedPerson?.id, selected)
+    }
+
+    func testLocalFallbackUsesDistinctOnePersonCoupleAndSmallGroupPaths() {
+        var engine = GuidanceEngine()
+        let one = peopleMeasurement([person(x: 0.4, y: 0.2, width: 0.1, height: 0.2)])
+        XCTAssertEqual(
+            engine.update(one, intent: .people, generation: 1).step,
+            .scale(.closer)
+        )
+
+        engine.reset()
+        let couple = peopleMeasurement([
+            person(x: 0.30, y: 0.2, width: 0.22, height: 0.45),
+            person(x: 0.44, y: 0.2, width: 0.22, height: 0.45),
+        ])
+        XCTAssertEqual(engine.update(couple, intent: .people, generation: 1).step, .spacing)
+        XCTAssertEqual(engine.currentPresentation?.subjectKind, .couple)
+
+        engine.reset()
+        let group = peopleMeasurement([
+            person(x: 0.22, y: 0.2, width: 0.18, height: 0.40),
+            person(x: 0.34, y: 0.2, width: 0.18, height: 0.40),
+            person(x: 0.46, y: 0.2, width: 0.18, height: 0.40),
+        ])
+        XCTAssertEqual(engine.update(group, intent: .people, generation: 1).step, .spacing)
+        XCTAssertEqual(engine.currentPresentation?.subjectKind, .smallGroup)
+    }
+
+    func testSceneFallbackPrefersHorizonWithoutPeople() {
+        var engine = GuidanceEngine()
+        let scene = SceneMeasurement(
+            salientRect: CGRect(x: 0.25, y: 0.2, width: 0.3, height: 0.4),
+            horizonAngle: 0.12,
+            exposure: 0.5,
+            timestamp: 1
+        )
+
+        XCTAssertEqual(engine.update(scene, intent: .scene, generation: 1).step, .horizon)
+    }
+
+    func testIntentAndGenerationChangesInvalidateStaleGuidanceProgress() {
+        var engine = GuidanceEngine()
+        let people = peopleMeasurement([person(x: 0.05, y: 0.2, width: 0.2, height: 0.45)])
+        XCTAssertEqual(engine.update(people, intent: .people, generation: 1).step, .move(.left))
+
+        let scene = SceneMeasurement(
+            salientRect: CGRect(x: 0.4, y: 0.2, width: 0.2, height: 0.3),
+            exposure: 0.5,
+            timestamp: 2
+        )
+        let changedIntent = engine.update(scene, intent: .scene, generation: 1)
+        XCTAssertEqual(changedIntent.intent, .scene)
+        XCTAssertNotEqual(changedIntent.step, .move(.left))
+
+        let changedGeneration = engine.update(people, intent: .people, generation: 2)
+        XCTAssertEqual(changedGeneration.generation, 2)
+        XCTAssertEqual(changedGeneration.step, .move(.left))
+    }
+
+    func testReducerPublishesOnePresentationSkipsSatisfiedStepsAndLocks() {
+        var engine = GuidanceEngine()
+        let aligned = peopleMeasurement([person(x: 0.225, y: 0.25, width: 0.55, height: 0.45)])
+        let presentation = engine.update(aligned, intent: .people, generation: 1)
+
+        XCTAssertEqual(presentation.step, .hold)
+        XCTAssertEqual(engine.state, .locked)
+        XCTAssertEqual(engine.currentPresentation, presentation)
+    }
+
+    func testGuidanceHysteresisDoesNotFlapAndCanRelapseAfterLock() {
+        var engine = GuidanceEngine()
+        let left = peopleMeasurement([person(x: 0.04, y: 0.2, width: 0.2, height: 0.45)])
+        XCTAssertEqual(engine.update(left, intent: .people, generation: 1).step, .move(.left))
+
+        let noisy = peopleMeasurement([person(x: 0.10, y: 0.2, width: 0.2, height: 0.45)], timestamp: 2)
+        XCTAssertEqual(engine.update(noisy, intent: .people, generation: 1).step, .move(.left))
+
+        let aligned = peopleMeasurement([person(x: 0.225, y: 0.2, width: 0.55, height: 0.45)], timestamp: 3)
+        XCTAssertEqual(engine.update(aligned, intent: .people, generation: 1).step, .hold)
+        XCTAssertEqual(engine.state, .locked)
+
+        let relapsed = peopleMeasurement([person(x: 0.70, y: 0.2, width: 0.2, height: 0.45)], timestamp: 4)
+        XCTAssertEqual(engine.update(relapsed, intent: .people, generation: 1).step, .move(.right))
+        XCTAssertEqual(engine.state, .guiding(.move(.right)))
+    }
+
+    func testManualShutterRemainsEligibleWhenFilterQuotaIsExhausted() {
+        XCTAssertTrue(
+            CameraSession.manualCaptureAllowed(
+                state: .running,
+                isCapturing: false,
+                countdownActive: false,
+                filterQuotaExhausted: true
+            )
+        )
+        XCTAssertFalse(
+            CameraSession.manualCaptureAllowed(
+                state: .running,
+                isCapturing: true,
+                countdownActive: false,
+                filterQuotaExhausted: true
+            )
+        )
+    }
+
     func testAnalyzerDefersFullDetectionBetweenTrackedFrames() {
         XCTAssertTrue(
             OnDeviceAnalyzer.shouldDeferFullDetection(
@@ -1223,6 +1379,34 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "vi_VN")), "vi")
         XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "zh_Hans_CN")), "zh-Hans")
         XCTAssertEqual(AIClient.languageTag(for: Locale(identifier: "zh_Hant_TW")), "zh-Hant")
+    }
+
+    private func person(
+        x: CGFloat,
+        y: CGFloat,
+        width: CGFloat = 0.20,
+        height: CGFloat = 0.45,
+        timestamp _: TimeInterval = 1
+    ) -> PersonGeometry {
+        PersonGeometry(
+            id: SubjectTrackID(generation: 0),
+            humanRect: CGRect(x: x, y: y, width: width, height: height),
+            faceRect: CGRect(x: x + width * 0.25, y: y + height * 0.04, width: width * 0.5, height: height * 0.2),
+            faceReady: true
+        )
+    }
+
+    private func peopleMeasurement(
+        _ people: [PersonGeometry],
+        timestamp: TimeInterval = 1
+    ) -> SceneMeasurement {
+        SceneMeasurement(
+            people: people,
+            salientRect: nil,
+            horizonAngle: 0,
+            exposure: 0.5,
+            timestamp: timestamp
+        )
     }
 
     private func makeAIResponse() -> AICompositionResponse {

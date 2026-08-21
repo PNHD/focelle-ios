@@ -519,7 +519,17 @@ struct CameraView: View {
                         .overlay(Circle().stroke(.white.opacity(0.4), lineWidth: 5).padding(-7))
                 }
                 .accessibilityLabel(Text("camera.shutter"))
-                .disabled(camera.state != .running || camera.isCapturing || countdown != nil)
+                .disabled(
+                    !CameraSession.manualCaptureAllowed(
+                        state: camera.state,
+                        isCapturing: camera.isCapturing,
+                        countdownActive: countdown != nil,
+                        filterQuotaExhausted: camera.activeFilter != nil
+                            && !quota.snapshot.unlimited
+                            && !store.isPro
+                            && quota.snapshot.filterRemaining < 1
+                    )
+                )
 
                 Spacer()
 
@@ -868,15 +878,15 @@ struct CameraView: View {
     }
 
     private func triggerCapture() {
-        guard countdown == nil, !camera.isCapturing else { return }
-        if camera.activeFilter != nil,
-            !quota.snapshot.unlimited,
-            !store.isPro,
-            quota.snapshot.filterRemaining < 1
-        {
-            showsLimit = true
-            return
-        }
+        guard CameraSession.manualCaptureAllowed(
+            state: camera.state,
+            isCapturing: camera.isCapturing,
+            countdownActive: countdown != nil,
+            filterQuotaExhausted: camera.activeFilter != nil
+                && !quota.snapshot.unlimited
+                && !store.isPro
+                && quota.snapshot.filterRemaining < 1
+        ) else { return }
         autoCapture.cancel()
         if case .ready = ai.state {
             Analytics.record("capture_after_guidance", enabled: settings.analyticsEnabled)
