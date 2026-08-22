@@ -168,10 +168,19 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
 
     static func associatePoses(_ poses: [[PoseJoint]], to people: [CGRect]) -> [Int: Int] {
         let bounds = poses.map { joints -> CGRect? in
-            guard let first = joints.first else { return nil }
-            return joints.dropFirst().reduce(CGRect(origin: first.point, size: .zero)) {
+            // A pose needs at least two independently credible joints before
+            // it can claim a person slot. A weak point cloud is not evidence
+            // of person ownership.
+            let credible = joints.filter { $0.confidence >= 0.35 }
+            guard credible.count >= 2 else { return nil }
+            guard let first = credible.first else { return nil }
+            let bounds = credible.dropFirst().reduce(CGRect(origin: first.point, size: .zero)) {
                 $0.union(CGRect(origin: $1.point, size: .zero))
             }
+            // Joint geometry is often line-like (for example, shoulders at
+            // the same y). Give it a small normalized footprint so the same
+            // absolute association floor can evaluate it meaningfully.
+            return bounds.insetBy(dx: -0.01, dy: -0.01)
         }
         return associate(
             observations: bounds.enumerated().compactMap { index, rect in
@@ -186,7 +195,9 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
         to people: [CGRect]
     ) -> [Int: Int] {
         let confidenceMargin: CGFloat = 0.08
-        let maximumNormalizedDistance: CGFloat = 0.35
+        let maximumNormalizedDistance: CGFloat = 0.24
+        let minimumContainedOverlap: CGFloat = 0.50
+        let minimumNearbyOverlap: CGFloat = 0.35
         var uniqueCandidates: [AssociationCandidate] = []
         for observationInput in observations {
             let observationIndex = observationInput.index
@@ -199,10 +210,16 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
                     : area(intersection) / area(observation)
                 let normalizedDistance = hypot(center.x - person.midX, center.y - person.midY)
                     / max(hypot(person.width, person.height), 0.0001)
-                guard person.contains(center) || overlap > 0 || normalizedDistance <= maximumNormalizedDistance else {
+                let contained = person.contains(center) && overlap >= minimumContainedOverlap
+                let nearby = overlap >= minimumNearbyOverlap
+                    && normalizedDistance <= maximumNormalizedDistance
+                // An edge sliver alone cannot establish ownership. Both the
+                // absolute floor and the competing-candidate margin below are
+                // required before Vision geometry enters the domain model.
+                guard contained || nearby else {
                     return nil
                 }
-                let score = (person.contains(center) ? 2 : 0) + overlap
+                let score = (contained ? 2 : 0) + overlap
                     + max(0, maximumNormalizedDistance - normalizedDistance)
                 return AssociationCandidate(
                     personIndex: personIndex,

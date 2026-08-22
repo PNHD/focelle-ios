@@ -913,6 +913,9 @@ struct CameraView: View {
             cancelAI()
             return
         }
+        // An explicit user analysis request is the production recovery path
+        // for local guidance after a recoverable capture failure.
+        camera.beginGuidanceAnalysis()
         if !quota.snapshot.unlimited, !store.isPro, quota.snapshot.aiRemaining < 1 {
             showsLimit = true
             return

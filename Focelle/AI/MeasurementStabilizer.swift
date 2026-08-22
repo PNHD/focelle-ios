@@ -32,14 +32,19 @@ struct MeasurementStabilizer {
             if let match = bestMatch(for: candidate, from: available, excluding: claimed) {
                 var retained = candidate
                 retained.id = match.key
-                retained.humanRect = smooth(match.value.geometry.humanRect, candidate.humanRect)
-                retained.faceRect = smooth(match.value.geometry.faceRect, candidate.faceRect)
+                retained.continuityRevision = match.value.geometry.continuityRevision
+                    + (match.value.missedFrames > 0 ? 1 : 0)
+                if match.value.missedFrames == 0 {
+                    retained.humanRect = smooth(match.value.geometry.humanRect, candidate.humanRect)
+                    retained.faceRect = smooth(match.value.geometry.faceRect, candidate.faceRect)
+                }
                 tracks[match.key] = Track(geometry: retained, missedFrames: 0)
                 claimed.insert(match.key)
                 retainedPeople.append(retained)
             } else {
                 var retained = candidate
                 retained.id = SubjectTrackID(generation: activeGeneration)
+                retained.continuityRevision = 0
                 tracks[retained.id] = Track(geometry: retained, missedFrames: 0)
                 claimed.insert(retained.id)
                 retainedPeople.append(retained)

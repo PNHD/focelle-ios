@@ -6,10 +6,10 @@ import Foundation
 // No cloud result is needed to keep the viewfinder useful.
 struct GuidanceEngine {
     private enum EffectiveSubjectIdentity: Equatable {
-        case selected(SubjectTrackID)
-        case automatic(SubjectTrackID)
-        case couple([SubjectTrackID])
-        case smallGroup([SubjectTrackID])
+        case selected(SubjectContinuityID)
+        case automatic(SubjectContinuityID)
+        case couple([SubjectContinuityID])
+        case smallGroup([SubjectContinuityID])
         case scene(hasPrimarySubject: Bool)
         case unavailable
     }
@@ -22,6 +22,10 @@ struct GuidanceEngine {
     }
 
     private var context: Context?
+    // A plan that has been observed incompatible is permanently dead for this
+    // engine lifetime. CameraSession also drops its retained copy immediately.
+    private var invalidatedSemanticTargets: [SemanticGuidanceTarget] = []
+    private var semanticBindings: [(target: SemanticGuidanceTarget, subject: EffectiveSubjectIdentity)] = []
     private(set) var state: GuidanceSessionState = .ready
     private(set) var currentPresentation: GuidancePresentation?
 
@@ -39,11 +43,28 @@ struct GuidanceEngine {
         var measured = measurement
         measured.selectedSubjectID = selectedID
         let subject = Self.effectiveSubjectIdentity(for: measured, intent: intent)
+        let semanticTargetIsCompatible = semanticTarget.map { target in
+            target.generation == generation
+                && target.intent == intent
+                && target.subjectIDs == Self.semanticSubjectIDs(for: subject)
+        } ?? false
+        let boundSubject = semanticTarget.flatMap { target in
+            semanticBindings.first(where: { $0.target == target })?.subject
+        }
+        let continuityMatchesBinding = boundSubject.map { $0 == subject } ?? true
+        if let semanticTarget, (!semanticTargetIsCompatible || !continuityMatchesBinding),
+            !invalidatedSemanticTargets.contains(semanticTarget)
+        {
+            invalidatedSemanticTargets.append(semanticTarget)
+        }
         let activeSemanticTarget = semanticTarget.flatMap { target in
-            guard target.generation == generation,
-                target.intent == intent,
-                target.subjectIDs == Self.semanticSubjectIDs(for: subject)
+            guard semanticTargetIsCompatible,
+                continuityMatchesBinding,
+                !invalidatedSemanticTargets.contains(target)
             else { return nil }
+            if boundSubject == nil {
+                semanticBindings.append((target: target, subject: subject))
+            }
             return target
         }
         let nextContext = Context(
@@ -138,10 +159,20 @@ struct GuidanceEngine {
         state = .ready
     }
 
-    mutating func beginAnalysis() {
-        guard state == .ready || state == .selectingSubject else { return }
+    mutating func beginAnalysis(recoveringFailure: Bool = false) {
+        guard state == .ready || state == .selectingSubject
+            || (state == .failedRecoverable && recoveringFailure)
+        else { return }
+        if state == .failedRecoverable {
+            context = nil
+            currentPresentation = nil
+        }
         state = .analyzing
         currentPresentation = nil
+    }
+
+    func isSemanticTargetInvalidated(_ target: SemanticGuidanceTarget?) -> Bool {
+        target.map { invalidatedSemanticTargets.contains($0) } ?? false
     }
 
     mutating func beginCapture() {
@@ -277,9 +308,10 @@ struct GuidanceEngine {
             return .scene(hasPrimarySubject: measurement.primaryRect != nil)
         }
         if let selected = measurement.selectedSubjectID {
-            return measurement.people.contains(where: { $0.id == selected })
-                ? .selected(selected)
-                : .unavailable
+            guard let person = measurement.people.first(where: { $0.id == selected }) else {
+                return .unavailable
+            }
+            return .selected(person.continuityID)
         }
         switch measurement.people.count {
         case 0:
@@ -287,11 +319,11 @@ struct GuidanceEngine {
                 ? .unavailable
                 : .scene(hasPrimarySubject: measurement.primaryRect != nil)
         case 1:
-            return .automatic(measurement.people[0].id)
+            return .automatic(measurement.people[0].continuityID)
         case 2:
-            return .couple(measurement.group?.memberIDs ?? [])
+            return .couple(measurement.people.map(\.continuityID))
         case 3...5:
-            return .smallGroup(measurement.group?.memberIDs ?? [])
+            return .smallGroup(measurement.people.map(\.continuityID))
         default:
             return .unavailable
         }
@@ -309,8 +341,8 @@ struct GuidanceEngine {
 
     private static func semanticSubjectIDs(for identity: EffectiveSubjectIdentity) -> [SubjectTrackID] {
         switch identity {
-        case .selected(let id), .automatic(let id): return [id]
-        case .couple(let ids), .smallGroup(let ids): return ids
+        case .selected(let id), .automatic(let id): return [id.trackID]
+        case .couple(let ids), .smallGroup(let ids): return ids.map(\.trackID)
         case .scene, .unavailable: return []
         }
     }

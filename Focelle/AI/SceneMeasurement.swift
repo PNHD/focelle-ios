@@ -17,6 +17,14 @@ struct SubjectTrackID: Hashable, Sendable {
     }
 }
 
+// A track UUID identifies a local matching slot. Its continuity revision
+// distinguishes separate observation runs that happen to reuse that slot
+// after a detector gap; it is not biometric re-identification.
+struct SubjectContinuityID: Hashable, Sendable {
+    let trackID: SubjectTrackID
+    let revision: Int
+}
+
 enum PersonJoint: String, CaseIterable, Equatable, Sendable {
     case leftShoulder
     case rightShoulder
@@ -40,6 +48,7 @@ struct BodyAxis: Equatable, Sendable {
 // person's broad orientation. It is not a body-shaping or beauty model.
 struct PersonGeometry: Equatable, Sendable {
     var id: SubjectTrackID
+    var continuityRevision: Int
     var humanRect: CGRect
     var faceRect: CGRect?
     var joints: [PoseJoint]
@@ -50,6 +59,7 @@ struct PersonGeometry: Equatable, Sendable {
 
     init(
         id: SubjectTrackID,
+        continuityRevision: Int = 0,
         humanRect: CGRect,
         faceRect: CGRect? = nil,
         joints: [PoseJoint] = [],
@@ -59,6 +69,7 @@ struct PersonGeometry: Equatable, Sendable {
         faceReady: Bool = true
     ) {
         self.id = id
+        self.continuityRevision = continuityRevision
         self.humanRect = humanRect
         self.faceRect = faceRect
         self.joints = joints
@@ -66,6 +77,10 @@ struct PersonGeometry: Equatable, Sendable {
         self.hipAxis = hipAxis
         self.faceVisible = faceVisible ?? faceRect != nil
         self.faceReady = faceReady
+    }
+
+    var continuityID: SubjectContinuityID {
+        SubjectContinuityID(trackID: id, revision: continuityRevision)
     }
 }
 

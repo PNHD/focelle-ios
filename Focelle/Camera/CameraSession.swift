@@ -326,6 +326,12 @@ final class CaptureCoordinator<Context>: @unchecked Sendable {
         return entries.count
     }
 
+    var hasSavingCapture: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries.values.contains { $0.stage == .saving }
+    }
+
     private func rememberTerminal(_ captureID: Int64) {
         terminalIDs.removeAll { $0 == captureID }
         terminalIDs.append(captureID)
@@ -409,6 +415,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     @Published private(set) var filterThumbnails: [String: CGImage] = [:]
     @Published private(set) var measurement: SceneMeasurement?
     @Published private(set) var guidance: Guidance?
+    @Published private(set) var guidanceSessionState: GuidanceSessionState = .ready
     @Published private(set) var captureIntent: CaptureIntent = .auto
     @Published private(set) var filterSaveSequence = 0
     @Published private(set) var latestThumbnail: CGImage?
@@ -455,6 +462,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var cloudPlan: SemanticGuidanceTarget?
     private var selectedSubjectPoint: CGPoint?
     private var selectedSubjectID: SubjectTrackID?
+    private var selectedSubjectContinuity: SubjectContinuityID?
     // Not `private`: regression tests confirm a resume can't leave this wedged.
     var analysisInFlight = false
     var analysisGeneration = 0
@@ -672,8 +680,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
         queue.async { [weak self] in
             guard let self else { return }
-            self.guidanceEngine.beginCapture()
-            DispatchQueue.main.async { self.guidance = nil }
+            self.beginGuidanceCapture()
             guard self.session.isRunning else {
                 self.publish(notice: "camera.error.capture")
                 self.finishCapture(recoverableFailure: true)
@@ -752,6 +759,14 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
+    // User-initiated analysis is also the explicit recovery path from a
+    // recoverable guidance/capture failure.
+    func beginGuidanceAnalysis() {
+        queue.async { [weak self] in
+            self?.beginGuidanceAnalysisOnQueue(recoveringFailure: true)
+        }
+    }
+
     func setCaptureIntent(_ intent: CaptureIntent) {
         guard captureIntent != intent else { return }
         captureIntent = intent
@@ -771,6 +786,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         guidanceEngine.reset()
         cloudPlan = nil
         selectedSubjectID = nil
+        selectedSubjectContinuity = nil
         selectedSubjectPoint = nil
         #if DEBUG
             lifecycleLog.debug("analyzer reset for resume (generation=\(self.analysisGeneration, privacy: .public))")
@@ -778,6 +794,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         DispatchQueue.main.async {
             self.measurement = nil
             self.guidance = nil
+            self.guidanceSessionState = self.guidanceEngine.state
         }
     }
 
@@ -802,6 +819,32 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 location: nil
             )
             _ = captureCoordinator.register(captureID: id, context: context)
+        }
+
+        func debugClaimPendingCaptureForTesting(id: Int64) {
+            _ = captureCoordinator.claim(captureID: id, callbackType: .immediatePhoto)
+        }
+
+        func debugBeginSavingForTesting(id: Int64) {
+            _ = captureCoordinator.beginSaving(captureID: id)
+        }
+
+        func debugAnalyzeGuidanceForTesting(_ measurement: SceneMeasurement) {
+            queue.async { [weak self] in
+                guard let self else { return }
+                self.beginGuidanceAnalysisOnQueue()
+                let stable = self.stabilizer.update(measurement, generation: self.analysisGeneration)
+                self.updateGuidance(with: stable, generation: self.analysisGeneration)
+            }
+        }
+
+        func debugBeginGuidanceCaptureForTesting() {
+            queue.async { [weak self] in self?.beginGuidanceCapture() }
+        }
+
+        func debugCompletePhotoKitSaveForTesting(id: Int64, saved: Bool) {
+            guard captureCoordinator.complete(captureID: id, expectedStage: .saving) else { return }
+            finishCapture(recoverableFailure: !saved)
         }
 
         var debugPendingCaptureCount: Int { captureCoordinator.pendingCount }
@@ -836,6 +879,13 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     @objc private func sessionWasInterrupted(_ notification: Notification) {
+        handleSessionInterruption()
+    }
+
+    // The notification adapter delegates to the same stage-aware coordinator
+    // boundary used by all other lifecycle cancellation paths.
+    func handleSessionInterruption() {
+        cancelPendingCaptures(cause: "AVFoundation session interrupted")
         publish(state: .interrupted)
     }
 
@@ -945,14 +995,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 generation: self.analysisGeneration
             )
             self.cloudPlan = semanticTarget
-            let guidance = self.guidanceEngine.update(
-                measurement,
-                intent: self.captureIntent,
-                generation: self.analysisGeneration,
-                selectedSubjectID: self.selectedSubjectID,
-                semanticTarget: semanticTarget
-            )
-            DispatchQueue.main.async { self.guidance = guidance }
+            self.updateGuidance(with: measurement, generation: self.analysisGeneration)
         }
     }
 
@@ -960,13 +1003,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         queue.async {
             self.cloudPlan = nil
             guard let measurement = self.measurement else { return }
-            let guidance = self.guidanceEngine.update(
-                measurement,
-                intent: self.captureIntent,
-                generation: self.analysisGeneration,
-                selectedSubjectID: self.selectedSubjectID
-            )
-            DispatchQueue.main.async { self.guidance = guidance }
+            self.updateGuidance(with: measurement, generation: self.analysisGeneration)
         }
     }
 
@@ -979,6 +1016,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 let selected = measurement.person(near: visionPoint)
             else { return }
             self.selectedSubjectID = selected.id
+            self.selectedSubjectContinuity = selected.continuityID
             self.cloudPlan = nil
             measurement.selectedSubjectID = selected.id
             measurement.subjectRect = selected.humanRect
@@ -994,6 +1032,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             DispatchQueue.main.async {
                 self.measurement = measurement
                 self.guidance = guidance
+                self.guidanceSessionState = self.guidanceEngine.state
             }
         }
     }
@@ -1127,7 +1166,11 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             retireCaptureTimeout(id: cancelledCapture.captureID)
             if notifyUser { publish(notice: Self.cancellationNotice) }
         }
-        finishCapture(recoverableFailure: true)
+        // A separate PhotoKit-owned save remains the active capture lifecycle
+        // even if an earlier delivery/processing entry was interrupted.
+        if !captureCoordinator.hasSavingCapture {
+            finishCapture(recoverableFailure: true)
+        }
     }
 
     private func handleCaptureTimeout(id: Int64) {
@@ -1266,9 +1309,72 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     private func finishCapture(recoverableFailure: Bool = false) {
         queue.async { [weak self] in
-            self?.guidanceEngine.completeCapture(recoverableFailure: recoverableFailure)
+            guard let self else { return }
+            self.guidanceEngine.completeCapture(recoverableFailure: recoverableFailure)
+            self.publishGuidanceState(self.guidanceEngine.state)
         }
         DispatchQueue.main.async { self.isCapturing = false }
+    }
+
+    private func beginGuidanceAnalysisOnQueue(recoveringFailure: Bool = false) {
+        guidanceEngine.beginAnalysis(recoveringFailure: recoveringFailure)
+        publishGuidanceState(guidanceEngine.state)
+    }
+
+    private func beginGuidanceCapture() {
+        guidanceEngine.beginCapture()
+        DispatchQueue.main.async { self.guidance = nil }
+        publishGuidanceState(guidanceEngine.state)
+    }
+
+    private func publishGuidanceState(_ guidanceState: GuidanceSessionState) {
+        DispatchQueue.main.async { self.guidanceSessionState = guidanceState }
+    }
+
+    // Runs on `queue` after every analyzer result. Explicit selection is bound
+    // to continuity identity, not just the reusable geometric track slot.
+    private func updateGuidance(with measurement: SceneMeasurement, generation: Int) {
+        var stable = measurement
+        if let selectedContinuity = selectedSubjectContinuity,
+            let selected = stable.people.first(where: { $0.continuityID == selectedContinuity })
+        {
+            selectedSubjectID = selected.id
+            stable.selectedSubjectID = selected.id
+            stable.subjectRect = selected.humanRect
+        } else if selectedSubjectID != nil || selectedSubjectContinuity != nil {
+            // Once an explicitly selected person is observed missing, a nearby
+            // person cannot reactivate that selection by geometry alone.
+            selectedSubjectID = nil
+            selectedSubjectContinuity = nil
+            selectedSubjectPoint = nil
+            cloudPlan = nil
+            stable.selectedSubjectID = nil
+            stable.subjectRect = nil
+        } else {
+            stable.selectedSubjectID = nil
+        }
+
+        let guidance = guidanceEngine.update(
+            stable,
+            intent: captureIntent,
+            generation: generation,
+            selectedSubjectID: selectedSubjectID,
+            semanticTarget: cloudPlan
+        )
+        if guidanceEngine.isSemanticTargetInvalidated(cloudPlan) {
+            cloudPlan = nil
+        }
+        #if DEBUG
+            let directionName = String(describing: guidance?.direction ?? .none)
+            lifecycleLog.debug(
+                "analysis ok, gen \(generation, privacy: .public) dir \(directionName, privacy: .public)"
+            )
+        #endif
+        DispatchQueue.main.async {
+            self.measurement = stable
+            self.guidance = guidance
+            self.guidanceSessionState = self.guidanceEngine.state
+        }
     }
 
     private func publish(state: State) {
@@ -1448,7 +1554,7 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
             CMTimeGetSeconds(timestamp - lastAnalysisTime) >= analysisInterval
         {
             analysisInFlight = true
-            guidanceEngine.beginAnalysis()
+            beginGuidanceAnalysisOnQueue()
             lastAnalysisTime = timestamp
             let generation = analysisGeneration
             let preferredPoint = selectedSubjectPoint
@@ -1476,38 +1582,8 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
                         #endif
                         return
                     }
-                    var stable = self.stabilizer.update(measurement, generation: generation)
-                    if let selectedID = self.selectedSubjectID,
-                        stable.people.contains(where: { $0.id == selectedID })
-                    {
-                        stable.selectedSubjectID = selectedID
-                        stable.subjectRect = stable.selectedPerson?.humanRect
-                    } else if let selectedID = self.selectedSubjectID {
-                        // A stale screen position is not identity evidence.
-                        // Keep the explicit selection missing until the user
-                        // selects again or the session is reset.
-                        stable.selectedSubjectID = selectedID
-                        stable.subjectRect = nil
-                    } else {
-                        stable.selectedSubjectID = nil
-                    }
-                    let guidance = self.guidanceEngine.update(
-                        stable,
-                        intent: self.captureIntent,
-                        generation: generation,
-                        selectedSubjectID: self.selectedSubjectID,
-                        semanticTarget: self.cloudPlan
-                    )
-                    #if DEBUG
-                        let directionName = String(describing: guidance?.direction ?? .none)
-                        self.lifecycleLog.debug(
-                            "analysis ok, gen \(generation, privacy: .public) dir \(directionName, privacy: .public)"
-                        )
-                    #endif
-                    DispatchQueue.main.async {
-                        self.measurement = stable
-                        self.guidance = guidance
-                    }
+                    let stable = self.stabilizer.update(measurement, generation: generation)
+                    self.updateGuidance(with: stable, generation: generation)
                 }
             }
         }
