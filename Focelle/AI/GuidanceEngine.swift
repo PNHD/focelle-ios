@@ -5,10 +5,19 @@ import Foundation
 // Vision/device geometry and holds it until its tighter exit threshold is met.
 // No cloud result is needed to keep the viewfinder useful.
 struct GuidanceEngine {
+    private enum EffectiveSubjectIdentity: Equatable {
+        case selected(SubjectTrackID)
+        case automatic(SubjectTrackID)
+        case couple([SubjectTrackID])
+        case smallGroup([SubjectTrackID])
+        case scene(hasPrimarySubject: Bool)
+        case unavailable
+    }
+
     private struct Context: Equatable {
         let intent: CaptureIntent
         let generation: Int
-        let subjectID: SubjectTrackID?
+        let subject: EffectiveSubjectIdentity
         let semanticTarget: SemanticGuidanceTarget?
     }
 
@@ -22,13 +31,26 @@ struct GuidanceEngine {
         generation: Int = 0,
         selectedSubjectID: SubjectTrackID? = nil,
         semanticTarget: SemanticGuidanceTarget? = nil
-    ) -> GuidancePresentation {
+    ) -> GuidancePresentation? {
+        guard state != .capturing, state != .failedRecoverable else {
+            return currentPresentation
+        }
         let selectedID = selectedSubjectID ?? measurement.selectedSubjectID
+        var measured = measurement
+        measured.selectedSubjectID = selectedID
+        let subject = Self.effectiveSubjectIdentity(for: measured, intent: intent)
+        let activeSemanticTarget = semanticTarget.flatMap { target in
+            guard target.generation == generation,
+                target.intent == intent,
+                target.subjectIDs == Self.semanticSubjectIDs(for: subject)
+            else { return nil }
+            return target
+        }
         let nextContext = Context(
             intent: intent,
             generation: generation,
-            subjectID: selectedID,
-            semanticTarget: semanticTarget
+            subject: subject,
+            semanticTarget: activeSemanticTarget
         )
         if context != nextContext {
             context = nextContext
@@ -36,13 +58,11 @@ struct GuidanceEngine {
             currentPresentation = nil
         }
 
-        var measured = measurement
-        measured.selectedSubjectID = selectedID
         let proposal = Self.proposal(
             measurement: measured,
             intent: intent,
             generation: generation,
-            semanticTarget: semanticTarget
+            semanticTarget: activeSemanticTarget
         )
 
         if case .guiding(let activeStep) = state,
@@ -57,7 +77,7 @@ struct GuidanceEngine {
                 subjectKind: proposal.subjectKind,
                 target: proposal.target,
                 targetRect: proposal.targetRect,
-                semanticTarget: semanticTarget,
+                semanticTarget: activeSemanticTarget,
                 sessionState: .guiding(activeStep)
             )
             currentPresentation = held
@@ -83,7 +103,7 @@ struct GuidanceEngine {
                 subjectKind: proposal.subjectKind,
                 target: proposal.target,
                 targetRect: proposal.targetRect,
-                semanticTarget: semanticTarget,
+                semanticTarget: activeSemanticTarget,
                 sessionState: .locked
             )
         case .some(let step):
@@ -96,7 +116,7 @@ struct GuidanceEngine {
                 subjectKind: proposal.subjectKind,
                 target: proposal.target,
                 targetRect: proposal.targetRect,
-                semanticTarget: semanticTarget,
+                semanticTarget: activeSemanticTarget,
                 sessionState: .guiding(step)
             )
         }
@@ -106,7 +126,21 @@ struct GuidanceEngine {
 
     mutating func reset() {
         context = nil
+        currentPresentation = nil
+        if state != .failedRecoverable {
+            state = .ready
+        }
+    }
+
+    mutating func recover() {
+        context = nil
+        currentPresentation = nil
         state = .ready
+    }
+
+    mutating func beginAnalysis() {
+        guard state == .ready || state == .selectingSubject else { return }
+        state = .analyzing
         currentPresentation = nil
     }
 
@@ -125,7 +159,7 @@ struct GuidanceEngine {
     // by the reducer rather than an independent direction chooser.
     static func propose(_ measurement: SceneMeasurement) -> GuidancePresentation {
         var engine = GuidanceEngine()
-        return engine.update(measurement)
+        return engine.update(measurement)!
     }
 
     // Vision uses bottom-left coordinates; SwiftUI overlay coordinates are
@@ -183,9 +217,30 @@ struct GuidanceEngine {
         if let horizon = measurement.horizonAngle, abs(horizon) > 0.05 {
             return (.horizon, kind, target, targetRect)
         }
-        if let group = measurement.group, kind == .couple || kind == .smallGroup {
-            if group.maximumOverlap > 0.10 || group.memberSpacing.contains(where: { $0 < 0.015 }) {
-                return (.spacing, kind, target, targetRect)
+        if let group = measurement.group {
+            switch kind {
+            case .couple:
+                // A pair is evaluated as a relationship: overlap, the gap
+                // between the two people, both faces, then the pair envelope.
+                if group.maximumOverlap > 0.10 || group.memberSpacing.contains(where: { $0 < 0.015 }) {
+                    return (.spacing, kind, target, targetRect)
+                }
+                if group.visibleFaceCount < 2 {
+                    return (.gaze, kind, target, targetRect)
+                }
+            case .smallGroup:
+                // A group uses distribution across the whole envelope. Extreme
+                // gaps are measurable; no semantic pose advice is invented.
+                if group.maximumOverlap > 0.10
+                    || group.memberSpacing.contains(where: { $0 < 0.015 || $0 > 0.15 })
+                {
+                    return (.spacing, kind, target, targetRect)
+                }
+                if group.visibleFaceCount < measurement.people.count {
+                    return (.gaze, kind, target, targetRect)
+                }
+            default:
+                break
             }
         }
         guard let subject else {
@@ -214,14 +269,49 @@ struct GuidanceEngine {
         return (.hold, kind, target, targetRect)
     }
 
-    private static func subjectKind(for measurement: SceneMeasurement, intent: CaptureIntent) -> GuidanceSubjectKind {
-        if intent == .scene { return measurement.primaryRect == nil ? .unavailable : .scene }
+    private static func effectiveSubjectIdentity(
+        for measurement: SceneMeasurement,
+        intent: CaptureIntent
+    ) -> EffectiveSubjectIdentity {
+        if intent == .scene {
+            return .scene(hasPrimarySubject: measurement.primaryRect != nil)
+        }
+        if let selected = measurement.selectedSubjectID {
+            return measurement.people.contains(where: { $0.id == selected })
+                ? .selected(selected)
+                : .unavailable
+        }
         switch measurement.people.count {
-        case 0: return intent == .people ? .unavailable : .scene
-        case 1: return .onePerson
-        case 2: return .couple
-        case 3...5: return .smallGroup
-        default: return .unavailable
+        case 0:
+            return intent == .people
+                ? .unavailable
+                : .scene(hasPrimarySubject: measurement.primaryRect != nil)
+        case 1:
+            return .automatic(measurement.people[0].id)
+        case 2:
+            return .couple(measurement.group?.memberIDs ?? [])
+        case 3...5:
+            return .smallGroup(measurement.group?.memberIDs ?? [])
+        default:
+            return .unavailable
+        }
+    }
+
+    private static func subjectKind(for measurement: SceneMeasurement, intent: CaptureIntent) -> GuidanceSubjectKind {
+        switch effectiveSubjectIdentity(for: measurement, intent: intent) {
+        case .selected, .automatic: return .onePerson
+        case .couple: return .couple
+        case .smallGroup: return .smallGroup
+        case .scene(let hasPrimarySubject): return hasPrimarySubject ? .scene : .unavailable
+        case .unavailable: return .unavailable
+        }
+    }
+
+    private static func semanticSubjectIDs(for identity: EffectiveSubjectIdentity) -> [SubjectTrackID] {
+        switch identity {
+        case .selected(let id), .automatic(let id): return [id]
+        case .couple(let ids), .smallGroup(let ids): return ids
+        case .scene, .unavailable: return []
         }
     }
 
@@ -335,7 +425,10 @@ struct GuidanceEngine {
             horizonAngle: measurement.horizonAngle,
             step: step,
             instructionKey: instructionKey(for: step),
-            instruction: semanticTarget?.instruction ?? localInstruction(for: step, kind: subjectKind)
+            // Schema v2 has no typed Blueprint step, so its text cannot be
+            // proven to describe this reducer-owned correction. Preserve only
+            // the compatible geometry target and keep actionable copy local.
+            instruction: localInstruction(for: step, kind: subjectKind)
         )
     }
 

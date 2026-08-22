@@ -452,7 +452,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var stabilizer = MeasurementStabilizer()
     private var guidanceEngine = GuidanceEngine()
     private var pendingAIPreview: (@Sendable (Data?) -> Void)?
-    private var cloudPlan: AICompositionPlan?
+    private var cloudPlan: SemanticGuidanceTarget?
     private var selectedSubjectPoint: CGPoint?
     private var selectedSubjectID: SubjectTrackID?
     // Not `private`: regression tests confirm a resume can't leave this wedged.
@@ -675,9 +675,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             self.guidanceEngine.beginCapture()
             DispatchQueue.main.async { self.guidance = nil }
             guard self.session.isRunning else {
-                self.guidanceEngine.completeCapture(recoverableFailure: true)
                 self.publish(notice: "camera.error.capture")
-                self.finishCapture()
+                self.finishCapture(recoverableFailure: true)
                 return
             }
             // Taken on `queue` right now, from queue-owned capability state —
@@ -714,7 +713,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             )
             guard self.registerPendingCapture(id: settings.uniqueID, context: context) else {
                 self.publish(notice: Self.cancellationNotice)
-                self.finishCapture()
+                self.finishCapture(recoverableFailure: true)
                 return
             }
             self.photoOutput.capturePhoto(with: settings, delegate: self)
@@ -770,6 +769,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         analyzer.resetTracking()
         stabilizer = MeasurementStabilizer()
         guidanceEngine.reset()
+        cloudPlan = nil
         selectedSubjectID = nil
         selectedSubjectPoint = nil
         #if DEBUG
@@ -936,14 +936,21 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         setZoom(CGFloat(plan.zoom))
         setExposure(Float(plan.exposureBias))
         queue.async {
-            self.cloudPlan = plan
             guard let measurement = self.measurement else { return }
+            let semanticTarget = Self.semanticTarget(
+                for: plan,
+                measurement: measurement,
+                intent: self.captureIntent,
+                selectedSubjectID: self.selectedSubjectID,
+                generation: self.analysisGeneration
+            )
+            self.cloudPlan = semanticTarget
             let guidance = self.guidanceEngine.update(
                 measurement,
                 intent: self.captureIntent,
                 generation: self.analysisGeneration,
                 selectedSubjectID: self.selectedSubjectID,
-                semanticTarget: Self.semanticTarget(for: plan)
+                semanticTarget: semanticTarget
             )
             DispatchQueue.main.async { self.guidance = guidance }
         }
@@ -972,6 +979,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 let selected = measurement.person(near: visionPoint)
             else { return }
             self.selectedSubjectID = selected.id
+            self.cloudPlan = nil
             measurement.selectedSubjectID = selected.id
             measurement.subjectRect = selected.humanRect
             self.selectedSubjectPoint = CGPoint(x: selected.humanRect.midX, y: selected.humanRect.midY)
@@ -981,7 +989,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 intent: self.captureIntent,
                 generation: self.analysisGeneration,
                 selectedSubjectID: selected.id,
-                semanticTarget: self.cloudPlan.map { Self.semanticTarget(for: $0) }
+                semanticTarget: self.cloudPlan
             )
             DispatchQueue.main.async {
                 self.measurement = measurement
@@ -1101,7 +1109,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         guard captureCoordinator.timeout(captureID: id) != nil else { return }
         retireCaptureTimeout(id: id)
         publish(notice: notice)
-        finishCapture()
+        finishCapture(recoverableFailure: true)
     }
 
     private func cancelPendingCaptures(
@@ -1119,14 +1127,14 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             retireCaptureTimeout(id: cancelledCapture.captureID)
             if notifyUser { publish(notice: Self.cancellationNotice) }
         }
-        finishCapture()
+        finishCapture(recoverableFailure: true)
     }
 
     private func handleCaptureTimeout(id: Int64) {
         guard let timeout = captureCoordinator.timeout(captureID: id) else { return }
         captureTimeouts[id] = nil
         publish(notice: Self.timeoutNotice(for: timeout.stage))
-        finishCapture()
+        finishCapture(recoverableFailure: true)
     }
 
     private func retireCaptureTimeout(id: Int64) {
@@ -1174,7 +1182,10 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     private func save(captureID: Int64, request: SaveRequest) {
-        guard captureCoordinator.beginSaving(captureID: captureID) else { return }
+        guard captureCoordinator.beginSaving(captureID: captureID) else {
+            finishCapture(recoverableFailure: true)
+            return
+        }
         retireCaptureTimeout(id: captureID)
 
         let primaryData = request.primaryData
@@ -1223,7 +1234,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                         self.publish(notice: notice)
                     }
                 }
-                self.finishCapture()
+                self.finishCapture(recoverableFailure: !saved)
             }
         }
 
@@ -1237,7 +1248,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                     guard self.captureCoordinator.complete(captureID: captureID, expectedStage: .saving) else { return }
                     self.retireCaptureTimeout(id: captureID)
                     self.publish(notice: notice)
-                    self.finishCapture()
+                    self.finishCapture(recoverableFailure: true)
                 } else {
                     performSave()
                 }
@@ -1249,13 +1260,13 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             else { return }
             retireCaptureTimeout(id: captureID)
             publish(notice: notice)
-            finishCapture()
+            finishCapture(recoverableFailure: true)
         }
     }
 
-    private func finishCapture() {
+    private func finishCapture(recoverableFailure: Bool = false) {
         queue.async { [weak self] in
-            self?.guidanceEngine.completeCapture()
+            self?.guidanceEngine.completeCapture(recoverableFailure: recoverableFailure)
         }
         DispatchQueue.main.async { self.isCapturing = false }
     }
@@ -1284,7 +1295,7 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         guard let proxy else {
             cancelPendingCaptures(cause: "deferred proxy callback omitted its payload")
             publish(notice: "camera.error.capture")
-            finishCapture()
+            finishCapture(recoverableFailure: true)
             return
         }
         let captureID = proxy.resolvedSettings.uniqueID
@@ -1293,7 +1304,6 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
             return
         }
         guard let claim = claimCapture(id: captureID, callbackType: .deferredProxy) else { return }
-        defer { finishCapture() }
 
         let record = CaptureResolutionRecord(
             requested: claim.context.snapshot.resolved.requested,
@@ -1325,7 +1335,6 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
             return
         }
         guard let claim = claimCapture(id: captureID, callbackType: .immediatePhoto) else { return }
-        defer { finishCapture() }
         let requiresAspectProcessing = claim.context.ratio != .fourThree
         let renderedData = filterRenderer.renderedData(
             from: data,
@@ -1341,6 +1350,7 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
             guard captureCoordinator.complete(captureID: captureID, expectedStage: .processing) else { return }
             retireCaptureTimeout(id: captureID)
             publish(notice: "camera.error.processing")
+            finishCapture(recoverableFailure: true)
             return
         }
         let filterFallback = renderedData == nil && canSaveUnfilteredFallback
@@ -1375,8 +1385,35 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         cancelCapture(id: resolvedSettings.uniqueID, notice: "camera.error.capture")
     }
 
-    static func semanticTarget(for plan: AICompositionPlan) -> SemanticGuidanceTarget {
-        SemanticGuidanceTarget(targetFrame: plan.target.cgRect, instruction: plan.instruction)
+    static func semanticTarget(
+        for plan: AICompositionPlan,
+        measurement: SceneMeasurement? = nil,
+        intent: CaptureIntent = .auto,
+        selectedSubjectID: SubjectTrackID? = nil,
+        generation: Int = 0
+    ) -> SemanticGuidanceTarget {
+        let subjectIDs: [SubjectTrackID]
+        if let selectedSubjectID {
+            subjectIDs = [selectedSubjectID]
+        } else if let measurement, intent != .scene {
+            switch measurement.people.count {
+            case 1:
+                subjectIDs = [measurement.people[0].id]
+            case 2...5:
+                subjectIDs = measurement.group?.memberIDs ?? []
+            default:
+                subjectIDs = []
+            }
+        } else {
+            subjectIDs = []
+        }
+        SemanticGuidanceTarget(
+            targetFrame: plan.target.cgRect,
+            instruction: plan.instruction,
+            generation: generation,
+            intent: intent,
+            subjectIDs: subjectIDs
+        )
     }
 
     // Compatibility entry point for the existing cloud-plan regression. The
@@ -1386,8 +1423,8 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         return engine.update(
             measurement,
             intent: .auto,
-            semanticTarget: semanticTarget(for: plan)
-        )
+            semanticTarget: semanticTarget(for: plan, measurement: measurement)
+        )!
     }
 }
 
@@ -1411,6 +1448,7 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
             CMTimeGetSeconds(timestamp - lastAnalysisTime) >= analysisInterval
         {
             analysisInFlight = true
+            guidanceEngine.beginAnalysis()
             lastAnalysisTime = timestamp
             let generation = analysisGeneration
             let preferredPoint = selectedSubjectPoint
@@ -1438,41 +1476,30 @@ extension CameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
                         #endif
                         return
                     }
-                    if let currentPoint = self.selectedSubjectPoint,
-                        currentPoint != preferredPoint,
-                        let selected = measurement.person(near: currentPoint)
-                    {
-                        measurement.subjectRect = selected.humanRect
-                        self.analyzer.track(selected.humanRect)
-                    }
                     var stable = self.stabilizer.update(measurement, generation: generation)
                     if let selectedID = self.selectedSubjectID,
                         stable.people.contains(where: { $0.id == selectedID })
                     {
                         stable.selectedSubjectID = selectedID
                         stable.subjectRect = stable.selectedPerson?.humanRect
-                    } else if let point = self.selectedSubjectPoint,
-                        let selected = stable.person(near: point)
-                    {
-                        self.selectedSubjectID = selected.id
-                        stable.selectedSubjectID = selected.id
-                        stable.subjectRect = selected.humanRect
-                        self.selectedSubjectPoint = CGPoint(
-                            x: selected.humanRect.midX,
-                            y: selected.humanRect.midY
-                        )
+                    } else if let selectedID = self.selectedSubjectID {
+                        // A stale screen position is not identity evidence.
+                        // Keep the explicit selection missing until the user
+                        // selects again or the session is reset.
+                        stable.selectedSubjectID = selectedID
+                        stable.subjectRect = nil
                     } else {
-                        self.selectedSubjectID = nil
+                        stable.selectedSubjectID = nil
                     }
                     let guidance = self.guidanceEngine.update(
                         stable,
                         intent: self.captureIntent,
                         generation: generation,
                         selectedSubjectID: self.selectedSubjectID,
-                        semanticTarget: self.cloudPlan.map { Self.semanticTarget(for: $0) }
+                        semanticTarget: self.cloudPlan
                     )
                     #if DEBUG
-                        let directionName = String(describing: guidance.direction)
+                        let directionName = String(describing: guidance?.direction ?? .none)
                         self.lifecycleLog.debug(
                             "analysis ok, gen \(generation, privacy: .public) dir \(directionName, privacy: .public)"
                         )

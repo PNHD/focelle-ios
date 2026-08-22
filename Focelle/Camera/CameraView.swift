@@ -579,7 +579,6 @@ struct CameraView: View {
             let plan = result.plans[selected]
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text(plan.instruction).font(.subheadline.weight(.semibold))
                     Spacer()
                     Button {
                         ai.cancel()
@@ -588,7 +587,6 @@ struct CameraView: View {
                     }
                     .accessibilityLabel(Text("common.close"))
                 }
-                Text(plan.pose).font(.caption).foregroundStyle(.white.opacity(0.8))
                 HStack {
                     ForEach(result.plans.indices, id: \.self) { index in
                         Button(aiPlanTitle(index)) {

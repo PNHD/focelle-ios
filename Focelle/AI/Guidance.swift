@@ -79,10 +79,22 @@ struct GuidancePersonPresentation: Equatable, Sendable {
 struct SemanticGuidanceTarget: Equatable, Sendable {
     let targetFrame: CGRect?
     let instruction: String?
+    let generation: Int
+    let intent: CaptureIntent
+    let subjectIDs: [SubjectTrackID]
 
-    init(targetFrame: CGRect? = nil, instruction: String? = nil) {
+    init(
+        targetFrame: CGRect? = nil,
+        instruction: String? = nil,
+        generation: Int = 0,
+        intent: CaptureIntent = .auto,
+        subjectIDs: [SubjectTrackID] = []
+    ) {
         self.targetFrame = targetFrame
         self.instruction = instruction
+        self.generation = generation
+        self.intent = intent
+        self.subjectIDs = subjectIDs
     }
 }
 

@@ -79,12 +79,13 @@ struct GroupGeometry: Equatable, Sendable {
     let headVerticalSpread: CGFloat
 
     init?(people: [PersonGeometry]) {
-        guard (2...5).contains(people.count), let first = people.first else { return nil }
+        guard (2...5).contains(people.count) else { return nil }
         let ordered = people.sorted {
             $0.humanRect.midX == $1.humanRect.midX
                 ? $0.id.value.uuidString < $1.id.value.uuidString
                 : $0.humanRect.midX < $1.humanRect.midX
         }
+        guard let first = ordered.first else { return nil }
         let envelope = ordered.dropFirst().reduce(first.humanRect) { $0.union($1.humanRect) }
         let spacing = zip(ordered, ordered.dropFirst()).map {
             $1.humanRect.minX - $0.humanRect.maxX
@@ -189,12 +190,17 @@ struct SceneMeasurement: Equatable, Sendable {
     }
 
     func person(near point: CGPoint) -> PersonGeometry? {
-        let containing = people.filter { $0.humanRect.contains(point) }
-        let candidates = containing.isEmpty ? people : containing
-        return candidates.min {
-            hypot(point.x - $0.humanRect.midX, point.y - $0.humanRect.midY)
-                < hypot(point.x - $1.humanRect.midX, point.y - $1.humanRect.midY)
-        }
+        let scored = people.compactMap { person -> (PersonGeometry, CGFloat)? in
+            let rect = person.humanRect
+            let scale = max(hypot(rect.width, rect.height), 0.0001)
+            let distance = hypot(point.x - rect.midX, point.y - rect.midY) / scale
+            guard rect.contains(point) || distance <= 0.65 else { return nil }
+            return (person, (rect.contains(point) ? 2 : 1) - distance)
+        }.sorted { $0.1 > $1.1 }
+        guard let best = scored.first else { return nil }
+        // A tap between overlapping people is not sufficient identity proof.
+        guard scored.dropFirst().first.map({ best.1 - $0.1 > 0.08 }) ?? true else { return nil }
+        return best.0
     }
 
     func subject(near point: CGPoint) -> CGRect? {

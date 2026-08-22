@@ -3,6 +3,12 @@ import Foundation
 @preconcurrency import Vision
 
 final class OnDeviceAnalyzer: @unchecked Sendable {
+    private struct AssociationCandidate {
+        let personIndex: Int
+        let observationIndex: Int
+        let score: CGFloat
+    }
+
     private let queue = DispatchQueue(
         label: "com.pnhd.focelle.analysis",
         qos: .userInitiated
@@ -127,13 +133,16 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
         faces: [VNFaceObservation],
         poses: [VNHumanBodyPoseObservation]
     ) -> [PersonGeometry] {
-        humanRects.map { humanRect in
-            let face = faces
-                .filter { !$0.boundingBox.intersection(humanRect).isNull }
-                .max { area($0.boundingBox.intersection(humanRect)) < area($1.boundingBox.intersection(humanRect)) }
-            let pose = poses
-                .map { poseGeometry($0) }
-                .min { poseDistance($0, to: humanRect) < poseDistance($1, to: humanRect) }
+        let faceRects = faces.map(\.boundingBox)
+        let poseJoints = poses.map { poseGeometry($0) }
+        let faceOwners = associateFaces(faceRects, to: humanRects)
+        let poseOwners = associatePoses(poseJoints, to: humanRects)
+        return humanRects.indices.map { index in
+            let humanRect = humanRects[index]
+            let faceIndex = faceOwners[index]
+            let poseIndex = poseOwners[index]
+            let face = faceIndex.map { faces[$0] }
+            let pose = poseIndex.map { poseJoints[$0] }
             let joints = pose ?? []
             return PersonGeometry(
                 id: SubjectTrackID(generation: 0),
@@ -146,6 +155,87 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
                 faceReady: face.map { ($0.faceCaptureQuality ?? 0) >= 0.35 } ?? false
             )
         }
+    }
+
+    // The association boundary retains only value geometry. Vision observations
+    // never enter SceneMeasurement or its presentation state.
+    static func associateFaces(_ faces: [CGRect], to people: [CGRect]) -> [Int: Int] {
+        associate(
+            observations: faces.enumerated().map { (index: $0.offset, rect: $0.element) },
+            to: people
+        )
+    }
+
+    static func associatePoses(_ poses: [[PoseJoint]], to people: [CGRect]) -> [Int: Int] {
+        let bounds = poses.map { joints -> CGRect? in
+            guard let first = joints.first else { return nil }
+            return joints.dropFirst().reduce(CGRect(origin: first.point, size: .zero)) {
+                $0.union(CGRect(origin: $1.point, size: .zero))
+            }
+        }
+        return associate(
+            observations: bounds.enumerated().compactMap { index, rect in
+                rect.map { (index: index, rect: $0) }
+            },
+            to: people
+        )
+    }
+
+    private static func associate(
+        observations: [(index: Int, rect: CGRect)],
+        to people: [CGRect]
+    ) -> [Int: Int] {
+        let confidenceMargin: CGFloat = 0.08
+        let maximumNormalizedDistance: CGFloat = 0.35
+        var uniqueCandidates: [AssociationCandidate] = []
+        for observationInput in observations {
+            let observationIndex = observationInput.index
+            let observation = observationInput.rect
+            let center = CGPoint(x: observation.midX, y: observation.midY)
+            let candidates = people.enumerated().compactMap { personIndex, person -> AssociationCandidate? in
+                let intersection = observation.intersection(person)
+                let overlap = intersection.isNull || area(observation) <= 0
+                    ? 0
+                    : area(intersection) / area(observation)
+                let normalizedDistance = hypot(center.x - person.midX, center.y - person.midY)
+                    / max(hypot(person.width, person.height), 0.0001)
+                guard person.contains(center) || overlap > 0 || normalizedDistance <= maximumNormalizedDistance else {
+                    return nil
+                }
+                let score = (person.contains(center) ? 2 : 0) + overlap
+                    + max(0, maximumNormalizedDistance - normalizedDistance)
+                return AssociationCandidate(
+                    personIndex: personIndex,
+                    observationIndex: observationIndex,
+                    score: score
+                )
+            }.sorted { $0.score > $1.score }
+            guard let best = candidates.first,
+                candidates.dropFirst().first.map({ best.score - $0.score > confidenceMargin }) ?? true
+            else { continue }
+            uniqueCandidates.append(best)
+        }
+
+        // If two observations have indistinguishably good ownership of one
+        // person, leave both unmatched instead of duplicating geometry.
+        let ambiguousPeople = Set(
+            Dictionary(grouping: uniqueCandidates, by: \.personIndex).compactMap { _, candidates in
+                guard candidates.count > 1,
+                    let first = candidates.sorted(by: { $0.score > $1.score }).first,
+                    let second = candidates.sorted(by: { $0.score > $1.score }).dropFirst().first,
+                    first.score - second.score <= confidenceMargin
+                else { return nil }
+                return first.personIndex
+            }
+        )
+        var owners: [Int: Int] = [:]
+        for candidate in uniqueCandidates.sorted(by: { $0.score > $1.score })
+            where !ambiguousPeople.contains(candidate.personIndex)
+        {
+            guard owners[candidate.personIndex] == nil else { continue }
+            owners[candidate.personIndex] = candidate.observationIndex
+        }
+        return owners
     }
 
     private static func poseGeometry(_ observation: VNHumanBodyPoseObservation) -> [PoseJoint] {
@@ -169,15 +259,6 @@ final class OnDeviceAnalyzer: @unchecked Sendable {
             let end = joints.first(where: { $0.kind == second })
         else { return nil }
         return BodyAxis(start: start.point, end: end.point, confidence: min(start.confidence, end.confidence))
-    }
-
-    private static func poseDistance(_ joints: [PoseJoint], to rect: CGRect) -> CGFloat {
-        guard !joints.isEmpty else { return .greatestFiniteMagnitude }
-        let center = CGPoint(
-            x: joints.map(\.point.x).reduce(0, +) / CGFloat(joints.count),
-            y: joints.map(\.point.y).reduce(0, +) / CGFloat(joints.count)
-        )
-        return hypot(center.x - rect.midX, center.y - rect.midY)
     }
 
     private func track(_ buffer: CVPixelBuffer, now: TimeInterval) -> SceneMeasurement? {

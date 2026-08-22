@@ -87,19 +87,22 @@ struct MeasurementStabilizer {
         from available: [SubjectTrackID: Track],
         excluding claimed: Set<SubjectTrackID>
     ) -> (key: SubjectTrackID, value: Track)? {
-        available
+        let candidates = available
             .filter { !claimed.contains($0.key) && $0.value.missedFrames <= Self.maximumMissedFrames }
             .compactMap { entry in
                 let score = matchScore(old: entry.value.geometry.humanRect, new: candidate.humanRect)
                 return score.map { (entry.key, entry.value, $0) }
             }
             .sorted {
-                $0.2 == $1.2
-                    ? $0.0.value.uuidString < $1.0.value.uuidString
-                    : $0.2 > $1.2
+                $0.2 > $1.2
             }
-            .first
-            .map { (key: $0.0, value: $0.1) }
+        guard let best = candidates.first else { return nil }
+        // Never use a UUID's random textual spelling to resolve a close
+        // geometric tie. A new local track is safer than silently rebinding.
+        guard candidates.dropFirst().first.map({ best.2 - $0.2 > 0.05 }) ?? true else {
+            return nil
+        }
+        return (key: best.0, value: best.1)
     }
 
     private func matchScore(old: CGRect, new: CGRect) -> CGFloat? {

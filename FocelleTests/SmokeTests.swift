@@ -776,21 +776,21 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(GuidanceEngine.propose(left).direction, .left)
 
         var engine = GuidanceEngine()
-        XCTAssertEqual(engine.update(left).direction, .left)
+        XCTAssertEqual(engine.update(left)?.direction, .left)
 
         // Drifting inside the exit band must not rewrite the instruction while
         // the user is still carrying out the previous one.
         var drifting = left
         drifting.subjectRect = CGRect(x: 0.10, y: 0.3, width: 0.2, height: 0.4)
         drifting.timestamp = 2
-        XCTAssertEqual(engine.update(drifting).direction, .left)
+        XCTAssertEqual(engine.update(drifting)?.direction, .left)
 
         // Overshooting to the far side clears it at once; holding an
         // instruction that is now wrong is worse than switching.
         var overshot = left
         overshot.subjectRect = CGRect(x: 0.75, y: 0.3, width: 0.2, height: 0.4)
         overshot.timestamp = 3
-        XCTAssertEqual(engine.update(overshot).direction, .right)
+        XCTAssertEqual(engine.update(overshot)?.direction, .right)
     }
 
     func testTargetSlidesToCentreInsteadOfJumping() {
@@ -901,11 +901,126 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(refreshed.selectedPerson?.id, selected)
     }
 
+    func testAmbiguousTrackMatchCreatesNoArbitraryMatch() {
+        var stabilizer = MeasurementStabilizer()
+        let first = stabilizer.update(
+            peopleMeasurement([person(x: 0.20, y: 0.2), person(x: 0.40, y: 0.2)]),
+            generation: 12
+        )
+        let ambiguous = stabilizer.update(
+            peopleMeasurement([person(x: 0.30, y: 0.2, timestamp: 2)], timestamp: 2),
+            generation: 12
+        )
+
+        XCTAssertFalse(first.people.contains { $0.id == ambiguous.people.first?.id })
+    }
+
+    func testTrackMatchingDoesNotUseUUIDLexicalOrderToBreakTies() {
+        var stabilizer = MeasurementStabilizer()
+        let left = PersonGeometry(
+            id: SubjectTrackID(generation: 0, value: UUID(uuidString: "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF")!),
+            humanRect: CGRect(x: 0.20, y: 0.2, width: 0.20, height: 0.45)
+        )
+        let right = PersonGeometry(
+            id: SubjectTrackID(generation: 0, value: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!),
+            humanRect: CGRect(x: 0.40, y: 0.2, width: 0.20, height: 0.45)
+        )
+        let first = stabilizer.update(peopleMeasurement([left, right]), generation: 13)
+        let ambiguous = stabilizer.update(
+            peopleMeasurement([person(x: 0.30, y: 0.2)], timestamp: 2),
+            generation: 13
+        )
+
+        XCTAssertFalse(first.people.contains { $0.id == ambiguous.people.first?.id })
+    }
+
+    func testMissingSelectedSubjectRemainsMissingRatherThanRebindingToANeighbor() {
+        let selected = SubjectTrackID(generation: 14)
+        let neighbor = person(x: 0.58, y: 0.2)
+        let measurement = peopleMeasurement([neighbor])
+        var engine = GuidanceEngine()
+
+        let presentation = engine.update(
+            measurement,
+            intent: .people,
+            generation: 14,
+            selectedSubjectID: selected
+        )
+
+        XCTAssertEqual(presentation?.sessionState, .selectingSubject)
+        XCTAssertNil(presentation?.subjectRect)
+        XCTAssertEqual(engine.state, .selectingSubject)
+    }
+
+    func testAutomaticSinglePersonReplacementInvalidatesReducerContext() {
+        var engine = GuidanceEngine()
+        let first = peopleMeasurement([person(x: 0.05, y: 0.2)])
+        let second = peopleMeasurement([person(x: 0.70, y: 0.2)], timestamp: 2)
+
+        XCTAssertEqual(engine.update(first, intent: .people, generation: 15)?.step, .move(.left))
+        XCTAssertEqual(engine.update(second, intent: .people, generation: 15)?.step, .move(.right))
+    }
+
+    func testCoupleAndGroupMembershipChangesInvalidateReducerContext() {
+        var engine = GuidanceEngine()
+        let couple = peopleMeasurement([person(x: 0.20, y: 0.2), person(x: 0.55, y: 0.2)])
+        let changedCouple = peopleMeasurement([person(x: 0.20, y: 0.2), person(x: 0.65, y: 0.2)], timestamp: 2)
+        let group = peopleMeasurement([person(x: 0.20, y: 0.2), person(x: 0.42, y: 0.2), person(x: 0.65, y: 0.2)], timestamp: 3)
+
+        _ = engine.update(couple, intent: .people, generation: 16)
+        XCTAssertEqual(engine.update(changedCouple, intent: .people, generation: 16)?.subjectKind, .couple)
+        XCTAssertEqual(engine.update(group, intent: .people, generation: 16)?.subjectKind, .smallGroup)
+    }
+
+    func testSemanticTargetIsRejectedAfterGenerationChanges() {
+        var engine = GuidanceEngine()
+        let measurement = peopleMeasurement([person(x: 0.2, y: 0.2)])
+        let semantic = SemanticGuidanceTarget(
+            targetFrame: CGRect(x: 0.60, y: 0.2, width: 0.2, height: 0.4),
+            instruction: "Unrelated cloud copy",
+            generation: 17,
+            intent: .people,
+            subjectIDs: measurement.people.map(\.id)
+        )
+
+        XCTAssertEqual(
+            engine.update(measurement, intent: .people, generation: 17, semanticTarget: semantic)?.targetRect,
+            semantic.targetFrame
+        )
+        XCTAssertNil(engine.update(measurement, intent: .people, generation: 18, semanticTarget: semantic)?.targetRect)
+    }
+
+    func testFaceAndPoseAssociationAreOneToOneAndRejectWeakMatches() {
+        let people = [
+            CGRect(x: 0.10, y: 0.10, width: 0.30, height: 0.60),
+            CGRect(x: 0.32, y: 0.10, width: 0.30, height: 0.60),
+        ]
+        let faces = [CGRect(x: 0.30, y: 0.18, width: 0.12, height: 0.16)]
+        let poses = [[
+            PoseJoint(kind: .leftShoulder, point: CGPoint(x: 0.18, y: 0.50), confidence: 0.9),
+            PoseJoint(kind: .rightShoulder, point: CGPoint(x: 0.22, y: 0.50), confidence: 0.9),
+        ]]
+
+        XCTAssertEqual(OnDeviceAnalyzer.associateFaces(faces, to: people).count, 0)
+        XCTAssertEqual(OnDeviceAnalyzer.associatePoses(poses, to: people).count, 1)
+        XCTAssertTrue(OnDeviceAnalyzer.associateFaces([CGRect(x: 0.90, y: 0.90, width: 0.05, height: 0.05)], to: people).isEmpty)
+        XCTAssertTrue(OnDeviceAnalyzer.associatePoses([[PoseJoint(kind: .leftHip, point: CGPoint(x: 0.95, y: 0.95), confidence: 0.9)]], to: people).isEmpty)
+    }
+
+    func testGroupEnvelopeIncludesEveryMemberWhenInputIsReversed() throws {
+        let left = person(x: 0.05, y: 0.2, width: 0.20, height: 0.40)
+        let right = person(x: 0.65, y: 0.25, width: 0.20, height: 0.40)
+        let group = try XCTUnwrap(GroupGeometry(people: [right, left]))
+
+        XCTAssertEqual(group.envelope, left.humanRect.union(right.humanRect))
+        XCTAssertEqual(group.memberIDs.count, 2)
+    }
+
     func testLocalFallbackUsesDistinctOnePersonCoupleAndSmallGroupPaths() {
         var engine = GuidanceEngine()
         let one = peopleMeasurement([person(x: 0.4, y: 0.2, width: 0.1, height: 0.2)])
         XCTAssertEqual(
-            engine.update(one, intent: .people, generation: 1).step,
+            engine.update(one, intent: .people, generation: 1)?.step,
             .scale(.closer)
         )
 
@@ -914,7 +1029,7 @@ final class SmokeTests: XCTestCase {
             person(x: 0.30, y: 0.2, width: 0.22, height: 0.45),
             person(x: 0.44, y: 0.2, width: 0.22, height: 0.45),
         ])
-        XCTAssertEqual(engine.update(couple, intent: .people, generation: 1).step, .spacing)
+        XCTAssertEqual(engine.update(couple, intent: .people, generation: 1)?.step, .spacing)
         XCTAssertEqual(engine.currentPresentation?.subjectKind, .couple)
 
         engine.reset()
@@ -923,8 +1038,28 @@ final class SmokeTests: XCTestCase {
             person(x: 0.34, y: 0.2, width: 0.18, height: 0.40),
             person(x: 0.46, y: 0.2, width: 0.18, height: 0.40),
         ])
-        XCTAssertEqual(engine.update(group, intent: .people, generation: 1).step, .spacing)
+        XCTAssertEqual(engine.update(group, intent: .people, generation: 1)?.step, .spacing)
         XCTAssertEqual(engine.currentPresentation?.subjectKind, .smallGroup)
+    }
+
+    func testCoupleAndSmallGroupUseDistinctMeasuredReasoning() {
+        var engine = GuidanceEngine()
+        var secondPerson = person(x: 0.52, y: 0.2, width: 0.20, height: 0.45)
+        secondPerson.faceRect = nil
+        secondPerson.faceVisible = false
+        let couple = peopleMeasurement([
+            person(x: 0.26, y: 0.2, width: 0.20, height: 0.45),
+            secondPerson,
+        ])
+        let group = peopleMeasurement([
+            person(x: 0.10, y: 0.2, width: 0.14, height: 0.30),
+            person(x: 0.42, y: 0.2, width: 0.14, height: 0.30),
+            person(x: 0.74, y: 0.2, width: 0.14, height: 0.30),
+        ], timestamp: 2)
+
+        XCTAssertEqual(engine.update(couple, intent: .people, generation: 19)?.step, .gaze)
+        engine.reset()
+        XCTAssertEqual(engine.update(group, intent: .people, generation: 19)?.step, .spacing)
     }
 
     func testSceneFallbackPrefersHorizonWithoutPeople() {
@@ -936,13 +1071,13 @@ final class SmokeTests: XCTestCase {
             timestamp: 1
         )
 
-        XCTAssertEqual(engine.update(scene, intent: .scene, generation: 1).step, .horizon)
+        XCTAssertEqual(engine.update(scene, intent: .scene, generation: 1)?.step, .horizon)
     }
 
     func testIntentAndGenerationChangesInvalidateStaleGuidanceProgress() {
         var engine = GuidanceEngine()
         let people = peopleMeasurement([person(x: 0.05, y: 0.2, width: 0.2, height: 0.45)])
-        XCTAssertEqual(engine.update(people, intent: .people, generation: 1).step, .move(.left))
+        XCTAssertEqual(engine.update(people, intent: .people, generation: 1)?.step, .move(.left))
 
         let scene = SceneMeasurement(
             salientRect: CGRect(x: 0.4, y: 0.2, width: 0.2, height: 0.3),
@@ -950,12 +1085,12 @@ final class SmokeTests: XCTestCase {
             timestamp: 2
         )
         let changedIntent = engine.update(scene, intent: .scene, generation: 1)
-        XCTAssertEqual(changedIntent.intent, .scene)
-        XCTAssertNotEqual(changedIntent.step, .move(.left))
+        XCTAssertEqual(changedIntent?.intent, .scene)
+        XCTAssertNotEqual(changedIntent?.step, .move(.left))
 
         let changedGeneration = engine.update(people, intent: .people, generation: 2)
-        XCTAssertEqual(changedGeneration.generation, 2)
-        XCTAssertEqual(changedGeneration.step, .move(.left))
+        XCTAssertEqual(changedGeneration?.generation, 2)
+        XCTAssertEqual(changedGeneration?.step, .move(.left))
     }
 
     func testReducerPublishesOnePresentationSkipsSatisfiedStepsAndLocks() {
@@ -963,25 +1098,71 @@ final class SmokeTests: XCTestCase {
         let aligned = peopleMeasurement([person(x: 0.225, y: 0.25, width: 0.55, height: 0.45)])
         let presentation = engine.update(aligned, intent: .people, generation: 1)
 
-        XCTAssertEqual(presentation.step, .hold)
+        XCTAssertEqual(presentation?.step, .hold)
         XCTAssertEqual(engine.state, .locked)
         XCTAssertEqual(engine.currentPresentation, presentation)
+    }
+
+    func testSemanticCopyCannotOverrideTheReducerOwnedActiveStep() {
+        var engine = GuidanceEngine()
+        let horizon = SceneMeasurement(
+            salientRect: CGRect(x: 0.25, y: 0.2, width: 0.3, height: 0.4),
+            horizonAngle: 0.12,
+            exposure: 0.5,
+            timestamp: 1
+        )
+        let semantic = SemanticGuidanceTarget(
+            instruction: "Move left",
+            generation: 20,
+            intent: .scene
+        )
+
+        let presentation = engine.update(horizon, intent: .scene, generation: 20, semanticTarget: semantic)
+
+        XCTAssertEqual(presentation?.step, .horizon)
+        XCTAssertNotEqual(presentation?.instruction, "Move left")
+        XCTAssertEqual(presentation?.instructionKey, "guidance.level")
+    }
+
+    func testGuidanceSessionStateTransitionsRemainObservableAndRecoverExplicitly() {
+        var engine = GuidanceEngine()
+        let left = peopleMeasurement([person(x: 0.04, y: 0.2, width: 0.2, height: 0.45)])
+        let aligned = peopleMeasurement([person(x: 0.225, y: 0.2, width: 0.55, height: 0.45)], timestamp: 2)
+
+        engine.beginAnalysis()
+        XCTAssertEqual(engine.state, .analyzing)
+        XCTAssertNil(engine.currentPresentation)
+        XCTAssertEqual(engine.update(left, intent: .people, generation: 21)?.step, .move(.left))
+        XCTAssertEqual(engine.state, .guiding(.move(.left)))
+        XCTAssertEqual(engine.update(aligned, intent: .people, generation: 21)?.step, .hold)
+        XCTAssertEqual(engine.state, .locked)
+        engine.beginCapture()
+        XCTAssertEqual(engine.state, .capturing)
+        engine.completeCapture()
+        XCTAssertEqual(engine.state, .ready)
+        engine.beginCapture()
+        engine.completeCapture(recoverableFailure: true)
+        XCTAssertEqual(engine.state, .failedRecoverable)
+        XCTAssertNil(engine.update(left, intent: .people, generation: 21))
+        XCTAssertEqual(engine.state, .failedRecoverable)
+        engine.recover()
+        XCTAssertEqual(engine.state, .ready)
     }
 
     func testGuidanceHysteresisDoesNotFlapAndCanRelapseAfterLock() {
         var engine = GuidanceEngine()
         let left = peopleMeasurement([person(x: 0.04, y: 0.2, width: 0.2, height: 0.45)])
-        XCTAssertEqual(engine.update(left, intent: .people, generation: 1).step, .move(.left))
+        XCTAssertEqual(engine.update(left, intent: .people, generation: 1)?.step, .move(.left))
 
         let noisy = peopleMeasurement([person(x: 0.10, y: 0.2, width: 0.2, height: 0.45)], timestamp: 2)
-        XCTAssertEqual(engine.update(noisy, intent: .people, generation: 1).step, .move(.left))
+        XCTAssertEqual(engine.update(noisy, intent: .people, generation: 1)?.step, .move(.left))
 
         let aligned = peopleMeasurement([person(x: 0.225, y: 0.2, width: 0.55, height: 0.45)], timestamp: 3)
-        XCTAssertEqual(engine.update(aligned, intent: .people, generation: 1).step, .hold)
+        XCTAssertEqual(engine.update(aligned, intent: .people, generation: 1)?.step, .hold)
         XCTAssertEqual(engine.state, .locked)
 
         let relapsed = peopleMeasurement([person(x: 0.70, y: 0.2, width: 0.2, height: 0.45)], timestamp: 4)
-        XCTAssertEqual(engine.update(relapsed, intent: .people, generation: 1).step, .move(.right))
+        XCTAssertEqual(engine.update(relapsed, intent: .people, generation: 1)?.step, .move(.right))
         XCTAssertEqual(engine.state, .guiding(.move(.right)))
     }
 
@@ -1022,20 +1203,32 @@ final class SmokeTests: XCTestCase {
     }
 
     func testInstructionMovesBelowASubjectThatReachesTheTop() {
-        var guidance = Guidance(
+        let lowerGuidance = Guidance(
             subjectRect: CGRect(x: 0.3, y: 0.35, width: 0.3, height: 0.4),
             target: CGPoint(x: 0.5, y: 0.5),
             direction: .left,
             instructionKey: "guidance.left",
             aligned: false
         )
-        XCTAssertTrue(GuidanceOverlay.instructionSitsHigh(guidance))
+        XCTAssertTrue(GuidanceOverlay.instructionSitsHigh(lowerGuidance))
 
-        guidance.subjectRect = CGRect(x: 0.3, y: 0.02, width: 0.3, height: 0.6)
-        XCTAssertFalse(GuidanceOverlay.instructionSitsHigh(guidance))
+        let upperGuidance = Guidance(
+            subjectRect: CGRect(x: 0.3, y: 0.02, width: 0.3, height: 0.6),
+            target: CGPoint(x: 0.5, y: 0.5),
+            direction: .left,
+            instructionKey: "guidance.left",
+            aligned: false
+        )
+        XCTAssertFalse(GuidanceOverlay.instructionSitsHigh(upperGuidance))
 
-        guidance.subjectRect = nil
-        XCTAssertTrue(GuidanceOverlay.instructionSitsHigh(guidance))
+        let noSubjectGuidance = Guidance(
+            subjectRect: nil,
+            target: CGPoint(x: 0.5, y: 0.5),
+            direction: .left,
+            instructionKey: "guidance.left",
+            aligned: false
+        )
+        XCTAssertTrue(GuidanceOverlay.instructionSitsHigh(noSubjectGuidance))
     }
 
     func testAimRingOnlyRepresentsTwoDimensionalMovement() {
