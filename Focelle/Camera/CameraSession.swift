@@ -231,6 +231,7 @@ final class CaptureCoordinator<Context>: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [Int64: Entry] = [:]
     private var terminalIDs: [Int64] = []
+    private var terminalEffectIDs: [Int64] = []
     private let terminalHistoryLimit = 64
 
     func register(captureID: Int64, context: Context) -> Bool {
@@ -330,6 +331,27 @@ final class CaptureCoordinator<Context>: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return entries.values.contains { $0.stage == .saving }
+    }
+
+    // Ownership transitions and UI/reducer terminal effects are related but
+    // distinct: a transition to terminal can happen before a late delegate
+    // continuation returns. Keep this idempotence claim in the same locked
+    // coordinator rather than creating a second capture state machine.
+    func claimTerminalEffect(captureID: Int64) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !terminalEffectIDs.contains(captureID) else { return false }
+        terminalEffectIDs.append(captureID)
+        if terminalEffectIDs.count > terminalHistoryLimit {
+            terminalEffectIDs.removeFirst(terminalEffectIDs.count - terminalHistoryLimit)
+        }
+        return true
+    }
+
+    var terminalEffectCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return terminalEffectIDs.count
     }
 
     private func rememberTerminal(_ captureID: Int64) {
@@ -681,9 +703,10 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         queue.async { [weak self] in
             guard let self else { return }
             self.beginGuidanceCapture()
+            let settings = AVCapturePhotoSettings()
             guard self.session.isRunning else {
                 self.publish(notice: "camera.error.capture")
-                self.finishCapture(recoverableFailure: true)
+                self.finishCapture(captureID: settings.uniqueID, recoverableFailure: true)
                 return
             }
             // Taken on `queue` right now, from queue-owned capability state —
@@ -694,7 +717,6 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             // capturePhoto raises NSInvalidArgumentException for any setting the output
             // does not allow, and an ObjC exception cannot be caught in Swift, so every
             // value below is taken from what the output itself reports.
-            let settings = AVCapturePhotoSettings()
             settings.photoQualityPrioritization = self.photoOutput.maxPhotoQualityPrioritization
             if self.photoOutput.supportedFlashModes.contains(selectedFlash.mode) {
                 settings.flashMode = selectedFlash.mode
@@ -720,7 +742,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             )
             guard self.registerPendingCapture(id: settings.uniqueID, context: context) else {
                 self.publish(notice: Self.cancellationNotice)
-                self.finishCapture(recoverableFailure: true)
+                self.finishCapture(captureID: settings.uniqueID, recoverableFailure: true)
                 return
             }
             self.photoOutput.capturePhoto(with: settings, delegate: self)
@@ -767,6 +789,17 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
+    // This explicit path is the user-visible recovery action for a failed
+    // capture/guidance cycle. It clears the reducer failure before starting a
+    // fresh local analysis pass.
+    func recoverGuidance() {
+        queue.async { [weak self] in
+            guard let self, self.guidanceEngine.state == .failedRecoverable else { return }
+            self.guidanceEngine.recover()
+            self.beginGuidanceAnalysisOnQueue()
+        }
+    }
+
     func setCaptureIntent(_ intent: CaptureIntent) {
         guard captureIntent != intent else { return }
         captureIntent = intent
@@ -791,10 +824,11 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         #if DEBUG
             lifecycleLog.debug("analyzer reset for resume (generation=\(self.analysisGeneration, privacy: .public))")
         #endif
+        let guidanceState = guidanceEngine.state
         DispatchQueue.main.async {
             self.measurement = nil
             self.guidance = nil
-            self.guidanceSessionState = self.guidanceEngine.state
+            self.guidanceSessionState = guidanceState
         }
     }
 
@@ -829,6 +863,10 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             _ = captureCoordinator.beginSaving(captureID: id)
         }
 
+        func debugAttemptBeginSavingForTesting(id: Int64) -> Bool {
+            captureCoordinator.beginSaving(captureID: id)
+        }
+
         func debugAnalyzeGuidanceForTesting(_ measurement: SceneMeasurement) {
             queue.async { [weak self] in
                 guard let self else { return }
@@ -839,15 +877,17 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         }
 
         func debugBeginGuidanceCaptureForTesting() {
+            isCapturing = true
             queue.async { [weak self] in self?.beginGuidanceCapture() }
         }
 
         func debugCompletePhotoKitSaveForTesting(id: Int64, saved: Bool) {
             guard captureCoordinator.complete(captureID: id, expectedStage: .saving) else { return }
-            finishCapture(recoverableFailure: !saved)
+            finishCapture(captureID: id, recoverableFailure: !saved)
         }
 
         var debugPendingCaptureCount: Int { captureCoordinator.pendingCount }
+        var debugCaptureTerminalEffectCount: Int { captureCoordinator.terminalEffectCount }
     #endif
 
     private func configure() -> Bool {
@@ -1029,10 +1069,11 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 selectedSubjectID: selected.id,
                 semanticTarget: self.cloudPlan
             )
+            let guidanceState = self.guidanceEngine.state
             DispatchQueue.main.async {
                 self.measurement = measurement
                 self.guidance = guidance
-                self.guidanceSessionState = self.guidanceEngine.state
+                self.guidanceSessionState = guidanceState
             }
         }
     }
@@ -1148,7 +1189,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         guard captureCoordinator.timeout(captureID: id) != nil else { return }
         retireCaptureTimeout(id: id)
         publish(notice: notice)
-        finishCapture(recoverableFailure: true)
+        finishCapture(captureID: id, recoverableFailure: true)
     }
 
     private func cancelPendingCaptures(
@@ -1169,7 +1210,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         // A separate PhotoKit-owned save remains the active capture lifecycle
         // even if an earlier delivery/processing entry was interrupted.
         if !captureCoordinator.hasSavingCapture {
-            finishCapture(recoverableFailure: true)
+            for cancelledCapture in cancelled {
+                finishCapture(captureID: cancelledCapture.captureID, recoverableFailure: true)
+            }
         }
     }
 
@@ -1177,7 +1220,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         guard let timeout = captureCoordinator.timeout(captureID: id) else { return }
         captureTimeouts[id] = nil
         publish(notice: Self.timeoutNotice(for: timeout.stage))
-        finishCapture(recoverableFailure: true)
+        finishCapture(captureID: id, recoverableFailure: true)
     }
 
     private func retireCaptureTimeout(id: Int64) {
@@ -1226,7 +1269,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     private func save(captureID: Int64, request: SaveRequest) {
         guard captureCoordinator.beginSaving(captureID: captureID) else {
-            finishCapture(recoverableFailure: true)
+            // An interruption can terminalize a processing capture while its
+            // delegate is still rendering. That continuation is stale, not a
+            // new terminal event, so it must not touch UI or guidance state.
             return
         }
         retireCaptureTimeout(id: captureID)
@@ -1277,7 +1322,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                         self.publish(notice: notice)
                     }
                 }
-                self.finishCapture(recoverableFailure: !saved)
+                self.finishCapture(captureID: captureID, recoverableFailure: !saved)
             }
         }
 
@@ -1291,7 +1336,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                     guard self.captureCoordinator.complete(captureID: captureID, expectedStage: .saving) else { return }
                     self.retireCaptureTimeout(id: captureID)
                     self.publish(notice: notice)
-                    self.finishCapture(recoverableFailure: true)
+                    self.finishCapture(captureID: captureID, recoverableFailure: true)
                 } else {
                     performSave()
                 }
@@ -1303,17 +1348,21 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             else { return }
             retireCaptureTimeout(id: captureID)
             publish(notice: notice)
-            finishCapture(recoverableFailure: true)
+            finishCapture(captureID: captureID, recoverableFailure: true)
         }
     }
 
-    private func finishCapture(recoverableFailure: Bool = false) {
+    private func finishCapture(captureID: Int64, recoverableFailure: Bool = false) {
         queue.async { [weak self] in
             guard let self else { return }
+            guard self.captureCoordinator.claimTerminalEffect(captureID: captureID) else { return }
             self.guidanceEngine.completeCapture(recoverableFailure: recoverableFailure)
-            self.publishGuidanceState(self.guidanceEngine.state)
+            let guidanceState = self.guidanceEngine.state
+            DispatchQueue.main.async {
+                self.guidanceSessionState = guidanceState
+                self.isCapturing = false
+            }
         }
-        DispatchQueue.main.async { self.isCapturing = false }
     }
 
     private func beginGuidanceAnalysisOnQueue(recoveringFailure: Bool = false) {
@@ -1370,10 +1419,11 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 "analysis ok, gen \(generation, privacy: .public) dir \(directionName, privacy: .public)"
             )
         #endif
+        let guidanceState = guidanceEngine.state
         DispatchQueue.main.async {
             self.measurement = stable
             self.guidance = guidance
-            self.guidanceSessionState = self.guidanceEngine.state
+            self.guidanceSessionState = guidanceState
         }
     }
 
@@ -1401,7 +1451,6 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         guard let proxy else {
             cancelPendingCaptures(cause: "deferred proxy callback omitted its payload")
             publish(notice: "camera.error.capture")
-            finishCapture(recoverableFailure: true)
             return
         }
         let captureID = proxy.resolvedSettings.uniqueID
@@ -1456,7 +1505,7 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
             guard captureCoordinator.complete(captureID: captureID, expectedStage: .processing) else { return }
             retireCaptureTimeout(id: captureID)
             publish(notice: "camera.error.processing")
-            finishCapture(recoverableFailure: true)
+            finishCapture(captureID: captureID, recoverableFailure: true)
             return
         }
         let filterFallback = renderedData == nil && canSaveUnfilteredFallback

@@ -41,6 +41,22 @@ struct CameraView: View {
     @State private var aiStartedAt: TimeInterval?
     @State private var aiPreviewRequestID: UUID?
 
+    enum GuidanceControlState: Equatable {
+        case hidden
+        case analyzing
+        case capturing
+        case recovery
+    }
+
+    static func guidanceControlState(for state: GuidanceSessionState) -> GuidanceControlState {
+        switch state {
+        case .analyzing: .analyzing
+        case .capturing: .capturing
+        case .failedRecoverable: .recovery
+        case .ready, .selectingSubject, .guiding, .locked: .hidden
+        }
+    }
+
     var body: some View {
         let captureView = GeometryReader { geometry in
             ZStack {
@@ -439,6 +455,7 @@ struct CameraView: View {
             }
 
             VStack(spacing: 8) {
+                guidanceLifecycleControl
                 aiResult
                 filterPicker
 
@@ -552,6 +569,40 @@ struct CameraView: View {
         }
         .foregroundStyle(.white)
         .padding(24)
+    }
+
+    @ViewBuilder
+    private var guidanceLifecycleControl: some View {
+        switch Self.guidanceControlState(for: camera.guidanceSessionState) {
+        case .hidden:
+            EmptyView()
+        case .analyzing:
+            HStack {
+                ProgressView()
+                Text("ai.loading")
+                Spacer()
+            }
+            .font(.caption.weight(.medium))
+            .padding(10)
+            .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+        case .capturing:
+            HStack {
+                ProgressView()
+                Spacer()
+            }
+            .font(.caption.weight(.medium))
+            .padding(10)
+            .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+        case .recovery:
+            HStack {
+                Text("common.error")
+                Spacer()
+                Button("camera.error.captureCancelled") { camera.recoverGuidance() }
+            }
+            .font(.caption.weight(.medium))
+            .padding(10)
+            .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+        }
     }
 
     @ViewBuilder

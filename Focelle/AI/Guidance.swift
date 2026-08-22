@@ -83,6 +83,11 @@ struct SemanticGuidanceTarget: Equatable, Sendable {
     let intent: CaptureIntent
     let subjectIDs: [SubjectTrackID]
 
+    // Group membership is semantic, while any ordering is only for geometry
+    // presentation. Never let a local track UUID's allocation order define
+    // whether a target belongs to the current group.
+    var semanticSubjectIDs: Set<SubjectTrackID> { Set(subjectIDs) }
+
     init(
         targetFrame: CGRect? = nil,
         instruction: String? = nil,
@@ -95,6 +100,14 @@ struct SemanticGuidanceTarget: Equatable, Sendable {
         self.generation = generation
         self.intent = intent
         self.subjectIDs = subjectIDs
+    }
+
+    static func == (lhs: SemanticGuidanceTarget, rhs: SemanticGuidanceTarget) -> Bool {
+        lhs.targetFrame == rhs.targetFrame
+            && lhs.instruction == rhs.instruction
+            && lhs.generation == rhs.generation
+            && lhs.intent == rhs.intent
+            && lhs.semanticSubjectIDs == rhs.semanticSubjectIDs
     }
 }
 

@@ -8,8 +8,8 @@ struct GuidanceEngine {
     private enum EffectiveSubjectIdentity: Equatable {
         case selected(SubjectContinuityID)
         case automatic(SubjectContinuityID)
-        case couple([SubjectContinuityID])
-        case smallGroup([SubjectContinuityID])
+        case couple(Set<SubjectContinuityID>)
+        case smallGroup(Set<SubjectContinuityID>)
         case scene(hasPrimarySubject: Bool)
         case unavailable
     }
@@ -46,7 +46,7 @@ struct GuidanceEngine {
         let semanticTargetIsCompatible = semanticTarget.map { target in
             target.generation == generation
                 && target.intent == intent
-                && target.subjectIDs == Self.semanticSubjectIDs(for: subject)
+                && target.semanticSubjectIDs == Self.semanticSubjectIDs(for: subject)
         } ?? false
         let boundSubject = semanticTarget.flatMap { target in
             semanticBindings.first(where: { $0.target == target })?.subject
@@ -321,9 +321,9 @@ struct GuidanceEngine {
         case 1:
             return .automatic(measurement.people[0].continuityID)
         case 2:
-            return .couple(measurement.people.map(\.continuityID))
+            return .couple(Set(measurement.people.map(\.continuityID)))
         case 3...5:
-            return .smallGroup(measurement.people.map(\.continuityID))
+            return .smallGroup(Set(measurement.people.map(\.continuityID)))
         default:
             return .unavailable
         }
@@ -339,10 +339,10 @@ struct GuidanceEngine {
         }
     }
 
-    private static func semanticSubjectIDs(for identity: EffectiveSubjectIdentity) -> [SubjectTrackID] {
+    private static func semanticSubjectIDs(for identity: EffectiveSubjectIdentity) -> Set<SubjectTrackID> {
         switch identity {
         case .selected(let id), .automatic(let id): return [id.trackID]
-        case .couple(let ids), .smallGroup(let ids): return ids.map(\.trackID)
+        case .couple(let ids), .smallGroup(let ids): return Set(ids.map(\.trackID))
         case .scene, .unavailable: return []
         }
     }

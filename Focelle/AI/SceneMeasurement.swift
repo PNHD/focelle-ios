@@ -93,13 +93,13 @@ struct GroupGeometry: Equatable, Sendable {
     let visibleFaceCount: Int
     let headVerticalSpread: CGFloat
 
+    // This is deliberately separate from `memberIDs`: rendering and spacing
+    // retain geometric order, while semantic matching uses membership only.
+    var semanticMemberIDs: Set<SubjectTrackID> { Set(memberIDs) }
+
     init?(people: [PersonGeometry]) {
         guard (2...5).contains(people.count) else { return nil }
-        let ordered = people.sorted {
-            $0.humanRect.midX == $1.humanRect.midX
-                ? $0.id.value.uuidString < $1.id.value.uuidString
-                : $0.humanRect.midX < $1.humanRect.midX
-        }
+        let ordered = people.sorted(by: Self.presentationOrder)
         guard let first = ordered.first else { return nil }
         let envelope = ordered.dropFirst().reduce(first.humanRect) { $0.union($1.humanRect) }
         let spacing = zip(ordered, ordered.dropFirst()).map {
@@ -122,6 +122,18 @@ struct GroupGeometry: Equatable, Sendable {
         maximumOverlap = overlaps.max() ?? 0
         visibleFaceCount = ordered.filter(\.faceVisible).count
         headVerticalSpread = (headCenters.max() ?? 0) - (headCenters.min() ?? 0)
+    }
+
+    private static func presentationOrder(_ left: PersonGeometry, _ right: PersonGeometry) -> Bool {
+        let leftRect = left.humanRect
+        let rightRect = right.humanRect
+        if leftRect.midX != rightRect.midX { return leftRect.midX < rightRect.midX }
+        if leftRect.midY != rightRect.midY { return leftRect.midY < rightRect.midY }
+        if leftRect.width != rightRect.width { return leftRect.width < rightRect.width }
+        if leftRect.height != rightRect.height { return leftRect.height < rightRect.height }
+        // Exact geometric ties are presentation-equivalent. Preserve the
+        // detector order rather than inventing an identity from a UUID.
+        return false
     }
 }
 
