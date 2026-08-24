@@ -82,6 +82,9 @@ struct SemanticGuidanceTarget: Equatable, Sendable {
     let generation: Int
     let intent: CaptureIntent
     let subjectIDs: [SubjectTrackID]
+    // Ownership version of the user-initiated cloud request. It is not person
+    // identity and is never used to order semantic or presentation geometry.
+    let requestVersion: UInt64
 
     // Group membership is semantic, while any ordering is only for geometry
     // presentation. Never let a local track UUID's allocation order define
@@ -93,13 +96,15 @@ struct SemanticGuidanceTarget: Equatable, Sendable {
         instruction: String? = nil,
         generation: Int = 0,
         intent: CaptureIntent = .auto,
-        subjectIDs: [SubjectTrackID] = []
+        subjectIDs: [SubjectTrackID] = [],
+        requestVersion: UInt64 = 0
     ) {
         self.targetFrame = targetFrame
         self.instruction = instruction
         self.generation = generation
         self.intent = intent
         self.subjectIDs = subjectIDs
+        self.requestVersion = requestVersion
     }
 
     static func == (lhs: SemanticGuidanceTarget, rhs: SemanticGuidanceTarget) -> Bool {
@@ -108,6 +113,7 @@ struct SemanticGuidanceTarget: Equatable, Sendable {
             && lhs.generation == rhs.generation
             && lhs.intent == rhs.intent
             && lhs.semanticSubjectIDs == rhs.semanticSubjectIDs
+            && lhs.requestVersion == rhs.requestVersion
     }
 }
 

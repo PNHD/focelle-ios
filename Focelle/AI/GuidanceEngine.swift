@@ -5,7 +5,7 @@ import Foundation
 // Vision/device geometry and holds it until its tighter exit threshold is met.
 // No cloud result is needed to keep the viewfinder useful.
 struct GuidanceEngine {
-    private enum EffectiveSubjectIdentity: Equatable {
+    enum EffectiveSubjectIdentity: Equatable, Sendable {
         case selected(SubjectContinuityID)
         case automatic(SubjectContinuityID)
         case couple(Set<SubjectContinuityID>)
@@ -52,10 +52,8 @@ struct GuidanceEngine {
             semanticBindings.first(where: { $0.target == target })?.subject
         }
         let continuityMatchesBinding = boundSubject.map { $0 == subject } ?? true
-        if let semanticTarget, (!semanticTargetIsCompatible || !continuityMatchesBinding),
-            !invalidatedSemanticTargets.contains(semanticTarget)
-        {
-            invalidatedSemanticTargets.append(semanticTarget)
+        if let semanticTarget, !semanticTargetIsCompatible || !continuityMatchesBinding {
+            retireSemanticTarget(semanticTarget)
         }
         let activeSemanticTarget = semanticTarget.flatMap { target in
             guard semanticTargetIsCompatible,
@@ -73,6 +71,9 @@ struct GuidanceEngine {
             subject: subject,
             semanticTarget: activeSemanticTarget
         )
+        if context?.semanticTarget != activeSemanticTarget {
+            retireSemanticTarget(context?.semanticTarget)
+        }
         if context != nextContext {
             context = nextContext
             state = .analyzing
@@ -146,6 +147,7 @@ struct GuidanceEngine {
     }
 
     mutating func reset() {
+        retireSemanticTarget(context?.semanticTarget)
         context = nil
         currentPresentation = nil
         if state != .failedRecoverable {
@@ -154,19 +156,28 @@ struct GuidanceEngine {
     }
 
     mutating func recover() {
+        retireSemanticTarget(context?.semanticTarget)
         context = nil
         currentPresentation = nil
         state = .ready
     }
 
-    mutating func beginAnalysis(recoveringFailure: Bool = false) {
-        guard state == .ready || state == .selectingSubject
-            || (state == .failedRecoverable && recoveringFailure)
-        else { return }
-        if state == .failedRecoverable {
-            context = nil
-            currentPresentation = nil
-        }
+    mutating func restartContext() {
+        guard state != .capturing, state != .failedRecoverable else { return }
+        retireSemanticTarget(context?.semanticTarget)
+        context = nil
+        currentPresentation = nil
+        state = .analyzing
+    }
+
+    mutating func retireSemanticTarget(_ target: SemanticGuidanceTarget?) {
+        guard let target, !invalidatedSemanticTargets.contains(target) else { return }
+        invalidatedSemanticTargets.append(target)
+        semanticBindings.removeAll { $0.target == target }
+    }
+
+    mutating func beginAnalysis() {
+        guard state == .ready || state == .selectingSubject else { return }
         state = .analyzing
         currentPresentation = nil
     }
@@ -176,11 +187,14 @@ struct GuidanceEngine {
     }
 
     mutating func beginCapture() {
+        retireSemanticTarget(context?.semanticTarget)
+        context = nil
         state = .capturing
         currentPresentation = nil
     }
 
     mutating func completeCapture(recoverableFailure: Bool = false) {
+        retireSemanticTarget(context?.semanticTarget)
         context = nil
         state = recoverableFailure ? .failedRecoverable : .ready
         currentPresentation = nil
@@ -300,7 +314,7 @@ struct GuidanceEngine {
         return (.hold, kind, target, targetRect)
     }
 
-    private static func effectiveSubjectIdentity(
+    static func effectiveSubjectIdentity(
         for measurement: SceneMeasurement,
         intent: CaptureIntent
     ) -> EffectiveSubjectIdentity {

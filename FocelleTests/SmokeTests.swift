@@ -1010,6 +1010,69 @@ final class SmokeTests: XCTestCase {
         XCTAssertNil(engine.update(subjectA, intent: .people, generation: 17, semanticTarget: targetForA)?.targetRect)
     }
 
+    func testSemanticTargetCannotResurrectWhenItWasAbsentDuringTheIncompatibleContext() {
+        var engine = GuidanceEngine()
+        let subjectA = peopleMeasurement([person(x: 0.20, y: 0.2)])
+        let subjectB = peopleMeasurement([person(x: 0.68, y: 0.2)], timestamp: 2)
+        let targetForA = SemanticGuidanceTarget(
+            targetFrame: CGRect(x: 0.60, y: 0.2, width: 0.2, height: 0.4),
+            generation: 17,
+            intent: .people,
+            subjectIDs: subjectA.people.map(\.id),
+            requestVersion: 1
+        )
+
+        XCTAssertEqual(
+            engine.update(subjectA, intent: .people, generation: 17, semanticTarget: targetForA)?.targetRect,
+            targetForA.targetFrame
+        )
+        _ = engine.update(subjectB, intent: .people, generation: 17, semanticTarget: nil)
+        XCTAssertNil(engine.update(subjectA, intent: .people, generation: 17, semanticTarget: targetForA)?.targetRect)
+
+        let freshTargetForA = SemanticGuidanceTarget(
+            targetFrame: targetForA.targetFrame,
+            generation: 17,
+            intent: .people,
+            subjectIDs: subjectA.people.map(\.id),
+            requestVersion: 2
+        )
+        XCTAssertEqual(
+            engine.update(subjectA, intent: .people, generation: 17, semanticTarget: freshTargetForA)?.targetRect,
+            freshTargetForA.targetFrame
+        )
+    }
+
+    func testSemanticTargetRejectsIntentAndSelectedSubjectChanges() {
+        let subjectA = person(x: 0.20, y: 0.2)
+        let subjectB = person(x: 0.60, y: 0.2)
+        var selectedA = peopleMeasurement([subjectA, subjectB])
+        selectedA.selectedSubjectID = subjectA.id
+        var selectedB = selectedA
+        selectedB.selectedSubjectID = subjectB.id
+        let target = SemanticGuidanceTarget(
+            targetFrame: CGRect(x: 0.60, y: 0.2, width: 0.2, height: 0.4),
+            generation: 18,
+            intent: .people,
+            subjectIDs: [subjectA.id]
+        )
+        var engine = GuidanceEngine()
+
+        XCTAssertEqual(
+            engine.update(selectedA, intent: .people, generation: 18, semanticTarget: target)?.targetRect,
+            target.targetFrame
+        )
+        XCTAssertNil(engine.update(selectedA, intent: .scene, generation: 18, semanticTarget: target)?.targetRect)
+
+        var selectedEngine = GuidanceEngine()
+        XCTAssertEqual(
+            selectedEngine.update(selectedA, intent: .people, generation: 18, semanticTarget: target)?.targetRect,
+            target.targetFrame
+        )
+        XCTAssertNil(
+            selectedEngine.update(selectedB, intent: .people, generation: 18, semanticTarget: target)?.targetRect
+        )
+    }
+
     func testAutomaticReplacementAfterDetectorGapStartsAFreshReducerContext() {
         var stabilizer = MeasurementStabilizer()
         var engine = GuidanceEngine()
@@ -1129,6 +1192,21 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(OnDeviceAnalyzer.associateFaces([distantFace], to: people).isEmpty)
         XCTAssertTrue(OnDeviceAnalyzer.associatePoses(lowConfidencePose, to: people).isEmpty)
         XCTAssertLessThanOrEqual(OnDeviceAnalyzer.associateFaces(twoFacesForOnePerson, to: people).count, 1)
+    }
+
+    func testAssociationCompetitionSelectsOneStrongOwnerDeterministically() {
+        let personRect = CGRect(x: 0.10, y: 0.10, width: 0.30, height: 0.60)
+        let strongFace = CGRect(x: 0.20, y: 0.32, width: 0.10, height: 0.14)
+        let weakerFace = CGRect(x: 0.11, y: 0.12, width: 0.10, height: 0.14)
+
+        XCTAssertEqual(
+            OnDeviceAnalyzer.associateFaces([strongFace, weakerFace], to: [personRect]),
+            [0: 0]
+        )
+        XCTAssertEqual(
+            OnDeviceAnalyzer.associateFaces([weakerFace, strongFace], to: [personRect]),
+            [0: 1]
+        )
     }
 
     func testGroupEnvelopeIncludesEveryMemberWhenInputIsReversed() throws {
@@ -1319,6 +1397,26 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
+    func testOrdinaryAnalysisCannotBypassTheExplicitRecoveryAction() async throws {
+        let camera = CameraSession()
+        camera.debugBeginGuidanceCaptureForTesting()
+        camera.debugRegisterPendingCaptureForTesting(id: 803)
+        camera.debugClaimPendingCaptureForTesting(id: 803)
+        camera.debugBeginSavingForTesting(id: 803)
+        camera.debugCompletePhotoKitSaveForTesting(id: 803, saved: false)
+        try await Task.sleep(for: .milliseconds(50))
+        camera.debugPublishNoticeForTesting("camera.error.capture", recoverableFailure: true)
+        try await Task.sleep(for: .milliseconds(25))
+
+        camera.beginGuidanceAnalysis(requestVersion: 40)
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(camera.guidanceSessionState, .failedRecoverable)
+        XCTAssertEqual(camera.notice, "camera.error.capture")
+        XCTAssertNil(camera.debugCloudPlanForTesting)
+    }
+
+    @MainActor
     func testCameraViewConsumesGuidanceLifecycleState() {
         XCTAssertEqual(CameraView.guidanceControlState(for: .analyzing), .analyzing)
         XCTAssertEqual(CameraView.guidanceControlState(for: .capturing), .capturing)
@@ -1370,11 +1468,34 @@ final class SmokeTests: XCTestCase {
         let camera = CameraSession()
         camera.debugRegisterPendingCaptureForTesting(id: 1_002)
 
-        camera.debugHandleMissingDeferredProxyForTesting()
+        camera.debugHandleMissingDeferredProxyForTesting(id: 1_002)
         try await Task.sleep(for: .milliseconds(50))
 
         XCTAssertEqual(camera.notice, "camera.error.capture")
         XCTAssertEqual(camera.debugNoticePublicationCount, 1)
+    }
+
+    @MainActor
+    func testStaleNilDeferredProxyCannotCancelTheNextCapture() async throws {
+        let camera = CameraSession()
+        camera.debugBeginGuidanceCaptureForTesting()
+        camera.debugRegisterPendingCaptureForTesting(id: 1_006)
+        camera.handleSessionInterruption()
+        try await Task.sleep(for: .milliseconds(50))
+        camera.recoverGuidance()
+        try await Task.sleep(for: .milliseconds(50))
+
+        camera.debugBeginGuidanceCaptureForTesting()
+        camera.debugRegisterPendingCaptureForTesting(id: 1_007)
+        camera.debugPublishNoticeForTesting("capture.N+1")
+        try await Task.sleep(for: .milliseconds(25))
+
+        camera.debugHandleMissingDeferredProxyForTesting(id: 1_006)
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(camera.debugPendingCaptureCount, 1)
+        XCTAssertEqual(camera.guidanceSessionState, .capturing)
+        XCTAssertEqual(camera.notice, "capture.N+1")
     }
 
     func testTerminalEffectClaimRejectsASecondClaimForTheSameCapture() {
@@ -1536,6 +1657,85 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
+    func testDelayedCloudResponseCannotCrossRequestOwnership() async throws {
+        let camera = CameraSession()
+        let measurement = peopleMeasurement([person(x: 0.20, y: 0.2)], timestamp: 1)
+        camera.debugSeedGuidanceForTesting(measurement: measurement, guidance: nil)
+
+        camera.beginGuidanceAnalysis(requestVersion: 51)
+        try await Task.sleep(for: .milliseconds(25))
+        camera.applyAIPlan(makeAIResponse().plans[0], requestVersion: 51)
+        try await Task.sleep(for: .milliseconds(25))
+        XCTAssertEqual(camera.debugCloudPlanForTesting?.requestVersion, 51)
+
+        camera.beginGuidanceAnalysis(requestVersion: 52)
+        try await Task.sleep(for: .milliseconds(25))
+        XCTAssertNil(camera.debugCloudPlanForTesting)
+
+        camera.applyAIPlan(makeAIResponse().plans[0], requestVersion: 51)
+        try await Task.sleep(for: .milliseconds(25))
+        XCTAssertNil(camera.debugCloudPlanForTesting)
+
+        camera.applyAIPlan(makeAIResponse().plans[0], requestVersion: 52)
+        try await Task.sleep(for: .milliseconds(25))
+        XCTAssertEqual(camera.debugCloudPlanForTesting?.requestVersion, 52)
+    }
+
+    @MainActor
+    func testOwnerAwareCloudCancellationRetiresPlanAndRejectsLateResponse() async throws {
+        let camera = CameraSession()
+        let measurement = peopleMeasurement([person(x: 0.20, y: 0.2)], timestamp: 1)
+        camera.debugSeedGuidanceForTesting(measurement: measurement, guidance: nil)
+
+        camera.beginGuidanceAnalysis(requestVersion: 55)
+        try await Task.sleep(for: .milliseconds(25))
+        camera.applyAIPlan(makeAIResponse().plans[0], requestVersion: 55)
+        try await Task.sleep(for: .milliseconds(25))
+        XCTAssertEqual(camera.debugCloudPlanForTesting?.requestVersion, 55)
+
+        camera.clearAIPlan(requestVersion: 55)
+        try await Task.sleep(for: .milliseconds(25))
+        XCTAssertNil(camera.debugCloudPlanForTesting)
+
+        camera.applyAIPlan(makeAIResponse().plans[0], requestVersion: 55)
+        try await Task.sleep(for: .milliseconds(25))
+        XCTAssertNil(camera.debugCloudPlanForTesting)
+    }
+
+    @MainActor
+    func testCloudResponseCannotRebindToAReplacementSubjectWithinItsRequest() async throws {
+        let camera = CameraSession()
+        let subjectA = peopleMeasurement([person(x: 0.20, y: 0.2)], timestamp: 1)
+        let subjectB = peopleMeasurement([person(x: 0.68, y: 0.2)], timestamp: 2)
+        camera.debugSeedGuidanceForTesting(measurement: subjectA, guidance: nil)
+        camera.beginGuidanceAnalysis(requestVersion: 53)
+        try await Task.sleep(for: .milliseconds(25))
+
+        camera.debugSeedGuidanceForTesting(measurement: subjectB, guidance: nil)
+        camera.applyAIPlan(makeAIResponse().plans[0], requestVersion: 53)
+        try await Task.sleep(for: .milliseconds(25))
+
+        XCTAssertNil(camera.debugCloudPlanForTesting)
+    }
+
+    @MainActor
+    func testCloudResponseCannotInstallDuringCapture() async throws {
+        let camera = CameraSession()
+        let measurement = peopleMeasurement([person(x: 0.20, y: 0.2)], timestamp: 1)
+        camera.debugSeedGuidanceForTesting(measurement: measurement, guidance: nil)
+        camera.beginGuidanceAnalysis(requestVersion: 54)
+        try await Task.sleep(for: .milliseconds(25))
+
+        camera.debugBeginGuidanceCaptureForTesting()
+        try await Task.sleep(for: .milliseconds(25))
+        camera.applyAIPlan(makeAIResponse().plans[0], requestVersion: 54)
+        try await Task.sleep(for: .milliseconds(25))
+
+        XCTAssertEqual(camera.guidanceSessionState, .capturing)
+        XCTAssertNil(camera.debugCloudPlanForTesting)
+    }
+
+    @MainActor
     func testUnknownCaptureCallbackCannotPublishOverCurrentCaptureNotice() async throws {
         let camera = CameraSession()
         camera.debugBeginGuidanceCaptureForTesting()
@@ -1670,6 +1870,30 @@ final class SmokeTests: XCTestCase {
         XCTAssertNil(camera.measurement?.selectedSubjectID)
     }
 
+    @MainActor
+    func testExplicitReselectionRestartsReducerProgressForTheSameTrack() async throws {
+        let camera = CameraSession()
+        camera.debugAnalyzeGuidanceForTesting(peopleMeasurement([person(x: 0.04, y: 0.2)], timestamp: 1))
+        try await Task.sleep(for: .milliseconds(40))
+        XCTAssertEqual(camera.guidance?.step, .move(.left))
+
+        for timestamp in 2...4 {
+            camera.debugAnalyzeGuidanceForTesting(
+                peopleMeasurement([person(x: 0.173, y: 0.2)], timestamp: TimeInterval(timestamp))
+            )
+            try await Task.sleep(for: .milliseconds(30))
+        }
+        XCTAssertEqual(camera.guidance?.step, .move(.left))
+        let rect = try XCTUnwrap(camera.measurement?.people.first?.humanRect)
+        let point = CGPoint(x: rect.midX, y: rect.midY)
+
+        camera.selectSubject(at: CGPoint(x: point.x, y: 1 - point.y))
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(camera.guidanceSessionState, .locked)
+        XCTAssertEqual(camera.guidance?.step, .hold)
+    }
+
     func testGuidanceHysteresisDoesNotFlapAndCanRelapseAfterLock() {
         var engine = GuidanceEngine()
         let left = peopleMeasurement([person(x: 0.04, y: 0.2, width: 0.2, height: 0.45)])
@@ -1702,6 +1926,63 @@ final class SmokeTests: XCTestCase {
                 isCapturing: true,
                 countdownActive: false,
                 filterQuotaExhausted: true
+            )
+        )
+        XCTAssertFalse(
+            CameraSession.manualCaptureAllowed(
+                state: .running,
+                isCapturing: false,
+                countdownActive: false,
+                filterQuotaExhausted: true,
+                guidanceState: .failedRecoverable
+            )
+        )
+    }
+
+    @MainActor
+    func testCaptureExecutionCannotBypassExplicitRecovery() async throws {
+        let camera = CameraSession()
+        camera.debugBeginGuidanceCaptureForTesting()
+        camera.debugRegisterPendingCaptureForTesting(id: 2_005)
+        camera.debugClaimPendingCaptureForTesting(id: 2_005)
+        camera.debugBeginSavingForTesting(id: 2_005)
+        camera.debugCompletePhotoKitSaveForTesting(id: 2_005, saved: false)
+        try await Task.sleep(for: .milliseconds(50))
+
+        camera.capture()
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertFalse(camera.isCapturing)
+        XCTAssertEqual(camera.guidanceSessionState, .failedRecoverable)
+    }
+
+    @MainActor
+    func testCloudAIActionIsUnavailableDuringCaptureAndExplicitRecovery() {
+        XCTAssertFalse(
+            CameraView.cloudAIActionAllowed(
+                cameraState: .running,
+                isCapturing: true,
+                countdownActive: false,
+                guidanceState: .capturing,
+                onDeviceOnly: false
+            )
+        )
+        XCTAssertFalse(
+            CameraView.cloudAIActionAllowed(
+                cameraState: .running,
+                isCapturing: false,
+                countdownActive: false,
+                guidanceState: .failedRecoverable,
+                onDeviceOnly: false
+            )
+        )
+        XCTAssertTrue(
+            CameraView.cloudAIActionAllowed(
+                cameraState: .running,
+                isCapturing: false,
+                countdownActive: false,
+                guidanceState: .guiding(.move(.left)),
+                onDeviceOnly: false
             )
         )
     }

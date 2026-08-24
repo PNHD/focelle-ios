@@ -40,6 +40,8 @@ struct CameraView: View {
     @State private var recordedCameraPermission = false
     @State private var aiStartedAt: TimeInterval?
     @State private var aiPreviewRequestID: UUID?
+    @State private var nextAIRequestVersion: UInt64 = 0
+    @State private var activeAIRequestVersion: UInt64?
 
     enum GuidanceControlState: Equatable {
         case hidden
@@ -100,6 +102,22 @@ struct CameraView: View {
         isRecoverableFailureNotice: Bool
     ) -> Bool {
         !(guidanceState == .failedRecoverable && isRecoverableFailureNotice)
+    }
+
+    static func cloudAIActionAllowed(
+        cameraState: CameraSession.State,
+        isCapturing: Bool,
+        countdownActive: Bool,
+        guidanceState: GuidanceSessionState,
+        onDeviceOnly: Bool
+    ) -> Bool {
+        guard cameraState == .running, !isCapturing, !countdownActive, !onDeviceOnly else {
+            return false
+        }
+        switch guidanceState {
+        case .capturing, .failedRecoverable: false
+        case .ready, .selectingSubject, .analyzing, .guiding, .locked: true
+        }
     }
 
     var body: some View {
@@ -261,7 +279,9 @@ struct CameraView: View {
         }
         .onChange(of: ai.state) { oldState, state in
             if case .ready(let result, let selected) = state {
-                camera.applyAIPlan(result.plans[selected])
+                if let requestVersion = activeAIRequestVersion {
+                    camera.applyAIPlan(result.plans[selected], requestVersion: requestVersion)
+                }
                 if case .loading = oldState {
                     let latency =
                         aiStartedAt.map {
@@ -281,7 +301,6 @@ struct CameraView: View {
                     }
                 }
             } else {
-                camera.clearAIPlan()
                 if case .failed(let error) = state, aiStartedAt != nil {
                     let latency =
                         aiStartedAt.map {
@@ -295,6 +314,10 @@ struct CameraView: View {
                     )
                     aiStartedAt = nil
                     if error == .quotaExhausted { showsLimit = true }
+                }
+                if case .failed = state, let requestVersion = activeAIRequestVersion {
+                    camera.clearAIPlan(requestVersion: requestVersion)
+                    activeAIRequestVersion = nil
                 }
                 if case .idle = state { aiStartedAt = nil }
             }
@@ -600,7 +623,8 @@ struct CameraView: View {
                         filterQuotaExhausted: camera.activeFilter != nil
                             && !quota.snapshot.unlimited
                             && !store.isPro
-                            && quota.snapshot.filterRemaining < 1
+                            && quota.snapshot.filterRemaining < 1,
+                        guidanceState: camera.guidanceSessionState
                     )
                 )
 
@@ -620,7 +644,15 @@ struct CameraView: View {
                     .background(.orange.opacity(0.85), in: Circle())
                 }
                 .accessibilityLabel(Text("ai.analyze"))
-                .disabled(camera.state != .running || settings.onDeviceOnly)
+                .disabled(
+                    !Self.cloudAIActionAllowed(
+                        cameraState: camera.state,
+                        isCapturing: camera.isCapturing,
+                        countdownActive: countdown != nil,
+                        guidanceState: camera.guidanceSessionState,
+                        onDeviceOnly: settings.onDeviceOnly
+                    )
+                )
             }
         }
         .foregroundStyle(.white)
@@ -667,7 +699,7 @@ struct CameraView: View {
                 ProgressView()
                 Text("ai.loading")
                 Spacer()
-                Button("common.cancel", action: ai.cancel)
+                Button("common.cancel", action: cancelAI)
             }
             .font(.caption.weight(.medium))
             .padding(10)
@@ -694,7 +726,7 @@ struct CameraView: View {
                 HStack {
                     Spacer()
                     Button {
-                        ai.cancel()
+                        cancelAI()
                     } label: {
                         Image(systemName: "xmark")
                     }
@@ -998,12 +1030,14 @@ struct CameraView: View {
             filterQuotaExhausted: camera.activeFilter != nil
                 && !quota.snapshot.unlimited
                 && !store.isPro
-                && quota.snapshot.filterRemaining < 1
+                && quota.snapshot.filterRemaining < 1,
+            guidanceState: camera.guidanceSessionState
         ) else { return }
-        autoCapture.cancel()
         if case .ready = ai.state {
             Analytics.record("capture_after_guidance", enabled: settings.analyticsEnabled)
         }
+        autoCapture.cancel()
+        cancelAI()
         guard camera.timer.rawValue > 0 else {
             camera.capture()
             return
@@ -1028,13 +1062,21 @@ struct CameraView: View {
             cancelAI()
             return
         }
-        // An explicit user analysis request is the production recovery path
-        // for local guidance after a recoverable capture failure.
-        camera.beginGuidanceAnalysis()
+        guard Self.cloudAIActionAllowed(
+            cameraState: camera.state,
+            isCapturing: camera.isCapturing,
+            countdownActive: countdown != nil,
+            guidanceState: camera.guidanceSessionState,
+            onDeviceOnly: settings.onDeviceOnly
+        ) else { return }
         if !quota.snapshot.unlimited, !store.isPro, quota.snapshot.aiRemaining < 1 {
             showsLimit = true
             return
         }
+        nextAIRequestVersion &+= 1
+        let requestVersion = nextAIRequestVersion
+        activeAIRequestVersion = requestVersion
+        camera.beginGuidanceAnalysis(requestVersion: requestVersion)
         Analytics.record("ai_tap", enabled: settings.analyticsEnabled)
         aiStartedAt = ProcessInfo.processInfo.systemUptime
         let measurement = camera.measurement
@@ -1061,9 +1103,14 @@ struct CameraView: View {
     }
 
     private func cancelAI() {
+        let requestVersion = activeAIRequestVersion
+        activeAIRequestVersion = nil
         aiPreviewRequestID = nil
         aiStartedAt = nil
         camera.cancelAIPreview()
+        if let requestVersion {
+            camera.clearAIPlan(requestVersion: requestVersion)
+        }
         ai.cancel()
     }
 
