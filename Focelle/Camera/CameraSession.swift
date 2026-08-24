@@ -219,6 +219,13 @@ struct CaptureTimeout<Context> {
     let context: Context
 }
 
+// UI notices are short-lived, but their delayed clear must be scoped to the
+// exact publication that created it. This is deliberately presentation
+// ownership only; capture lifecycle ownership remains in CaptureCoordinator.
+struct CameraNoticeToken: Equatable, Sendable {
+    let value: UInt64
+}
+
 // This small lock-backed state machine is the capture ownership boundary. Its
 // context is opaque so the protocol can be exercised with synthetic values in
 // tests while CameraSession keeps the immutable AVFoundation snapshot locally.
@@ -441,7 +448,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     @Published private(set) var captureIntent: CaptureIntent = .auto
     @Published private(set) var filterSaveSequence = 0
     @Published private(set) var latestThumbnail: CGImage?
-    @Published var notice: String?
+    @Published private(set) var notice: String?
 
     let session = AVCaptureSession()
 
@@ -453,6 +460,14 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var input: AVCaptureDeviceInput?
     private let captureCoordinator = CaptureCoordinator<PendingCapture>()
     private var captureTimeouts: [Int64: DispatchWorkItem] = [:]
+    // Main-queue-owned notice presentation identity. A delayed clear receives
+    // its token by value and cannot clear a newer capture or recovery notice.
+    private var nextNoticeVersion: UInt64 = 0
+    private var activeNoticeToken: CameraNoticeToken?
+    private var recoverableFailureNoticeToken: CameraNoticeToken?
+    #if DEBUG
+        private var noticePublicationCount = 0
+    #endif
     private var configured = false
     private var rotationAngle: CGFloat = 90
     // Queue-owned canonical capability state — currentCaptureSnapshot(for:)
@@ -705,7 +720,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             self.beginGuidanceCapture()
             let settings = AVCapturePhotoSettings()
             guard self.session.isRunning else {
-                self.publish(notice: "camera.error.capture")
+                self.publish(notice: "camera.error.capture", recoverableFailure: true)
                 self.finishCapture(captureID: settings.uniqueID, recoverableFailure: true)
                 return
             }
@@ -741,12 +756,16 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 location: selectedLocation
             )
             guard self.registerPendingCapture(id: settings.uniqueID, context: context) else {
-                self.publish(notice: Self.cancellationNotice)
+                self.publish(notice: Self.cancellationNotice, recoverableFailure: true)
                 self.finishCapture(captureID: settings.uniqueID, recoverableFailure: true)
                 return
             }
             self.photoOutput.capturePhoto(with: settings, delegate: self)
         }
+    }
+
+    func showNotice(_ notice: String) {
+        publish(notice: notice)
     }
 
     private func configureAndStart() {
@@ -795,6 +814,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     func recoverGuidance() {
         queue.async { [weak self] in
             guard let self, self.guidanceEngine.state == .failedRecoverable else { return }
+            self.retireRecoverableFailureNotice()
             self.guidanceEngine.recover()
             self.beginGuidanceAnalysisOnQueue()
         }
@@ -886,8 +906,32 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             finishCapture(captureID: id, recoverableFailure: !saved)
         }
 
+        func debugPublishNoticeForTesting(_ notice: String, recoverableFailure: Bool = false) {
+            publish(notice: notice, recoverableFailure: recoverableFailure)
+        }
+
+        var debugActiveNoticeTokenForTesting: CameraNoticeToken? { activeNoticeToken }
+
+        func debugClearNoticeForTesting(_ token: CameraNoticeToken?) {
+            guard let token else { return }
+            DispatchQueue.main.async { [weak self] in self?.clearNotice(token: token) }
+        }
+
+        func debugHandleMissingDeferredProxyForTesting() {
+            handleMissingDeferredPhotoProxy()
+        }
+
+        func debugClaimTerminalEffectForTesting(id: Int64) -> Bool {
+            captureCoordinator.claimTerminalEffect(captureID: id)
+        }
+
+        func debugFinishCaptureForTesting(id: Int64, recoverableFailure: Bool) {
+            finishCapture(captureID: id, recoverableFailure: recoverableFailure)
+        }
+
         var debugPendingCaptureCount: Int { captureCoordinator.pendingCount }
         var debugCaptureTerminalEffectCount: Int { captureCoordinator.terminalEffectCount }
+        var debugNoticePublicationCount: Int { noticePublicationCount }
     #endif
 
     private func configure() -> Bool {
@@ -1188,13 +1232,13 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private func cancelCapture(id: Int64, notice: String) {
         guard captureCoordinator.timeout(captureID: id) != nil else { return }
         retireCaptureTimeout(id: id)
-        publish(notice: notice)
+        publish(notice: notice, recoverableFailure: true)
         finishCapture(captureID: id, recoverableFailure: true)
     }
 
     private func cancelPendingCaptures(
         cause: String,
-        notifyUser: Bool = true
+        notice: String? = Self.cancellationNotice
     ) {
         let cancelled = captureCoordinator.cancelBeforeSaving()
         guard !cancelled.isEmpty else { return }
@@ -1205,8 +1249,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 )
             #endif
             retireCaptureTimeout(id: cancelledCapture.captureID)
-            if notifyUser { publish(notice: Self.cancellationNotice) }
         }
+        if let notice { publish(notice: notice, recoverableFailure: true) }
         // A separate PhotoKit-owned save remains the active capture lifecycle
         // even if an earlier delivery/processing entry was interrupted.
         if !captureCoordinator.hasSavingCapture {
@@ -1219,7 +1263,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private func handleCaptureTimeout(id: Int64) {
         guard let timeout = captureCoordinator.timeout(captureID: id) else { return }
         captureTimeouts[id] = nil
-        publish(notice: Self.timeoutNotice(for: timeout.stage))
+        publish(notice: Self.timeoutNotice(for: timeout.stage), recoverableFailure: true)
         finishCapture(captureID: id, recoverableFailure: true)
     }
 
@@ -1319,7 +1363,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                         #endif
                     }
                     if let notice = Self.photoWriteNotice(for: saved) {
-                        self.publish(notice: notice)
+                        self.publish(notice: notice, recoverableFailure: true)
                     }
                 }
                 self.finishCapture(captureID: captureID, recoverableFailure: !saved)
@@ -1335,7 +1379,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 if let notice = Self.photoAuthorizationNotice(for: status) {
                     guard self.captureCoordinator.complete(captureID: captureID, expectedStage: .saving) else { return }
                     self.retireCaptureTimeout(id: captureID)
-                    self.publish(notice: notice)
+                    self.publish(notice: notice, recoverableFailure: true)
                     self.finishCapture(captureID: captureID, recoverableFailure: true)
                 } else {
                     performSave()
@@ -1347,7 +1391,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 captureCoordinator.complete(captureID: captureID, expectedStage: .saving)
             else { return }
             retireCaptureTimeout(id: captureID)
-            publish(notice: notice)
+            publish(notice: notice, recoverableFailure: true)
             finishCapture(captureID: captureID, recoverableFailure: true)
         }
     }
@@ -1434,11 +1478,47 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         DispatchQueue.main.async { self.state = state }
     }
 
-    private func publish(notice: String) {
-        DispatchQueue.main.async {
+    private func publish(notice: String, recoverableFailure: Bool = false) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.nextNoticeVersion &+= 1
+            let token = CameraNoticeToken(value: self.nextNoticeVersion)
+            self.activeNoticeToken = token
+            self.recoverableFailureNoticeToken = recoverableFailure ? token : nil
             self.notice = notice
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.notice = nil }
+            #if DEBUG
+                self.noticePublicationCount += 1
+            #endif
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self, token] in
+                self?.clearNotice(token: token)
+            }
         }
+    }
+
+    private func clearNotice(token: CameraNoticeToken) {
+        guard activeNoticeToken == token else { return }
+        notice = nil
+        activeNoticeToken = nil
+        if recoverableFailureNoticeToken == token {
+            recoverableFailureNoticeToken = nil
+        }
+    }
+
+    private func retireRecoverableFailureNotice() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self,
+                let token = self.recoverableFailureNoticeToken,
+                self.activeNoticeToken == token
+            else { return }
+            self.clearNotice(token: token)
+        }
+    }
+
+    private func handleMissingDeferredPhotoProxy() {
+        cancelPendingCaptures(
+            cause: "deferred proxy callback omitted its payload",
+            notice: "camera.error.capture"
+        )
     }
 }
 
@@ -1449,8 +1529,7 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         error: Error?
     ) {
         guard let proxy else {
-            cancelPendingCaptures(cause: "deferred proxy callback omitted its payload")
-            publish(notice: "camera.error.capture")
+            handleMissingDeferredPhotoProxy()
             return
         }
         let captureID = proxy.resolvedSettings.uniqueID
@@ -1504,7 +1583,7 @@ extension CameraSession: AVCapturePhotoCaptureDelegate {
         guard let outputData = renderedData ?? (canSaveUnfilteredFallback ? data : nil) else {
             guard captureCoordinator.complete(captureID: captureID, expectedStage: .processing) else { return }
             retireCaptureTimeout(id: captureID)
-            publish(notice: "camera.error.processing")
+            publish(notice: "camera.error.processing", recoverableFailure: true)
             finishCapture(captureID: captureID, recoverableFailure: true)
             return
         }

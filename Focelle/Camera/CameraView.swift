@@ -48,12 +48,50 @@ struct CameraView: View {
         case recovery
     }
 
+    enum AssistPresentation: Equatable {
+        case hidden
+        case guidance
+        case analyzing
+        case capturing
+        case recovery
+        case aiLoading
+        case aiFailure
+        case aiCompatibilityControls
+    }
+
     static func guidanceControlState(for state: GuidanceSessionState) -> GuidanceControlState {
         switch state {
         case .analyzing: .analyzing
         case .capturing: .capturing
         case .failedRecoverable: .recovery
         case .ready, .selectingSubject, .guiding, .locked: .hidden
+        }
+    }
+
+    // One presentation owns the temporary camera-assist surface. Lifecycle
+    // states intentionally outrank retained cloud-AI state so a stale plan,
+    // load, or error cannot compete with capture/recovery guidance.
+    static func assistPresentation(
+        for guidanceState: GuidanceSessionState,
+        guidance: Guidance?,
+        aiState: AIAnalysisModel.State
+    ) -> AssistPresentation {
+        switch guidanceState {
+        case .capturing:
+            .capturing
+        case .failedRecoverable:
+            .recovery
+        case .analyzing:
+            .analyzing
+        case .guiding, .locked:
+            guidance == nil ? .hidden : .guidance
+        case .ready, .selectingSubject:
+            switch aiState {
+            case .idle: .hidden
+            case .loading: .aiLoading
+            case .failed: .aiFailure
+            case .ready: .aiCompatibilityControls
+            }
         }
     }
 
@@ -81,7 +119,14 @@ struct CameraView: View {
                     }
 
                     if camera.showsGrid { grid }
-                    if settings.guidanceEnabled, let guidance = camera.guidance {
+                    if settings.guidanceEnabled,
+                        Self.assistPresentation(
+                            for: camera.guidanceSessionState,
+                            guidance: camera.guidance,
+                            aiState: ai.state
+                        ) == .guidance,
+                        let guidance = camera.guidance
+                    {
                         GuidanceOverlay(guidance: guidance)
                     }
                     focusIndicator
@@ -167,7 +212,7 @@ struct CameraView: View {
             guard let selection else { return }
             Task {
                 photoEditorData = try? await selection.loadTransferable(type: Data.self)
-                if photoEditorData == nil { camera.notice = "photoEditor.error.load" }
+                if photoEditorData == nil { camera.showNotice("photoEditor.error.load") }
                 photoSelection = nil
             }
         }
@@ -455,8 +500,7 @@ struct CameraView: View {
             }
 
             VStack(spacing: 8) {
-                guidanceLifecycleControl
-                aiResult
+                cameraAssistPresentation
                 filterPicker
 
                 if camera.activeFilter != nil {
@@ -572,9 +616,13 @@ struct CameraView: View {
     }
 
     @ViewBuilder
-    private var guidanceLifecycleControl: some View {
-        switch Self.guidanceControlState(for: camera.guidanceSessionState) {
-        case .hidden:
+    private var cameraAssistPresentation: some View {
+        switch Self.assistPresentation(
+            for: camera.guidanceSessionState,
+            guidance: camera.guidance,
+            aiState: ai.state
+        ) {
+        case .hidden, .guidance:
             EmptyView()
         case .analyzing:
             HStack {
@@ -597,20 +645,12 @@ struct CameraView: View {
             HStack {
                 Text("common.error")
                 Spacer()
-                Button("camera.error.captureCancelled") { camera.recoverGuidance() }
+                Button("camera.error.captureCancelled", action: recoverAssistance)
             }
             .font(.caption.weight(.medium))
             .padding(10)
             .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
-        }
-    }
-
-    @ViewBuilder
-    private var aiResult: some View {
-        switch ai.state {
-        case .idle:
-            EmptyView()
-        case .loading:
+        case .aiLoading:
             HStack {
                 ProgressView()
                 Text("ai.loading")
@@ -620,12 +660,22 @@ struct CameraView: View {
             .font(.caption.weight(.medium))
             .padding(10)
             .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
-        case .failed(let error):
-            Text(LocalizedStringKey(aiErrorKey(error)))
-                .font(.caption.weight(.medium))
-                .padding(10)
-                .frame(maxWidth: .infinity)
-                .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+        case .aiFailure:
+            if case .failed(let error) = ai.state {
+                Text(LocalizedStringKey(aiErrorKey(error)))
+                    .font(.caption.weight(.medium))
+                    .padding(10)
+                    .frame(maxWidth: .infinity)
+                    .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+            }
+        case .aiCompatibilityControls:
+            aiCompatibilityControls
+        }
+    }
+
+    @ViewBuilder
+    private var aiCompatibilityControls: some View {
+        switch ai.state {
         case .ready(let result, let selected):
             let plan = result.plans[selected]
             VStack(alignment: .leading, spacing: 8) {
@@ -670,6 +720,8 @@ struct CameraView: View {
             }
             .padding(12)
             .background(.black.opacity(0.76), in: RoundedRectangle(cornerRadius: 14))
+        case .idle, .loading, .failed:
+            EmptyView()
         }
     }
 
@@ -987,6 +1039,13 @@ struct CameraView: View {
                 ai.analyze(data, measurement: measurement)
             }
         }
+    }
+
+    private func recoverAssistance() {
+        // Retire any retained cloud state first; CameraSession then explicitly
+        // retires the failure notice and starts the fresh local analysis pass.
+        cancelAI()
+        camera.recoverGuidance()
     }
 
     private func cancelAI() {

@@ -1327,6 +1327,132 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
+    func testNoticeClearOwnsOnlyTheVersionThatScheduledIt() async throws {
+        let camera = CameraSession()
+
+        camera.debugPublishNoticeForTesting("notice.A")
+        try await Task.sleep(for: .milliseconds(25))
+        let noticeA = camera.debugActiveNoticeTokenForTesting
+        XCTAssertNotNil(noticeA)
+
+        camera.debugPublishNoticeForTesting("notice.B")
+        try await Task.sleep(for: .milliseconds(25))
+        XCTAssertEqual(camera.notice, "notice.B")
+
+        camera.debugClearNoticeForTesting(noticeA)
+        try await Task.sleep(for: .milliseconds(25))
+        XCTAssertEqual(camera.notice, "notice.B")
+    }
+
+    @MainActor
+    func testRecoveryRetiresItsActiveCaptureFailureNoticeBeforeAnalysis() async throws {
+        let camera = CameraSession()
+        camera.debugBeginGuidanceCaptureForTesting()
+        camera.debugRegisterPendingCaptureForTesting(id: 1_001)
+        camera.debugClaimPendingCaptureForTesting(id: 1_001)
+        camera.debugBeginSavingForTesting(id: 1_001)
+        camera.debugCompletePhotoKitSaveForTesting(id: 1_001, saved: false)
+        try await Task.sleep(for: .milliseconds(50))
+
+        camera.debugPublishNoticeForTesting("camera.error.capture", recoverableFailure: true)
+        try await Task.sleep(for: .milliseconds(25))
+        XCTAssertEqual(camera.guidanceSessionState, .failedRecoverable)
+        XCTAssertEqual(camera.notice, "camera.error.capture")
+
+        camera.recoverGuidance()
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(camera.guidanceSessionState, .analyzing)
+        XCTAssertNil(camera.notice)
+    }
+
+    @MainActor
+    func testMissingDeferredProxyPublishesOneTerminalNotice() async throws {
+        let camera = CameraSession()
+        camera.debugRegisterPendingCaptureForTesting(id: 1_002)
+
+        camera.debugHandleMissingDeferredProxyForTesting()
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(camera.notice, "camera.error.capture")
+        XCTAssertEqual(camera.debugNoticePublicationCount, 1)
+    }
+
+    func testTerminalEffectClaimRejectsASecondClaimForTheSameCapture() {
+        let camera = CameraSession()
+
+        XCTAssertTrue(camera.debugClaimTerminalEffectForTesting(id: 1_003))
+        XCTAssertFalse(camera.debugClaimTerminalEffectForTesting(id: 1_003))
+    }
+
+    @MainActor
+    func testCaptureNStaleNoticeClearAndTerminalEffectCannotMutateCaptureNPlusOne() async throws {
+        let camera = CameraSession()
+        camera.debugBeginGuidanceCaptureForTesting()
+        camera.debugRegisterPendingCaptureForTesting(id: 1_004)
+        camera.debugClaimPendingCaptureForTesting(id: 1_004)
+        camera.debugBeginSavingForTesting(id: 1_004)
+        camera.debugCompletePhotoKitSaveForTesting(id: 1_004, saved: false)
+        try await Task.sleep(for: .milliseconds(50))
+
+        camera.debugPublishNoticeForTesting("capture.N", recoverableFailure: true)
+        try await Task.sleep(for: .milliseconds(25))
+        let captureNNotice = camera.debugActiveNoticeTokenForTesting
+
+        camera.debugBeginGuidanceCaptureForTesting()
+        camera.debugRegisterPendingCaptureForTesting(id: 1_005)
+        camera.debugPublishNoticeForTesting("capture.N+1")
+        camera.debugClearNoticeForTesting(captureNNotice)
+        camera.debugFinishCaptureForTesting(id: 1_004, recoverableFailure: true)
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(camera.guidanceSessionState, .capturing)
+        XCTAssertTrue(camera.isCapturing)
+        XCTAssertEqual(camera.notice, "capture.N+1")
+        XCTAssertEqual(camera.debugCaptureTerminalEffectCount, 1)
+    }
+
+    @MainActor
+    func testCameraAssistPresentationSuppressesStaleAIForLifecycleStates() {
+        let response = makeAIResponse()
+        let guidance = Guidance(
+            subjectRect: CGRect(x: 0.2, y: 0.2, width: 0.3, height: 0.4),
+            target: CGPoint(x: 0.5, y: 0.5),
+            direction: .left,
+            instructionKey: "guidance.left",
+            aligned: false
+        )
+
+        XCTAssertEqual(
+            CameraView.assistPresentation(
+                for: .failedRecoverable,
+                guidance: guidance,
+                aiState: .ready(response, selected: 0)
+            ),
+            .recovery
+        )
+        XCTAssertEqual(
+            CameraView.assistPresentation(for: .analyzing, guidance: guidance, aiState: .failed(.offline)),
+            .analyzing
+        )
+        XCTAssertEqual(
+            CameraView.assistPresentation(for: .capturing, guidance: guidance, aiState: .loading),
+            .capturing
+        )
+        XCTAssertEqual(
+            CameraView.assistPresentation(
+                for: .guiding(.move(.left)),
+                guidance: guidance,
+                aiState: .ready(response, selected: 0)
+            ),
+            .guidance
+        )
+        XCTAssertEqual(
+            CameraView.assistPresentation(for: .locked, guidance: guidance, aiState: .failed(.server)),
+            .guidance
+        )
+    }
+
+    @MainActor
     func testProcessingInterruptionMakesStaleSaveContinuationHarmless() async throws {
         let camera = CameraSession()
         camera.debugBeginGuidanceCaptureForTesting()
@@ -1349,7 +1475,7 @@ final class SmokeTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(50))
         XCTAssertEqual(camera.guidanceSessionState, .capturing)
         XCTAssertTrue(camera.isCapturing)
-        camera.notice = "camera.saved"
+        camera.debugPublishNoticeForTesting("camera.saved")
         XCTAssertFalse(camera.debugAttemptBeginSavingForTesting(id: 901))
         try await Task.sleep(for: .milliseconds(50))
         XCTAssertEqual(camera.guidanceSessionState, .capturing)
