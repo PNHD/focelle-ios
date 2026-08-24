@@ -449,6 +449,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     @Published private(set) var filterSaveSequence = 0
     @Published private(set) var latestThumbnail: CGImage?
     @Published private(set) var notice: String?
+    @Published private(set) var isRecoverableFailureNotice = false
 
     let session = AVCaptureSession()
 
@@ -497,6 +498,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     private var guidanceEngine = GuidanceEngine()
     private var pendingAIPreview: (@Sendable (Data?) -> Void)?
     private var cloudPlan: SemanticGuidanceTarget?
+    // Queue-owned acceptance tombstone. A recovery can reject an old cloud
+    // response even if its UI cancellation callback arrives later.
+    private var acceptsCloudPlan = false
     private var selectedSubjectPoint: CGPoint?
     private var selectedSubjectID: SubjectTrackID?
     private var selectedSubjectContinuity: SubjectContinuityID?
@@ -804,7 +808,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     // recoverable guidance/capture failure.
     func beginGuidanceAnalysis() {
         queue.async { [weak self] in
-            self?.beginGuidanceAnalysisOnQueue(recoveringFailure: true)
+            guard let self else { return }
+            self.acceptsCloudPlan = true
+            self.beginGuidanceAnalysisOnQueue(recoveringFailure: true)
         }
     }
 
@@ -815,8 +821,18 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         queue.async { [weak self] in
             guard let self, self.guidanceEngine.state == .failedRecoverable else { return }
             self.retireRecoverableFailureNotice()
+            // Recovery begins a new local cycle. Retire the queue-owned cloud
+            // target before its ANALYZING transition can accept another frame.
+            self.cloudPlan = nil
+            self.acceptsCloudPlan = false
+            self.analysisInFlight = false
+            self.analysisGeneration += 1
             self.guidanceEngine.recover()
             self.beginGuidanceAnalysisOnQueue()
+            DispatchQueue.main.async {
+                self.measurement = nil
+                self.guidance = nil
+            }
         }
     }
 
@@ -838,6 +854,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         stabilizer = MeasurementStabilizer()
         guidanceEngine.reset()
         cloudPlan = nil
+        acceptsCloudPlan = false
         selectedSubjectID = nil
         selectedSubjectContinuity = nil
         selectedSubjectPoint = nil
@@ -910,6 +927,16 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             publish(notice: notice, recoverableFailure: recoverableFailure)
         }
 
+        func debugSeedCloudPlanForTesting(_ plan: SemanticGuidanceTarget) {
+            queue.async { [weak self] in self?.cloudPlan = plan }
+        }
+
+        var debugCloudPlanForTesting: SemanticGuidanceTarget? { cloudPlan }
+
+        func debugHandleCaptureCallbackForTesting(id: Int64) -> Bool {
+            claimCapture(id: id, callbackType: .immediatePhoto) != nil
+        }
+
         var debugActiveNoticeTokenForTesting: CameraNoticeToken? { activeNoticeToken }
 
         func debugClearNoticeForTesting(_ token: CameraNoticeToken?) {
@@ -932,6 +959,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         var debugPendingCaptureCount: Int { captureCoordinator.pendingCount }
         var debugCaptureTerminalEffectCount: Int { captureCoordinator.terminalEffectCount }
         var debugNoticePublicationCount: Int { noticePublicationCount }
+        private(set) var debugSemanticTargetUsedForLatestGuidanceUpdate: SemanticGuidanceTarget?
     #endif
 
     private func configure() -> Bool {
@@ -1067,10 +1095,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     func applyAIPlan(_ plan: AICompositionPlan) {
-        setZoom(CGFloat(plan.zoom))
-        setExposure(Float(plan.exposureBias))
-        queue.async {
-            guard let measurement = self.measurement else { return }
+        queue.async { [weak self] in
+            guard let self, self.acceptsCloudPlan, let measurement = self.measurement else { return }
             let semanticTarget = Self.semanticTarget(
                 for: plan,
                 measurement: measurement,
@@ -1079,6 +1105,8 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
                 generation: self.analysisGeneration
             )
             self.cloudPlan = semanticTarget
+            self.setZoom(CGFloat(plan.zoom))
+            self.setExposure(Float(plan.exposureBias))
             self.updateGuidance(with: measurement, generation: self.analysisGeneration)
         }
     }
@@ -1086,6 +1114,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     func clearAIPlan() {
         queue.async {
             self.cloudPlan = nil
+            self.acceptsCloudPlan = false
             guard let measurement = self.measurement else { return }
             self.updateGuidance(with: measurement, generation: self.analysisGeneration)
         }
@@ -1222,9 +1251,6 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             return claim
         case .failure(let diagnostic):
             recordCaptureDiagnostic(diagnostic)
-            if diagnostic.reason == .unknownCapture {
-                publish(notice: "camera.error.captureCancelled")
-            }
             return nil
         }
     }
@@ -1447,6 +1473,9 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             stable.selectedSubjectID = nil
         }
 
+        #if DEBUG
+            debugSemanticTargetUsedForLatestGuidanceUpdate = cloudPlan
+        #endif
         let guidance = guidanceEngine.update(
             stable,
             intent: captureIntent,
@@ -1485,6 +1514,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
             let token = CameraNoticeToken(value: self.nextNoticeVersion)
             self.activeNoticeToken = token
             self.recoverableFailureNoticeToken = recoverableFailure ? token : nil
+            self.isRecoverableFailureNotice = recoverableFailure
             self.notice = notice
             #if DEBUG
                 self.noticePublicationCount += 1
@@ -1499,6 +1529,7 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         guard activeNoticeToken == token else { return }
         notice = nil
         activeNoticeToken = nil
+        isRecoverableFailureNotice = false
         if recoverableFailureNoticeToken == token {
             recoverableFailureNoticeToken = nil
         }

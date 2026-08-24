@@ -1453,6 +1453,133 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
+    func testRecoverableCaptureNoticeUsesOnlyTheAssistRecoverySurface() {
+        let response = makeAIResponse()
+
+        XCTAssertEqual(
+            CameraView.assistPresentation(
+                for: .failedRecoverable,
+                guidance: nil,
+                aiState: .ready(response, selected: 0)
+            ),
+            .recovery
+        )
+        XCTAssertEqual(
+            CameraView.assistPresentation(
+                for: .failedRecoverable,
+                guidance: nil,
+                aiState: .failed(.offline)
+            ),
+            .recovery
+        )
+        XCTAssertEqual(
+            CameraView.assistPresentation(
+                for: .failedRecoverable,
+                guidance: nil,
+                aiState: .loading
+            ),
+            .recovery
+        )
+        XCTAssertFalse(
+            CameraView.showsStandaloneNotice(
+                for: .failedRecoverable,
+                isRecoverableFailureNotice: true
+            )
+        )
+        XCTAssertTrue(
+            CameraView.showsStandaloneNotice(
+                for: .failedRecoverable,
+                isRecoverableFailureNotice: false
+            )
+        )
+    }
+
+    @MainActor
+    func testRecoveryRetiresCloudPlanBeforeFreshGuidanceUpdate() async throws {
+        let camera = CameraSession()
+        let stalePlan = SemanticGuidanceTarget(
+            targetFrame: CGRect(x: 0.60, y: 0.2, width: 0.2, height: 0.4),
+            instruction: "Stale cloud instruction",
+            generation: camera.analysisGeneration,
+            intent: .people,
+            subjectIDs: []
+        )
+        let freshMeasurement = peopleMeasurement([person(x: 0.04, y: 0.2)], timestamp: 1)
+
+        camera.debugBeginGuidanceCaptureForTesting()
+        camera.debugRegisterPendingCaptureForTesting(id: 2_001)
+        camera.debugClaimPendingCaptureForTesting(id: 2_001)
+        camera.debugBeginSavingForTesting(id: 2_001)
+        camera.debugCompletePhotoKitSaveForTesting(id: 2_001, saved: false)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(camera.guidanceSessionState, .failedRecoverable)
+
+        camera.debugSeedCloudPlanForTesting(stalePlan)
+        try await Task.sleep(for: .milliseconds(25))
+        XCTAssertEqual(camera.debugCloudPlanForTesting, stalePlan)
+
+        camera.recoverGuidance()
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(camera.guidanceSessionState, .analyzing)
+        XCTAssertNil(camera.debugCloudPlanForTesting)
+
+        // A late response from the retired cloud cycle has no authority to
+        // reinstall semantic guidance before a new explicit analysis request.
+        camera.debugSeedGuidanceForTesting(measurement: freshMeasurement, guidance: nil)
+        camera.applyAIPlan(makeAIResponse().plans[0])
+        try await Task.sleep(for: .milliseconds(25))
+        XCTAssertNil(camera.debugCloudPlanForTesting)
+
+        camera.debugAnalyzeGuidanceForTesting(freshMeasurement)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertNil(camera.debugSemanticTargetUsedForLatestGuidanceUpdate)
+    }
+
+    @MainActor
+    func testUnknownCaptureCallbackCannotPublishOverCurrentCaptureNotice() async throws {
+        let camera = CameraSession()
+        camera.debugBeginGuidanceCaptureForTesting()
+        camera.debugRegisterPendingCaptureForTesting(id: 2_002)
+        try await Task.sleep(for: .milliseconds(25))
+        camera.debugPublishNoticeForTesting("capture.N+1")
+        try await Task.sleep(for: .milliseconds(25))
+
+        let currentGuidanceState = camera.guidanceSessionState
+        XCTAssertFalse(camera.debugHandleCaptureCallbackForTesting(id: 2_001))
+        try await Task.sleep(for: .milliseconds(25))
+
+        XCTAssertEqual(camera.guidanceSessionState, currentGuidanceState)
+        XCTAssertTrue(camera.isCapturing)
+        XCTAssertEqual(camera.notice, "capture.N+1")
+        XCTAssertEqual(camera.debugNoticePublicationCount, 1)
+    }
+
+    @MainActor
+    func testStaleCaptureNCallbackCannotOverwriteCaptureNPlusOne() async throws {
+        let camera = CameraSession()
+
+        camera.debugBeginGuidanceCaptureForTesting()
+        camera.debugRegisterPendingCaptureForTesting(id: 2_003)
+        camera.debugClaimPendingCaptureForTesting(id: 2_003)
+        camera.debugBeginSavingForTesting(id: 2_003)
+        camera.debugCompletePhotoKitSaveForTesting(id: 2_003, saved: false)
+        try await Task.sleep(for: .milliseconds(50))
+
+        camera.debugBeginGuidanceCaptureForTesting()
+        camera.debugRegisterPendingCaptureForTesting(id: 2_004)
+        camera.debugPublishNoticeForTesting("capture.N+1")
+        try await Task.sleep(for: .milliseconds(25))
+
+        XCTAssertFalse(camera.debugHandleCaptureCallbackForTesting(id: 2_003))
+        try await Task.sleep(for: .milliseconds(25))
+
+        XCTAssertEqual(camera.guidanceSessionState, .capturing)
+        XCTAssertTrue(camera.isCapturing)
+        XCTAssertEqual(camera.notice, "capture.N+1")
+        XCTAssertEqual(camera.debugNoticePublicationCount, 1)
+    }
+
+    @MainActor
     func testProcessingInterruptionMakesStaleSaveContinuationHarmless() async throws {
         let camera = CameraSession()
         camera.debugBeginGuidanceCaptureForTesting()

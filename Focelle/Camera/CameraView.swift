@@ -95,6 +95,13 @@ struct CameraView: View {
         }
     }
 
+    static func showsStandaloneNotice(
+        for guidanceState: GuidanceSessionState,
+        isRecoverableFailureNotice: Bool
+    ) -> Bool {
+        !(guidanceState == .failedRecoverable && isRecoverableFailureNotice)
+    }
+
     var body: some View {
         let captureView = GeometryReader { geometry in
             ZStack {
@@ -491,7 +498,12 @@ struct CameraView: View {
 
             Spacer()
 
-            if let notice = camera.notice {
+            if let notice = camera.notice,
+                Self.showsStandaloneNotice(
+                    for: camera.guidanceSessionState,
+                    isRecoverableFailureNotice: camera.isRecoverableFailureNotice
+                )
+            {
                 Text(LocalizedStringKey(notice))
                     .font(.subheadline.weight(.medium))
                     .padding(.horizontal, 14)
