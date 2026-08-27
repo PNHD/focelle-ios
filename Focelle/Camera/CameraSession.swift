@@ -761,7 +761,11 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     func capture() {
-        guard !isCapturing, guidanceSessionState != .failedRecoverable else { return }
+        // Manual/volume shutter is gated only on genuine capture safety: no
+        // capture may already be in flight. A recoverable guidance failure is
+        // a past-tense fact about the previous cycle and never blocks the
+        // frame the photographer is trying to take.
+        guard !isCapturing else { return }
         let selectedFlash = flash
         let selectedRatio = ratio
         let selectedResolution = resolution
@@ -773,9 +777,15 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
         queue.async { [weak self] in
             guard let self else { return }
-            guard self.guidanceEngine.state != .failedRecoverable else {
-                DispatchQueue.main.async { self.isCapturing = false }
-                return
+            // A new shutter press is itself the recovery from an earlier
+            // recoverable failure: retire that cycle's failure notice and
+            // leave FAILED_RECOVERABLE here, so this capture enters the normal
+            // lifecycle instead of being refused. beginGuidanceCapture() below
+            // then retires the stale cloud plan, request and preview, so no
+            // pre-failure semantic target can reach this capture.
+            if self.guidanceEngine.state == .failedRecoverable {
+                self.retireRecoverableFailureNotice()
+                self.guidanceEngine.recover()
             }
             self.beginGuidanceCapture()
             let settings = AVCapturePhotoSettings()
@@ -1118,7 +1128,11 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
 
     // Manual capture depends solely on live camera/capture state. Quota and
     // filter-credit accounting run after a save attempt and cannot veto the
-    // user's shutter request.
+    // user's shutter request, and neither can a recoverable failure left over
+    // from the previous capture: FAILED_RECOVERABLE describes a cycle that has
+    // already ended, and capture() treats a fresh press as the recovery.
+    // The only guidance state that is a real capture-safety condition is
+    // CAPTURING, which means a capture is genuinely still in flight.
     static func manualCaptureAllowed(
         state: State,
         isCapturing: Bool,
@@ -1129,10 +1143,10 @@ final class CameraSession: NSObject, ObservableObject, @unchecked Sendable {
         // Deliberately read and discard this accounting signal: no entitlement
         // or exhausted filter credit is allowed to become a shutter lock.
         _ = filterQuotaExhausted
-        state == .running
+        return state == .running
             && !isCapturing
             && !countdownActive
-            && guidanceState != .failedRecoverable
+            && guidanceState != .capturing
     }
 
     // A result that started before the most recent reset (camera switch, resume

@@ -208,7 +208,10 @@ struct CameraView: View {
             }
         }
         .onCameraCaptureEvent(
-            isEnabled: camera.state == .running && !camera.isCapturing && countdown == nil,
+            // The hardware/volume button reads the same eligibility as the
+            // visible shutter, so it can never look live while triggerCapture()
+            // silently refuses, nor go dead where the visible shutter works.
+            isEnabled: manualShutterAllowed,
             action: { event in
                 if event.phase == .ended { triggerCapture() }
             }
@@ -615,18 +618,7 @@ struct CameraView: View {
                         .overlay(Circle().stroke(.white.opacity(0.4), lineWidth: 5).padding(-7))
                 }
                 .accessibilityLabel(Text("camera.shutter"))
-                .disabled(
-                    !CameraSession.manualCaptureAllowed(
-                        state: camera.state,
-                        isCapturing: camera.isCapturing,
-                        countdownActive: countdown != nil,
-                        filterQuotaExhausted: camera.activeFilter != nil
-                            && !quota.snapshot.unlimited
-                            && !store.isPro
-                            && quota.snapshot.filterRemaining < 1,
-                        guidanceState: camera.guidanceSessionState
-                    )
-                )
+                .disabled(!manualShutterAllowed)
 
                 Spacer()
 
@@ -1022,8 +1014,11 @@ struct CameraView: View {
         size.width > size.height ? camera.ratio.value : 1 / camera.ratio.value
     }
 
-    private func triggerCapture() {
-        guard CameraSession.manualCaptureAllowed(
+    // One eligibility truth for every manual shutter surface: the visible
+    // shutter's disabled state, the hardware/volume button's enabled state and
+    // triggerCapture()'s own guard all read this.
+    private var manualShutterAllowed: Bool {
+        CameraSession.manualCaptureAllowed(
             state: camera.state,
             isCapturing: camera.isCapturing,
             countdownActive: countdown != nil,
@@ -1032,7 +1027,11 @@ struct CameraView: View {
                 && !store.isPro
                 && quota.snapshot.filterRemaining < 1,
             guidanceState: camera.guidanceSessionState
-        ) else { return }
+        )
+    }
+
+    private func triggerCapture() {
+        guard manualShutterAllowed else { return }
         if case .ready = ai.state {
             Analytics.record("capture_after_guidance", enabled: settings.analyticsEnabled)
         }

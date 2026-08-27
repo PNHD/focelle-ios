@@ -1264,6 +1264,115 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(engine.update(group, intent: .people, generation: 19)?.step, .spacing)
     }
 
+    func testSmallGroupSpacingAdviceFollowsTheMeasuredDirection() {
+        let ids = makeTrackIDs(3)
+
+        var crowdedEngine = GuidanceEngine()
+        let crowded = peopleMeasurement(groupPeople(xs: [0.30, 0.445, 0.59], ids: ids))
+        let crowdedGuidance = crowdedEngine.update(crowded, intent: .people, generation: 1)
+        XCTAssertEqual(crowdedGuidance?.step, .spacing)
+        XCTAssertEqual(crowdedGuidance?.instruction, "Open the group spacing slightly")
+
+        var spreadEngine = GuidanceEngine()
+        let spread = peopleMeasurement(groupPeople(xs: [0.10, 0.42, 0.74], ids: ids), timestamp: 2)
+        let spreadGuidance = spreadEngine.update(spread, intent: .people, generation: 1)
+        XCTAssertEqual(spreadGuidance?.step, .spacing)
+        XCTAssertEqual(spreadGuidance?.instruction, "Ask the group to stand closer together")
+        XCTAssertNotEqual(spreadGuidance?.instruction, crowdedGuidance?.instruction)
+    }
+
+    func testAcceptableSmallGroupSpacingRaisesNoSpacingCorrection() {
+        var engine = GuidanceEngine()
+        let comfortable = peopleMeasurement(groupPeople(xs: [0.20, 0.42, 0.64], ids: makeTrackIDs(3)))
+        let guidance = engine.update(comfortable, intent: .people, generation: 1)
+
+        XCTAssertNotEqual(guidance?.step, .spacing)
+        XCTAssertEqual(guidance?.step, .hold)
+        XCTAssertNil(guidance?.instruction)
+    }
+
+    // The same band decides entry, copy and exit, so a group that does exactly
+    // what it was told clears the step from either direction.
+    func testSmallGroupSpacingIsSatisfiableFromBothDirections() {
+        let ids = makeTrackIDs(3)
+        let comfortable = groupPeople(xs: [0.20, 0.42, 0.64], ids: ids)
+
+        var fromTooClose = GuidanceEngine()
+        XCTAssertEqual(
+            fromTooClose.update(
+                peopleMeasurement(groupPeople(xs: [0.30, 0.445, 0.59], ids: ids)),
+                intent: .people,
+                generation: 1
+            )?.step,
+            .spacing
+        )
+        XCTAssertEqual(
+            fromTooClose.update(
+                peopleMeasurement(comfortable, timestamp: 2),
+                intent: .people,
+                generation: 1
+            )?.step,
+            .hold
+        )
+        XCTAssertEqual(fromTooClose.state, .locked)
+
+        var fromTooFar = GuidanceEngine()
+        XCTAssertEqual(
+            fromTooFar.update(
+                peopleMeasurement(groupPeople(xs: [0.10, 0.42, 0.74], ids: ids)),
+                intent: .people,
+                generation: 1
+            )?.step,
+            .spacing
+        )
+        XCTAssertEqual(
+            fromTooFar.update(
+                peopleMeasurement(comfortable, timestamp: 2),
+                intent: .people,
+                generation: 1
+            )?.step,
+            .hold
+        )
+        XCTAssertEqual(fromTooFar.state, .locked)
+    }
+
+    // A spread-out group that has not moved must keep the same correction with
+    // the same direction, rather than reporting itself satisfied every frame.
+    func testSpreadSmallGroupSpacingSurvivesAnUnchangedFrame() {
+        var engine = GuidanceEngine()
+        let spread = groupPeople(xs: [0.10, 0.42, 0.74], ids: makeTrackIDs(3))
+        XCTAssertEqual(
+            engine.update(peopleMeasurement(spread), intent: .people, generation: 1)?.step,
+            .spacing
+        )
+
+        let held = engine.update(peopleMeasurement(spread, timestamp: 2), intent: .people, generation: 1)
+        XCTAssertEqual(held?.step, .spacing)
+        XCTAssertEqual(held?.instruction, "Ask the group to stand closer together")
+        XCTAssertEqual(engine.state, .guiding(.spacing))
+    }
+
+    func testCoupleSpacingRemainsDistinctFromSmallGroupSpacing() {
+        var crowdedPair = GuidanceEngine()
+        let close = peopleMeasurement(
+            groupPeople(xs: [0.30, 0.505], ids: makeTrackIDs(2), width: 0.20)
+        )
+        let closeGuidance = crowdedPair.update(close, intent: .people, generation: 1)
+        XCTAssertEqual(closeGuidance?.step, .spacing)
+        XCTAssertEqual(closeGuidance?.instruction, "Give each person a little more space")
+
+        // A pair has no upper spacing bound, so a wide gap is a framing choice
+        // and must never raise the group's "stand closer together" correction.
+        var spreadPair = GuidanceEngine()
+        let apart = peopleMeasurement(
+            groupPeople(xs: [0.10, 0.60], ids: makeTrackIDs(2), width: 0.20),
+            timestamp: 2
+        )
+        let apartGuidance = spreadPair.update(apart, intent: .people, generation: 1)
+        XCTAssertNotEqual(apartGuidance?.step, .spacing)
+        XCTAssertEqual(apartGuidance?.step, .hold)
+    }
+
     func testSceneFallbackPrefersHorizonWithoutPeople() {
         var engine = GuidanceEngine()
         let scene = SceneMeasurement(
@@ -1928,7 +2037,11 @@ final class SmokeTests: XCTestCase {
                 filterQuotaExhausted: true
             )
         )
-        XCTAssertFalse(
+        // A recoverable failure left over from the previous capture describes
+        // a cycle that has already ended. The camera is running and nothing is
+        // in flight, so the shutter stays available and the press itself is
+        // the recovery.
+        XCTAssertTrue(
             CameraSession.manualCaptureAllowed(
                 state: .running,
                 isCapturing: false,
@@ -1937,10 +2050,33 @@ final class SmokeTests: XCTestCase {
                 guidanceState: .failedRecoverable
             )
         )
+        // A capture that is genuinely still in flight does block the shutter.
+        XCTAssertFalse(
+            CameraSession.manualCaptureAllowed(
+                state: .running,
+                isCapturing: false,
+                countdownActive: false,
+                filterQuotaExhausted: true,
+                guidanceState: .capturing
+            )
+        )
+        XCTAssertFalse(
+            CameraSession.manualCaptureAllowed(
+                state: .starting,
+                isCapturing: false,
+                countdownActive: false,
+                filterQuotaExhausted: false,
+                guidanceState: .failedRecoverable
+            )
+        )
     }
 
+    // A PhotoKit write failure leaves the camera running, nothing in flight
+    // and the hardware healthy. The next manual press must therefore start a
+    // real capture rather than be refused: it is itself the recovery from the
+    // previous cycle's guidance failure.
     @MainActor
-    func testCaptureExecutionCannotBypassExplicitRecovery() async throws {
+    func testManualShutterRecoversAndCapturesAfterAPhotoKitSaveFailure() async throws {
         let camera = CameraSession()
         camera.debugBeginGuidanceCaptureForTesting()
         camera.debugRegisterPendingCaptureForTesting(id: 2_005)
@@ -1949,11 +2085,107 @@ final class SmokeTests: XCTestCase {
         camera.debugCompletePhotoKitSaveForTesting(id: 2_005, saved: false)
         try await Task.sleep(for: .milliseconds(50))
 
+        XCTAssertEqual(camera.guidanceSessionState, .failedRecoverable)
+        XCTAssertFalse(camera.isCapturing)
+        let noticesBeforePress = camera.debugNoticePublicationCount
+        let terminalEffectsBeforePress = camera.debugCaptureTerminalEffectCount
+
         camera.capture()
+        try await Task.sleep(for: .milliseconds(120))
+
+        // A second, distinct capture lifecycle ran and reached its own terminal
+        // effect and its own notice. A refused press would have produced
+        // neither.
+        XCTAssertGreaterThan(camera.debugCaptureTerminalEffectCount, terminalEffectsBeforePress)
+        XCTAssertGreaterThan(camera.debugNoticePublicationCount, noticesBeforePress)
+        XCTAssertEqual(camera.notice, "camera.error.capture")
+        XCTAssertFalse(camera.isCapturing)
+    }
+
+    // The stricter gating that the shutter must not have is still correct for
+    // the optional cloud action: it stays behind the explicit recovery.
+    @MainActor
+    func testCloudAnalysisStillRequiresExplicitRecoveryAfterASaveFailure() async throws {
+        let camera = CameraSession()
+        camera.debugBeginGuidanceCaptureForTesting()
+        camera.debugRegisterPendingCaptureForTesting(id: 2_006)
+        camera.debugClaimPendingCaptureForTesting(id: 2_006)
+        camera.debugBeginSavingForTesting(id: 2_006)
+        camera.debugCompletePhotoKitSaveForTesting(id: 2_006, saved: false)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(camera.guidanceSessionState, .failedRecoverable)
+
+        camera.beginGuidanceAnalysis(requestVersion: 1)
         try await Task.sleep(for: .milliseconds(50))
 
-        XCTAssertFalse(camera.isCapturing)
         XCTAssertEqual(camera.guidanceSessionState, .failedRecoverable)
+        XCTAssertFalse(
+            CameraView.cloudAIActionAllowed(
+                cameraState: .running,
+                isCapturing: false,
+                countdownActive: false,
+                guidanceState: camera.guidanceSessionState,
+                onDeviceOnly: false
+            )
+        )
+    }
+
+    // The genuine capture-safety condition the shutter keeps: a capture that is
+    // actually still in flight rejects a second press.
+    @MainActor
+    func testActiveCaptureRejectsASecondManualShutterPress() async throws {
+        let camera = CameraSession()
+        camera.debugBeginGuidanceCaptureForTesting()
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertTrue(camera.isCapturing)
+        XCTAssertEqual(camera.guidanceSessionState, .capturing)
+        let noticesBeforePress = camera.debugNoticePublicationCount
+        let terminalEffectsBeforePress = camera.debugCaptureTerminalEffectCount
+
+        camera.capture()
+        try await Task.sleep(for: .milliseconds(80))
+
+        XCTAssertEqual(camera.debugCaptureTerminalEffectCount, terminalEffectsBeforePress)
+        XCTAssertEqual(camera.debugNoticePublicationCount, noticesBeforePress)
+        XCTAssertTrue(camera.isCapturing)
+    }
+
+    // A manual recovery capture retires the pre-failure cloud state, so a plan
+    // that belonged to the old request cannot install itself into the new one.
+    @MainActor
+    func testManualRecoveryCaptureRejectsAStaleCloudPlan() async throws {
+        let camera = CameraSession()
+        camera.debugBeginGuidanceCaptureForTesting()
+        camera.debugRegisterPendingCaptureForTesting(id: 2_007)
+        camera.debugClaimPendingCaptureForTesting(id: 2_007)
+        camera.debugBeginSavingForTesting(id: 2_007)
+        camera.debugCompletePhotoKitSaveForTesting(id: 2_007, saved: false)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(camera.guidanceSessionState, .failedRecoverable)
+
+        // A plan retained across the failed cycle must not survive the press
+        // that recovers from it.
+        camera.debugSeedCloudPlanForTesting(
+            SemanticGuidanceTarget(
+                targetFrame: CGRect(x: 0.2, y: 0.2, width: 0.3, height: 0.5),
+                instruction: "stale",
+                generation: 0,
+                intent: .people,
+                subjectIDs: [],
+                requestVersion: 7
+            )
+        )
+        try await Task.sleep(for: .milliseconds(30))
+        XCTAssertNotNil(camera.debugCloudPlanForTesting)
+
+        camera.capture()
+        try await Task.sleep(for: .milliseconds(120))
+
+        XCTAssertNil(camera.debugCloudPlanForTesting)
+        camera.applyAIPlan(makeAIPlan(id: "stale"), requestVersion: 7)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertNil(camera.debugCloudPlanForTesting)
     }
 
     @MainActor
@@ -2031,6 +2263,44 @@ final class SmokeTests: XCTestCase {
             aligned: false
         )
         XCTAssertTrue(GuidanceOverlay.instructionSitsHigh(noSubjectGuidance))
+    }
+
+    // The hint names the ring, so it must derive from the same condition that
+    // draws the ring rather than from the step's direction alone.
+    func testAimRingHintOnlyAppearsWhenTheAimRingIsDrawn() throws {
+        var movementEngine = GuidanceEngine()
+        let offCentre = peopleMeasurement([person(x: 0.05, y: 0.2, width: 0.2, height: 0.45)])
+        let movement = try XCTUnwrap(movementEngine.update(offCentre, intent: .people, generation: 1))
+        XCTAssertEqual(movement.step, .move(.left))
+        XCTAssertNotNil(GuidanceOverlay.aimRingPath(movement))
+        XCTAssertTrue(GuidanceOverlay.showsAimRingHint(movement))
+
+        var gazeEngine = GuidanceEngine()
+        var facelessPartner = person(x: 0.52, y: 0.2, width: 0.20, height: 0.45)
+        facelessPartner.faceRect = nil
+        facelessPartner.faceVisible = false
+        let couple = peopleMeasurement([
+            person(x: 0.26, y: 0.2, width: 0.20, height: 0.45),
+            facelessPartner,
+        ])
+        let gaze = try XCTUnwrap(gazeEngine.update(couple, intent: .people, generation: 1))
+        XCTAssertEqual(gaze.step, .gaze)
+        // The step still reports an aim-ring-capable direction, which is what
+        // used to show the hint. Only the drawn ring may decide.
+        XCTAssertTrue(gaze.direction.usesAimRing)
+        XCTAssertNil(GuidanceOverlay.aimRingPath(gaze))
+        XCTAssertFalse(GuidanceOverlay.showsAimRingHint(gaze))
+
+        var spacingEngine = GuidanceEngine()
+        let spread = peopleMeasurement(
+            groupPeople(xs: [0.10, 0.42, 0.74], ids: makeTrackIDs(3)),
+            timestamp: 2
+        )
+        let spacing = try XCTUnwrap(spacingEngine.update(spread, intent: .people, generation: 1))
+        XCTAssertEqual(spacing.step, .spacing)
+        XCTAssertTrue(spacing.direction.usesAimRing)
+        XCTAssertNil(GuidanceOverlay.aimRingPath(spacing))
+        XCTAssertFalse(GuidanceOverlay.showsAimRingHint(spacing))
     }
 
     func testAimRingOnlyRepresentsTwoDimensionalMovement() {
@@ -2389,6 +2659,34 @@ final class SmokeTests: XCTestCase {
             faceRect: CGRect(x: x + width * 0.25, y: y + height * 0.04, width: width * 0.5, height: height * 0.2),
             faceReady: true
         )
+    }
+
+    private func makeTrackIDs(_ count: Int) -> [SubjectTrackID] {
+        (0..<count).map { _ in SubjectTrackID(generation: 0) }
+    }
+
+    // Stable identities across frames, so a reducer Context survives a change
+    // of geometry and the hysteresis/exit path is actually exercised.
+    private func groupPeople(
+        xs: [CGFloat],
+        ids: [SubjectTrackID],
+        width: CGFloat = 0.14,
+        y: CGFloat = 0.35,
+        height: CGFloat = 0.30
+    ) -> [PersonGeometry] {
+        zip(xs, ids).map { x, id in
+            PersonGeometry(
+                id: id,
+                humanRect: CGRect(x: x, y: y, width: width, height: height),
+                faceRect: CGRect(
+                    x: x + width * 0.25,
+                    y: y + height * 0.04,
+                    width: width * 0.5,
+                    height: height * 0.2
+                ),
+                faceReady: true
+            )
+        }
     }
 
     private func peopleMeasurement(

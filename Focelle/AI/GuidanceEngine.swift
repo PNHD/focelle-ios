@@ -14,6 +14,42 @@ struct GuidanceEngine {
         case unavailable
     }
 
+    // One production truth for group spacing. `proposal`, `localInstruction`
+    // and `isSatisfied` all classify through `spacingBand(for:kind:)`, so the
+    // step that is raised, the advice it carries, and the condition that
+    // clears it can never disagree or point in opposite directions.
+    enum GroupSpacingBand: Equatable, Sendable {
+        case tooClose
+        case acceptable
+        case tooFar
+    }
+
+    // Entry and exit deliberately read the same numbers: a spacing correction
+    // has to be clearable by doing exactly what it asked for, in either
+    // direction.
+    static let maximumGroupOverlap: CGFloat = 0.10
+    static let minimumMemberSpacing: CGFloat = 0.015
+    static let maximumMemberSpacing: CGFloat = 0.15
+
+    static func spacingBand(
+        for group: GroupGeometry,
+        kind: GuidanceSubjectKind
+    ) -> GroupSpacingBand {
+        if group.maximumOverlap > maximumGroupOverlap { return .tooClose }
+        if group.memberSpacing.contains(where: { $0 < minimumMemberSpacing }) {
+            return .tooClose
+        }
+        // A pair has no upper bound: two people standing apart is a framing
+        // choice, not a measurable distribution error. Couple behaviour is
+        // therefore unchanged by this band.
+        if kind == .smallGroup,
+            group.memberSpacing.contains(where: { $0 > maximumMemberSpacing })
+        {
+            return .tooFar
+        }
+        return .acceptable
+    }
+
     private struct Context: Equatable {
         let intent: CaptureIntent
         let generation: Int
@@ -267,7 +303,7 @@ struct GuidanceEngine {
             case .couple:
                 // A pair is evaluated as a relationship: overlap, the gap
                 // between the two people, both faces, then the pair envelope.
-                if group.maximumOverlap > 0.10 || group.memberSpacing.contains(where: { $0 < 0.015 }) {
+                if spacingBand(for: group, kind: .couple) != .acceptable {
                     return (.spacing, kind, target, targetRect)
                 }
                 if group.visibleFaceCount < 2 {
@@ -275,10 +311,9 @@ struct GuidanceEngine {
                 }
             case .smallGroup:
                 // A group uses distribution across the whole envelope. Extreme
-                // gaps are measurable; no semantic pose advice is invented.
-                if group.maximumOverlap > 0.10
-                    || group.memberSpacing.contains(where: { $0 < 0.015 || $0 > 0.15 })
-                {
+                // gaps are measurable in both directions; no semantic pose
+                // advice is invented.
+                if spacingBand(for: group, kind: .smallGroup) != .acceptable {
                     return (.spacing, kind, target, targetRect)
                 }
                 if group.visibleFaceCount < measurement.people.count {
@@ -391,7 +426,7 @@ struct GuidanceEngine {
         case .gaze: return measurement.people.allSatisfy { $0.faceVisible && $0.faceReady }
         case .spacing:
             guard let group = measurement.group else { return true }
-            return group.maximumOverlap < 0.05 && group.memberSpacing.allSatisfy { $0 > 0.03 }
+            return spacingBand(for: group, kind: kind) == .acceptable
         case .exposure(.brighten): return measurement.exposure > 0.26
         case .exposure(.darken): return measurement.exposure < 0.80
         case .pose, .color, .hold: return true
@@ -474,7 +509,11 @@ struct GuidanceEngine {
             // Schema v2 has no typed Blueprint step, so its text cannot be
             // proven to describe this reducer-owned correction. Preserve only
             // the compatible geometry target and keep actionable copy local.
-            instruction: localInstruction(for: step, kind: subjectKind)
+            instruction: localInstruction(
+                for: step,
+                kind: subjectKind,
+                spacing: measurement.group.map { spacingBand(for: $0, kind: subjectKind) } ?? .acceptable
+            )
         )
     }
 
@@ -504,10 +543,25 @@ struct GuidanceEngine {
         }
     }
 
-    private static func localInstruction(for step: GuidanceStep, kind: GuidanceSubjectKind) -> String? {
+    private static func localInstruction(
+        for step: GuidanceStep,
+        kind: GuidanceSubjectKind,
+        spacing: GroupSpacingBand
+    ) -> String? {
         switch step {
         case .spacing:
-            return kind == .couple ? "Give each person a little more space" : "Open the group spacing slightly"
+            // The advice follows the measured sign of the error, so it can
+            // never ask a group that is already too spread out to open up.
+            switch spacing {
+            case .tooClose:
+                return kind == .couple
+                    ? "Give each person a little more space"
+                    : "Open the group spacing slightly"
+            case .tooFar:
+                return "Ask the group to stand closer together"
+            case .acceptable:
+                return nil
+            }
         case .gaze: return "Wait until faces are clearly visible"
         case .hold: return nil
         case .pose, .color: return nil

@@ -66,7 +66,7 @@ struct GuidanceOverlay: View {
                         )
                         .position(current)
 
-                    if let movement = guidance.movementPath {
+                    if let movement = Self.aimRingPath(guidance) {
                         Path { drawing in
                             drawing.move(
                                 to: CGPoint(
@@ -140,9 +140,7 @@ struct GuidanceOverlay: View {
                         }
                     }
                     .font(.subheadline.weight(.semibold))
-                    if guidance.direction.usesAimRing, !guidance.aligned,
-                        guidance.subjectRect != nil
-                    {
+                    if Self.showsAimRingHint(guidance) {
                         Text("guidance.aimAtRing")
                             .font(.caption)
                             .foregroundStyle(.orange)
@@ -168,6 +166,19 @@ struct GuidanceOverlay: View {
     static func instructionSitsHigh(_ guidance: Guidance) -> Bool {
         guard let rect = guidance.subjectRect else { return true }
         return rect.minY > 0.26
+    }
+
+    // One production truth for the aim ring. The dashed movement line, the
+    // movement marker and the dashed target circle are drawn exactly when this
+    // returns a path, and the "aim at the ring" hint is gated on the same
+    // call, so the hint can never name geometry that is not on screen.
+    static func aimRingPath(_ guidance: Guidance) -> GuidancePath? {
+        guard guidance.subjectRect != nil else { return nil }
+        return guidance.movementPath
+    }
+
+    static func showsAimRingHint(_ guidance: Guidance) -> Bool {
+        aimRingPath(guidance) != nil && !guidance.aligned
     }
 
     private var icon: String {
