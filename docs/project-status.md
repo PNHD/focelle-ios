@@ -147,6 +147,25 @@ Status as of `5532063`. Conservative by rule: when in doubt, the lower level win
   established** — these are user-observed symptoms, not diagnosed causes.
   iPhone 12 Pro physical validation: **NOT RUN**. Batch B: **NOT STARTED**.
   See `.ai/SESSION.md` for the full current handoff.
+- **`FCL-M2-R1 — Capture, Save, and Privacy Reliability`**: `CI VERIFIED;
+  PHYSICAL VALIDATION PENDING`. Branch
+  `task/FCL-M2-R1-capture-save-privacy`; CI-tested implementation SHA
+  `788f41301b074f13e9319e1c6eab8e4a44dad52d`; draft PR
+  [#5](https://github.com/PNHD/focelle-ios/pull/5) targets
+  `feat/focelle-beta` and is **not merged**. GitHub Actions run
+  `31451486572` concluded `success` for `backend`, `simulator-test`, and
+  `device-package` (3/3). The task scopes add-only Photos authorization on
+  explicit save, callback-ID-owned exactly-once terminal capture handling,
+  localized user errors, timeout/lifecycle handling, and truthful privacy
+  declarations. No physical permission or Photos save result was observed in
+  this task; therefore this is not product acceptance. It changes neither the
+  unresolved Batch A Coach verdict nor Batch B (`NOT STARTED`).
+- **`FCL-M2-R1-R2 — Saving ownership and timeout repair`**: `IMPLEMENTED
+  LOCALLY; CI AND INDEPENDENT RE-REVIEW PENDING`. Implementation commit
+  `493dd83` retires the delivery/processing timeout when a capture enters
+  `.saving` and prevents stale timeout or final-capture cancellation from
+  revoking Photos save ownership. This repair has no new CI or physical-device
+  evidence and does not close FCL-M2-R1.
 
 ### FCL-M1 integration record
 
@@ -211,6 +230,18 @@ The **next gate is a read-only recovery audit** of the FCL-M2 Batch A
 symptoms in §5 — not new implementation. New product implementation is not
 authorized until the PM issues a scoped task contract from that audit's
 findings, per `docs/AI_WORKFLOW.md` §L. Batch B remains **NOT STARTED**.
+
+**`FCL-M2-R1 — Capture, Save, and Privacy Reliability`** is a separate,
+scoped repair task and is **CI VERIFIED; PHYSICAL VALIDATION PENDING** at
+`788f41301b074f13e9319e1c6eab8e4a44dad52d`, by GitHub Actions run
+`31451486572` (`backend`, `simulator-test`, `device-package` — 3/3 success).
+The next gate for this task is a real-device permission/save/lifecycle check;
+it is not closed by simulator or CI evidence. Draft PR #5 is not merged.
+
+**`FCL-M2-R1-R2 — Saving ownership and timeout repair`** is implemented at
+`493dd83`, but **CI and independent re-review are pending**. It retains
+Photos save ownership after `.saving` begins; it has no new physical evidence
+and does not close FCL-M2-R1.
 
 If the agent is on a documentation-only branch, it must stop before running
 any physical check — a gate does not close from a documentation branch.

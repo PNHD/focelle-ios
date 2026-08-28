@@ -40,6 +40,85 @@ struct CameraView: View {
     @State private var recordedCameraPermission = false
     @State private var aiStartedAt: TimeInterval?
     @State private var aiPreviewRequestID: UUID?
+    @State private var nextAIRequestVersion: UInt64 = 0
+    @State private var activeAIRequestVersion: UInt64?
+
+    enum GuidanceControlState: Equatable {
+        case hidden
+        case analyzing
+        case capturing
+        case recovery
+    }
+
+    enum AssistPresentation: Equatable {
+        case hidden
+        case guidance
+        case analyzing
+        case capturing
+        case recovery
+        case aiLoading
+        case aiFailure
+        case aiCompatibilityControls
+    }
+
+    static func guidanceControlState(for state: GuidanceSessionState) -> GuidanceControlState {
+        switch state {
+        case .analyzing: .analyzing
+        case .capturing: .capturing
+        case .failedRecoverable: .recovery
+        case .ready, .selectingSubject, .guiding, .locked: .hidden
+        }
+    }
+
+    // One presentation owns the temporary camera-assist surface. Lifecycle
+    // states intentionally outrank retained cloud-AI state so a stale plan,
+    // load, or error cannot compete with capture/recovery guidance.
+    static func assistPresentation(
+        for guidanceState: GuidanceSessionState,
+        guidance: Guidance?,
+        aiState: AIAnalysisModel.State
+    ) -> AssistPresentation {
+        switch guidanceState {
+        case .capturing:
+            .capturing
+        case .failedRecoverable:
+            .recovery
+        case .analyzing:
+            .analyzing
+        case .guiding, .locked:
+            guidance == nil ? .hidden : .guidance
+        case .ready, .selectingSubject:
+            switch aiState {
+            case .idle: .hidden
+            case .loading: .aiLoading
+            case .failed: .aiFailure
+            case .ready: .aiCompatibilityControls
+            }
+        }
+    }
+
+    static func showsStandaloneNotice(
+        for guidanceState: GuidanceSessionState,
+        isRecoverableFailureNotice: Bool
+    ) -> Bool {
+        !(guidanceState == .failedRecoverable && isRecoverableFailureNotice)
+    }
+
+    static func cloudAIActionAllowed(
+        cameraState: CameraSession.State,
+        isCapturing: Bool,
+        countdownActive: Bool,
+        guidanceState: GuidanceSessionState,
+        onDeviceOnly: Bool
+    ) -> Bool {
+        guard cameraState == .running, !isCapturing, !countdownActive, !onDeviceOnly else {
+            return false
+        }
+        switch guidanceState {
+        case .capturing, .failedRecoverable: false
+        case .ready, .selectingSubject, .analyzing, .guiding, .locked: true
+        }
+    }
 
     var body: some View {
         let captureView = GeometryReader { geometry in
@@ -65,7 +144,14 @@ struct CameraView: View {
                     }
 
                     if camera.showsGrid { grid }
-                    if settings.guidanceEnabled, let guidance = camera.guidance {
+                    if settings.guidanceEnabled,
+                        Self.assistPresentation(
+                            for: camera.guidanceSessionState,
+                            guidance: camera.guidance,
+                            aiState: ai.state
+                        ) == .guidance,
+                        let guidance = camera.guidance
+                    {
                         GuidanceOverlay(guidance: guidance)
                     }
                     focusIndicator
@@ -122,7 +208,10 @@ struct CameraView: View {
             }
         }
         .onCameraCaptureEvent(
-            isEnabled: camera.state == .running && !camera.isCapturing && countdown == nil,
+            // The hardware/volume button reads the same eligibility as the
+            // visible shutter, so it can never look live while triggerCapture()
+            // silently refuses, nor go dead where the visible shutter works.
+            isEnabled: manualShutterAllowed,
             action: { event in
                 if event.phase == .ended { triggerCapture() }
             }
@@ -151,7 +240,7 @@ struct CameraView: View {
             guard let selection else { return }
             Task {
                 photoEditorData = try? await selection.loadTransferable(type: Data.self)
-                if photoEditorData == nil { camera.notice = "photoEditor.error.load" }
+                if photoEditorData == nil { camera.showNotice("photoEditor.error.load") }
                 photoSelection = nil
             }
         }
@@ -193,7 +282,9 @@ struct CameraView: View {
         }
         .onChange(of: ai.state) { oldState, state in
             if case .ready(let result, let selected) = state {
-                camera.applyAIPlan(result.plans[selected])
+                if let requestVersion = activeAIRequestVersion {
+                    camera.applyAIPlan(result.plans[selected], requestVersion: requestVersion)
+                }
                 if case .loading = oldState {
                     let latency =
                         aiStartedAt.map {
@@ -213,7 +304,6 @@ struct CameraView: View {
                     }
                 }
             } else {
-                camera.clearAIPlan()
                 if case .failed(let error) = state, aiStartedAt != nil {
                     let latency =
                         aiStartedAt.map {
@@ -227,6 +317,10 @@ struct CameraView: View {
                     )
                     aiStartedAt = nil
                     if error == .quotaExhausted { showsLimit = true }
+                }
+                if case .failed = state, let requestVersion = activeAIRequestVersion {
+                    camera.clearAIPlan(requestVersion: requestVersion)
+                    activeAIRequestVersion = nil
                 }
                 if case .idle = state { aiStartedAt = nil }
             }
@@ -430,7 +524,12 @@ struct CameraView: View {
 
             Spacer()
 
-            if let notice = camera.notice {
+            if let notice = camera.notice,
+                Self.showsStandaloneNotice(
+                    for: camera.guidanceSessionState,
+                    isRecoverableFailureNotice: camera.isRecoverableFailureNotice
+                )
+            {
                 Text(LocalizedStringKey(notice))
                     .font(.subheadline.weight(.medium))
                     .padding(.horizontal, 14)
@@ -439,7 +538,7 @@ struct CameraView: View {
             }
 
             VStack(spacing: 8) {
-                aiResult
+                cameraAssistPresentation
                 filterPicker
 
                 if camera.activeFilter != nil {
@@ -519,7 +618,7 @@ struct CameraView: View {
                         .overlay(Circle().stroke(.white.opacity(0.4), lineWidth: 5).padding(-7))
                 }
                 .accessibilityLabel(Text("camera.shutter"))
-                .disabled(camera.state != .running || camera.isCapturing || countdown != nil)
+                .disabled(!manualShutterAllowed)
 
                 Spacer()
 
@@ -537,7 +636,15 @@ struct CameraView: View {
                     .background(.orange.opacity(0.85), in: Circle())
                 }
                 .accessibilityLabel(Text("ai.analyze"))
-                .disabled(camera.state != .running || settings.onDeviceOnly)
+                .disabled(
+                    !Self.cloudAIActionAllowed(
+                        cameraState: camera.state,
+                        isCapturing: camera.isCapturing,
+                        countdownActive: countdown != nil,
+                        guidanceState: camera.guidanceSessionState,
+                        onDeviceOnly: settings.onDeviceOnly
+                    )
+                )
             }
         }
         .foregroundStyle(.white)
@@ -545,40 +652,78 @@ struct CameraView: View {
     }
 
     @ViewBuilder
-    private var aiResult: some View {
-        switch ai.state {
-        case .idle:
+    private var cameraAssistPresentation: some View {
+        switch Self.assistPresentation(
+            for: camera.guidanceSessionState,
+            guidance: camera.guidance,
+            aiState: ai.state
+        ) {
+        case .hidden, .guidance:
             EmptyView()
-        case .loading:
+        case .analyzing:
             HStack {
                 ProgressView()
                 Text("ai.loading")
                 Spacer()
-                Button("common.cancel", action: ai.cancel)
             }
             .font(.caption.weight(.medium))
             .padding(10)
             .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
-        case .failed(let error):
-            Text(LocalizedStringKey(aiErrorKey(error)))
-                .font(.caption.weight(.medium))
-                .padding(10)
-                .frame(maxWidth: .infinity)
-                .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+        case .capturing:
+            HStack {
+                ProgressView()
+                Spacer()
+            }
+            .font(.caption.weight(.medium))
+            .padding(10)
+            .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+        case .recovery:
+            HStack {
+                Text("common.error")
+                Spacer()
+                Button("camera.error.captureCancelled", action: recoverAssistance)
+            }
+            .font(.caption.weight(.medium))
+            .padding(10)
+            .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+        case .aiLoading:
+            HStack {
+                ProgressView()
+                Text("ai.loading")
+                Spacer()
+                Button("common.cancel", action: cancelAI)
+            }
+            .font(.caption.weight(.medium))
+            .padding(10)
+            .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+        case .aiFailure:
+            if case .failed(let error) = ai.state {
+                Text(LocalizedStringKey(aiErrorKey(error)))
+                    .font(.caption.weight(.medium))
+                    .padding(10)
+                    .frame(maxWidth: .infinity)
+                    .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+            }
+        case .aiCompatibilityControls:
+            aiCompatibilityControls
+        }
+    }
+
+    @ViewBuilder
+    private var aiCompatibilityControls: some View {
+        switch ai.state {
         case .ready(let result, let selected):
             let plan = result.plans[selected]
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text(plan.instruction).font(.subheadline.weight(.semibold))
                     Spacer()
                     Button {
-                        ai.cancel()
+                        cancelAI()
                     } label: {
                         Image(systemName: "xmark")
                     }
                     .accessibilityLabel(Text("common.close"))
                 }
-                Text(plan.pose).font(.caption).foregroundStyle(.white.opacity(0.8))
                 HStack {
                     ForEach(result.plans.indices, id: \.self) { index in
                         Button(aiPlanTitle(index)) {
@@ -611,6 +756,8 @@ struct CameraView: View {
             }
             .padding(12)
             .background(.black.opacity(0.76), in: RoundedRectangle(cornerRadius: 14))
+        case .idle, .loading, .failed:
+            EmptyView()
         }
     }
 
@@ -867,20 +1014,29 @@ struct CameraView: View {
         size.width > size.height ? camera.ratio.value : 1 / camera.ratio.value
     }
 
+    // One eligibility truth for every manual shutter surface: the visible
+    // shutter's disabled state, the hardware/volume button's enabled state and
+    // triggerCapture()'s own guard all read this.
+    private var manualShutterAllowed: Bool {
+        CameraSession.manualCaptureAllowed(
+            state: camera.state,
+            isCapturing: camera.isCapturing,
+            countdownActive: countdown != nil,
+            filterQuotaExhausted: camera.activeFilter != nil
+                && !quota.snapshot.unlimited
+                && !store.isPro
+                && quota.snapshot.filterRemaining < 1,
+            guidanceState: camera.guidanceSessionState
+        )
+    }
+
     private func triggerCapture() {
-        guard countdown == nil, !camera.isCapturing else { return }
-        if camera.activeFilter != nil,
-            !quota.snapshot.unlimited,
-            !store.isPro,
-            quota.snapshot.filterRemaining < 1
-        {
-            showsLimit = true
-            return
-        }
-        autoCapture.cancel()
+        guard manualShutterAllowed else { return }
         if case .ready = ai.state {
             Analytics.record("capture_after_guidance", enabled: settings.analyticsEnabled)
         }
+        autoCapture.cancel()
+        cancelAI()
         guard camera.timer.rawValue > 0 else {
             camera.capture()
             return
@@ -905,10 +1061,21 @@ struct CameraView: View {
             cancelAI()
             return
         }
+        guard Self.cloudAIActionAllowed(
+            cameraState: camera.state,
+            isCapturing: camera.isCapturing,
+            countdownActive: countdown != nil,
+            guidanceState: camera.guidanceSessionState,
+            onDeviceOnly: settings.onDeviceOnly
+        ) else { return }
         if !quota.snapshot.unlimited, !store.isPro, quota.snapshot.aiRemaining < 1 {
             showsLimit = true
             return
         }
+        nextAIRequestVersion &+= 1
+        let requestVersion = nextAIRequestVersion
+        activeAIRequestVersion = requestVersion
+        camera.beginGuidanceAnalysis(requestVersion: requestVersion)
         Analytics.record("ai_tap", enabled: settings.analyticsEnabled)
         aiStartedAt = ProcessInfo.processInfo.systemUptime
         let measurement = camera.measurement
@@ -927,10 +1094,22 @@ struct CameraView: View {
         }
     }
 
+    private func recoverAssistance() {
+        // Retire any retained cloud state first; CameraSession then explicitly
+        // retires the failure notice and starts the fresh local analysis pass.
+        cancelAI()
+        camera.recoverGuidance()
+    }
+
     private func cancelAI() {
+        let requestVersion = activeAIRequestVersion
+        activeAIRequestVersion = nil
         aiPreviewRequestID = nil
         aiStartedAt = nil
         camera.cancelAIPreview()
+        if let requestVersion {
+            camera.clearAIPlan(requestVersion: requestVersion)
+        }
         ai.cancel()
     }
 
